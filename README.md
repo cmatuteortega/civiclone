@@ -20,8 +20,8 @@ peaks, forests, hills, and fog of war drawn as an old paper map.
 love .
 ```
 
-Optional flags: `--seed N` plays the map made from seed N, and `--play` skips
-the title. For checking how it looks, `--shot file.png [--turns N] [--select
+Optional flags: `--seed N` plays the map made from seed N, `--play` skips
+the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
 city]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits.
 
@@ -45,6 +45,11 @@ drawn the same way: light, dark, or dashed.
 | R / M | Builder: farm / mine |
 | T, H, G, Tab, Esc | Research, go to capital, hex grid, next unit, deselect |
 | V | Sound: loud, soft or off |
+
+On a touch screen (LÖVE for Android or iOS; `--touch` lays it out so on a
+desktop) a tap is a left click and a one-finger drag pans. Pinch to zoom, and
+drag with two fingers to pan. Buttons down the right edge do what the keys
+do: zoom in and out, next unit, go to the capital, the hex grid and sound.
 
 ### The rules
 

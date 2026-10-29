@@ -1,7 +1,8 @@
 -- The HUD, on a canvas of its own at a zoom that stays put: the bar along the
 -- top (treasury, science, culture, research, the turn), the latest news, the
 -- selected unit's or city's panel, research, a tooltip for the hex under the
--- pointer, a minimap, and the button that ends the turn.
+-- pointer, a minimap, and the button that ends the turn. On a touch screen,
+-- buttons down the right edge for what only keys and the wheel do.
 
 local D = require "src.defs"
 local H = require "src.hex"
@@ -17,6 +18,9 @@ local floor, max, min = math.floor, math.max, math.min
 local text, rect, button, icon = Draw.text, Draw.rect, Draw.button, Draw.icon
 
 local Hud = {}
+
+-- The touch buttons' width.
+local TOUCH_W = 26
 
 local function me() return S.game.players[1] end
 
@@ -115,7 +119,7 @@ local function cityPanel(c)
     local g = S.game
     local mine = c.owner == 1
     local w = 150
-    local x, y = S.vw - w - 2, 13
+    local x, y = S.vw - w - 2 - (S.touch and TOUCH_W + 2 or 0), 13
     local items = mine and g:buildable(c) or {}
     local h = 62 + (mine and (#items * 10 + 14) or 0)
     h = min(h, S.vh - y - 24)
@@ -280,6 +284,29 @@ local function minimap()
     if fx1 > fx0 and fy1 > fy0 then Draw.frame("w", fx0, fy0, fx1 - fx0 + 1, fy1 - fy0 + 1) end
 end
 
+--- touch -----------------------------------------------------------------------------
+
+-- What the keys and the wheel do, for fingers.
+local function touchButtons()
+    local x, y = S.vw - TOUCH_W - 2, 13
+    local function zoom(step) View.zoom(step, love.graphics.getWidth() / 2, love.graphics.getHeight() / 2) end
+    local list = {
+        { "+", function() zoom(1) end },
+        { "-", function() zoom(-1) end },
+        { "NEXT", function() O.nextUnit(S.selected and S.selected.unit) end },
+        { "HOME", function()
+            local cap = S.game:citiesOf(1)[1]
+            if cap then O.select(cap, true) end
+        end },
+        { "GRID", function() S.grid = not S.grid end, S.grid },
+        { "SOUND", O.cycleSound },
+    }
+    for _, b in ipairs(list) do
+        button(b[1], x, y, TOUCH_W, 13, b[2], { on = b[3] })
+        y = y + 15
+    end
+end
+
 --- the end ---------------------------------------------------------------------------
 
 local function gameOver()
@@ -315,6 +342,7 @@ function Hud.draw(dt)
     if sel and sel.city then cityPanel(sel.city) end
     if not (S.over and not S.over.hidden) then tooltip() end
     minimap()
+    if S.touch and not (S.over and not S.over.hidden) then touchButtons() end
     local label, fn = O.mainAction()
     if label then
         button(label, S.vw - 92, S.vh - 20, 88, 17, fn, { strong = fn ~= nil and true, off = fn == nil })

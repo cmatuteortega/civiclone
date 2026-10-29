@@ -31,7 +31,8 @@ local Audio = require "src.ui.audio"
 
 local floor = math.floor
 
-for _, name in ipairs({ "mousepressed", "mousereleased", "mousemoved", "wheelmoved", "keypressed" }) do
+for _, name in ipairs({ "mousepressed", "mousereleased", "mousemoved", "wheelmoved", "keypressed",
+        "touchpressed", "touchmoved", "touchreleased" }) do
     love[name] = Input[name]
 end
 
@@ -67,9 +68,13 @@ function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     love.graphics.setLineStyle("rough")
     View.fit()
+    local os = love.system.getOS()
+    S.touch = os == "Android" or os == "iOS"
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
+        -- `--touch` lays out the screen as for a phone.
+        if a == "--touch" then S.touch = true end
         -- For checking how it looks: `--shot file.png` takes a picture of the
         -- game a moment after it starts and quits; `--turns n` has the
         -- computer play the player's side for n turns first.
@@ -204,7 +209,12 @@ local function title()
     Draw.text("c", sub, cx - floor(Font.width(sub) / 2), y + 26)
     Draw.button("NEW GAME", cx - 40, y + 40, 80, 14, function() S.newGame() end, { strong = true })
     Draw.button("QUIT", cx - 40, y + 58, 80, 12, function() love.event.quit() end)
-    local help = {
+    local help = S.touch and {
+        "TAP: SELECT, OR SEND THE CHOSEN UNIT THERE",
+        "DRAG: PAN   PINCH: ZOOM",
+        "THE BUTTONS DOWN THE RIGHT: ZOOM, NEXT UNIT,",
+        "CAPITAL, HEX GRID AND SOUND",
+    } or {
         "LEFT CLICK: SELECT   RIGHT CLICK: MOVE OR ATTACK",
         "DRAG OR WASD: PAN   WHEEL: ZOOM   G: GRID   T: RESEARCH",
         "ENTER: NEXT   SHIFT+ENTER: END TURN   SPACE: SKIP",

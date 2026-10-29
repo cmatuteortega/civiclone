@@ -68,17 +68,18 @@ function View.pan(dx, dy)
 end
 
 -- Zooms a step in or out, keeping the board pixel under window pixel
--- (x, y) where it is.
+-- (x, y) where it is. Says whether it changed.
 function View.zoom(step, x, y)
     local w, h = love.graphics.getDimensions()
     local base = max(1, floor(min(w, h) / S.SHORT + 0.5))
     local new = max(-base + 1, min(3, S.zoomStep + step))
-    if new == S.zoomStep then return end
+    if new == S.zoomStep then return false end
     local bi, bj = x / S.zoom + S.camx, y / S.zoom + S.camy
     S.zoomStep = new
     View.fit()
     S.camx, S.camy = bi - x / S.zoom, bj - y / S.zoom
     View.clamp()
+    return true
 end
 
 function View.update(dt)

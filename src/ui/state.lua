@@ -11,6 +11,7 @@ local S = {
     anim = {},          -- per unit id: where it is drawn and how it moves
     effects = {},       -- floating numbers, flashes, the dying
     grid = true,
+    touch = false,      -- a touch screen: the HUD adds buttons for what keys do
     clock = 0,
 }
 

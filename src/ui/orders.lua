@@ -203,6 +203,12 @@ function O.actions(u)
     return out
 end
 
+-- Sound loud, soft or off, said in the news.
+function O.cycleSound()
+    local level = Audio.cycle()
+    if S.mode == "play" then table.insert(S.msgs, 1, { text = "SOUND: " .. level, t = 0 }) end
+end
+
 --- the turn -----------------------------------------------------------------------
 
 -- What the big button says and does now.

@@ -1,6 +1,10 @@
 -- The pointer and the keys. A press on the HUD is the HUD's; on the board a
 -- left click chooses (or, with a unit chosen, sends it where it can go), a
 -- drag pans, a right click sends the chosen unit, the wheel zooms.
+--
+-- A finger is the pointer: LÖVE turns the first one's taps and drags into
+-- left clicks. Two fingers pinch to zoom and drag together to pan, and until
+-- the last of them lifts the pretend pointer is ignored.
 
 local S = require "src.ui.state"
 local View = require "src.ui.view"
@@ -9,7 +13,10 @@ local Draw = require "src.ui.draw"
 local O = require "src.ui.orders"
 local Audio = require "src.ui.audio"
 
-local abs = math.abs
+local abs, log, sqrt = math.abs, math.log, math.sqrt
+
+-- How far apart two fingers must spread (or close) for a step of zoom.
+local PINCH_STEP = log(1.3)
 
 local Input = {}
 
@@ -35,6 +42,7 @@ local function buttonAt(x, y)
 end
 
 function Input.mousepressed(x, y, b)
+    if S.pinched then return end
     point(x, y)
     local btn = buttonAt(S.mouse.x, S.mouse.y)
     if btn then
@@ -60,6 +68,7 @@ function Input.mousepressed(x, y, b)
 end
 
 function Input.mousemoved(x, y)
+    if S.pinched then return end
     point(x, y)
     if S.miniDrag and love.mouse.isDown(1) then S.miniDrag.fn(S.mouse.x, S.mouse.y) return end
     local d = S.drag
@@ -74,6 +83,7 @@ function Input.mousemoved(x, y)
 end
 
 function Input.mousereleased(x, y, b)
+    if S.pinched then return end
     point(x, y)
     S.miniDrag = nil
     local btn = S.pressed
@@ -98,16 +108,67 @@ function Input.wheelmoved(_, dy)
     View.zoom(dy > 0 and 1 or -1, S.mouse.wx, S.mouse.wy)
 end
 
+--- fingers ---------------------------------------------------------------------------
+
+local touches, pinch = {}, nil
+
+-- The two fingers down, apart and between.
+local function pair()
+    local a, b
+    for _, t in pairs(touches) do
+        if not a then a = t elseif not b then b = t end
+    end
+    if not b then return end
+    return sqrt((a.x - b.x) ^ 2 + (a.y - b.y) ^ 2), (a.x + b.x) / 2, (a.y + b.y) / 2
+end
+
+function Input.touchpressed(id, x, y)
+    S.touch = true
+    touches[id] = { x = x, y = y }
+    if S.mode ~= "play" or pinch then return end
+    local d, mx, my = pair()
+    if d then
+        -- The first finger's press, drag or hold on a button ends here.
+        S.drag, S.pressed, S.miniDrag = nil, nil, nil
+        S.pinched = true
+        pinch = { d = math.max(d, 1), mx = mx, my = my }
+    end
+end
+
+function Input.touchmoved(id, x, y)
+    local t = touches[id]
+    if not t then return end
+    t.x, t.y = x, y
+    if not pinch then return end
+    local d, mx, my = pair()
+    if not d then return end
+    View.pan((pinch.mx - mx) / S.zoom, (pinch.my - my) / S.zoom)
+    pinch.mx, pinch.my = mx, my
+    local steps = log(d / pinch.d) / PINCH_STEP
+    if abs(steps) >= 1 then
+        View.zoom(steps > 0 and 1 or -1, mx, my)
+        pinch.d = d
+    end
+end
+
+function Input.touchreleased(id)
+    touches[id] = nil
+    if next(touches) then
+        -- One finger left of two: it neither pans nor zooms, and is not a click.
+        pinch = nil
+        return
+    end
+    pinch, S.pinched = nil, nil
+end
+
+--- keys ------------------------------------------------------------------------------
+
 function Input.keypressed(key)
     if key == "f11" or (key == "return" and (love.keyboard.isDown("lalt", "ralt"))) then
         love.window.setFullscreen(not love.window.getFullscreen(), "desktop")
         return
     end
-    if key == "v" then
-        local level = Audio.cycle()
-        if S.mode == "play" then table.insert(S.msgs, 1, { text = "SOUND: " .. level, t = 0 }) end
-        return
-    end
+    if key == "v" then O.cycleSound() return end
     if S.mode ~= "play" then
         if key == "return" or key == "space" then S.newGame() end
         if key == "escape" then love.event.quit() end
