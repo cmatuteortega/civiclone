@@ -12,7 +12,7 @@ local View = {}
 function View.fit()
     local w, h = love.graphics.getDimensions()
     local base = max(1, floor(min(w, h) / S.SHORT + 0.5))
-    S.uz = max(1, floor(min(w, h) / S.UI_SHORT + 0.5))
+    S.uz = max(1, floor(min(w, h) / (S.phone and S.UI_SHORT_PHONE or S.UI_SHORT) + 0.5))
     S.vw, S.vh = ceil(w / S.uz), ceil(h / S.uz)
     S.ui = love.graphics.newCanvas(S.vw, S.vh)
     S.ui:setFilter("nearest", "nearest")

@@ -67,14 +67,14 @@ end
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     love.graphics.setLineStyle("rough")
-    View.fit()
     local os = love.system.getOS()
-    S.touch = os == "Android" or os == "iOS"
+    S.phone = os == "Android" or os == "iOS"
+    S.touch = S.phone
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
         -- `--touch` lays out the screen as for a phone.
-        if a == "--touch" then S.touch = true end
+        if a == "--touch" then S.touch, S.phone = true, true end
         -- For checking how it looks: `--shot file.png` takes a picture of the
         -- game a moment after it starts and quits; `--turns n` has the
         -- computer play the player's side for n turns first.
@@ -87,6 +87,7 @@ function love.load(args)
             love.event.quit()
         end
     end
+    View.fit()
     -- Pictures are taken in silence.
     if not S.plan then Audio.init() end
 end

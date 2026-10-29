@@ -242,7 +242,9 @@ local function tooltip()
     for _, l in ipairs(lines) do w = max(w, Font.width(l)) end
     local x = floor((S.vw - w) / 2) - 3
     local y = S.vh - 9 * #lines - 4
-    if S.selected then y = y - 0 end
+    -- On a narrow screen it goes up, clear of the unit's panel and the turn's buttons.
+    local sel = S.selected
+    if (sel and sel.unit and x < 172) or x + w + 6 > S.vw - 118 then y = y - 42 end
     rect("o", x, y, w + 6, #lines * 8 + 3)
     for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, x + 3, y + 2 + (k - 1) * 8) end
 end
@@ -341,7 +343,8 @@ function Hud.draw(dt)
     if sel and sel.unit and not sel.unit.dead then unitPanel(sel.unit) end
     if sel and sel.city then cityPanel(sel.city) end
     if not (S.over and not S.over.hidden) then tooltip() end
-    minimap()
+    -- A phone's screen has no room for both the city and the minimap.
+    if not (S.phone and sel and sel.city) then minimap() end
     if S.touch and not (S.over and not S.over.hidden) then touchButtons() end
     local label, fn = O.mainAction()
     if label then
