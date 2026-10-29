@@ -1,0 +1,1026 @@
+-- The rules: the map, the civilizations, their units and cities, and a turn.
+-- Nothing here draws or knows LÖVE, so the tests run it under plain LuaJIT.
+--
+-- The map is cells (src/mapgen.lua), indexed by id = r * cols + c + 1. A cell
+-- holds at most one military unit and one civilian (`mil`, `civ`), and maybe
+-- a city. Each player keeps what it has ever seen (`explored`) and what it
+-- sees now (`visible`).
+--
+-- What the screen wants to show of what happened -- a unit walking, a hit, a
+-- city founded -- is put on `events` for it to take off, and anything worth
+-- telling the player goes on `log`.
+
+local H = require "src.hex"
+local D = require "src.defs"
+local Rng = require "src.rng"
+local Mapgen = require "src.mapgen"
+
+local floor, ceil, max, min, exp = math.floor, math.ceil, math.max, math.min, math.exp
+
+local Game = {}
+Game.__index = Game
+
+--- making one --------------------------------------------------------------------
+
+function Game.new(opts)
+    opts = opts or {}
+    local self = setmetatable({}, Game)
+    self.cols, self.rows = opts.cols or D.COLS, opts.rows or D.ROWS
+    local map = Mapgen.generate(self.cols, self.rows, opts.seed or os.time(), opts.civs or #D.CIVS)
+    self.seed = map.seed
+    self.cells = map.cells
+    self.rng = Rng.new(map.seed + 17)
+    self.mil, self.civ = {}, {}
+    self.units, self.cities = {}, {}
+    self.events, self.log = {}, {}
+    self.turn = 1
+    self.nextId = 1
+    self.players = {}
+    for k = 1, opts.civs or #D.CIVS do
+        local civ = D.CIVS[k]
+        local p = {
+            id = k, civ = civ, name = civ.name, human = k == 1 and not opts.allAI,
+            gold = 10, science = 0, researching = nil, techs = {},
+            explored = {}, visible = {}, cityNames = 0, alive = true, everCity = false,
+        }
+        self.players[k] = p
+        local start = map.starts[k]
+        self:addUnit("settler", k, start.id)
+        self:addUnit("warrior", k, start.id)
+        local near = self:freeNear(start.id, false)
+        if near then self:addUnit("scout", k, near) end
+    end
+    for _, p in ipairs(self.players) do self:look(p) end
+    self.current = 1
+    self:beginTurn(self.players[1])
+    return self
+end
+
+--- cells ---------------------------------------------------------------------------
+
+function Game:cell(c, r)
+    if c < 0 or r < 0 or c >= self.cols or r >= self.rows then return nil end
+    return self.cells[r * self.cols + c + 1]
+end
+
+function Game:neighbours(cell)
+    local out = {}
+    for k = 0, 5 do
+        local n = self:cell(H.step(cell.c, cell.r, k))
+        if n then out[#out + 1] = n end
+    end
+    return out
+end
+
+function Game:within(cell, n)
+    local out = {}
+    for _, p in ipairs(H.range(cell.c, cell.r, n)) do
+        local m = self:cell(p[1], p[2])
+        if m then out[#out + 1] = m end
+    end
+    return out
+end
+
+function Game:dist(a, b) return H.distance(a.c, a.r, b.c, b.r) end
+
+function Game:isWater(cell) return D.TERRAIN[cell.terrain].water end
+
+-- Can a land unit stand here at all?
+function Game:passable(cell)
+    return not self:isWater(cell) and cell.elev ~= "mountain"
+end
+
+-- What it costs to walk into a cell: 1, and one more each for hills and forest.
+function Game:moveCost(cell)
+    if not self:passable(cell) then return nil end
+    return 1 + (cell.elev == "hills" and 1 or 0) + (cell.feature == "forest" and 1 or 0)
+end
+
+-- What a cell yields: food, production, gold. A city's own hex yields at
+-- least 2 food and 1 production.
+function Game:yield(cell)
+    local t, e = D.TERRAIN[cell.terrain], D.ELEV[cell.elev]
+    local f, p, g = t.food + e.food, t.prod + e.prod, t.gold
+    if cell.elev == "mountain" then return 0, 0, 0 end
+    if cell.feature then
+        local ft = D.FEATURE[cell.feature]
+        f, p = f + ft.food, p + ft.prod
+    end
+    if cell.resource then
+        local r = D.RESOURCE[cell.resource]
+        f, p, g = f + r.food, p + r.prod, g + r.gold
+    end
+    if cell.improvement then
+        local i = D.IMPROVEMENT[cell.improvement]
+        f, p = f + i.food, p + i.prod
+    end
+    if cell.city then f, p = max(f, 2), max(p, 1) end
+    return f, p, g
+end
+
+-- The name of what is on a cell, for the screen: "GRASSLAND HILLS FOREST".
+function Game:describe(cell)
+    local parts = {}
+    if cell.elev == "mountain" then
+        parts[1] = "MOUNTAINS"
+    else
+        parts[1] = D.TERRAIN[cell.terrain].name
+        if cell.elev == "hills" then parts[#parts + 1] = "HILLS" end
+    end
+    if cell.feature then parts[#parts + 1] = D.FEATURE[cell.feature].name end
+    if cell.resource then parts[#parts + 1] = D.RESOURCE[cell.resource].name end
+    if cell.improvement then parts[#parts + 1] = D.IMPROVEMENT[cell.improvement].name end
+    return table.concat(parts, " ")
+end
+
+--- events and the log --------------------------------------------------------------
+
+function Game:emit(e) self.events[#self.events + 1] = e end
+
+-- Something to tell player `who` (or everyone, if nil).
+function Game:tell(who, text)
+    self.log[#self.log + 1] = { turn = self.turn, who = who, text = text }
+end
+
+--- units ---------------------------------------------------------------------------
+
+function Game:addUnit(kind, owner, cellId)
+    local def = assert(D.UNITS[kind], kind)
+    local u = { id = self.nextId, kind = kind, def = def, owner = owner, cell = cellId,
+        hp = 100, moves = def.moves, charges = def.charges, trail = { cellId } }
+    self.nextId = self.nextId + 1
+    self.units[#self.units + 1] = u
+    if def.civilian then self.civ[cellId] = u else self.mil[cellId] = u end
+    return u
+end
+
+function Game:removeUnit(u)
+    for k, v in ipairs(self.units) do
+        if v == u then table.remove(self.units, k) break end
+    end
+    if self.mil[u.cell] == u then self.mil[u.cell] = nil end
+    if self.civ[u.cell] == u then self.civ[u.cell] = nil end
+    u.dead = true
+end
+
+function Game:unitsOf(owner)
+    local out = {}
+    for _, u in ipairs(self.units) do if u.owner == owner then out[#out + 1] = u end end
+    return out
+end
+
+-- The slot a unit of this kind takes on a cell.
+function Game:slot(u) return u.def.civilian and self.civ or self.mil end
+
+-- A free cell near `cellId` where a unit of that class can stand, nearest first.
+function Game:freeNear(cellId, civilian)
+    local here = self.cells[cellId]
+    for _, cell in ipairs(self:within(here, 2)) do
+        if cell.id ~= cellId and self:passable(cell) and not (civilian and self.civ or self.mil)[cell.id]
+            and not self:foreignAt(cell, nil) then
+            return cell.id
+        end
+    end
+end
+
+-- Is there anything of another player's on the cell (a unit or a city)?
+-- `owner` nil: anyone at all.
+function Game:foreignAt(cell, owner)
+    local m, c = self.mil[cell.id], self.civ[cell.id]
+    if m and m.owner ~= owner then return m end
+    if c and c.owner ~= owner then return c end
+    if cell.city and cell.city.owner ~= owner then return cell.city end
+end
+
+-- Can unit u stop on this cell?
+function Game:canStand(u, cell)
+    if not self:passable(cell) then return false end
+    if self:slot(u)[cell.id] and self:slot(u)[cell.id] ~= u then return false end
+    if self:foreignAt(cell, u.owner) then return false end
+    return true
+end
+
+-- Can unit u walk through this cell on its way somewhere? Its own side's
+-- units do not stop it; anyone else's do.
+function Game:canPass(u, cell)
+    if not self:passable(cell) then return false end
+    if self:foreignAt(cell, u.owner) then return false end
+    return true
+end
+
+-- Every cell unit u can reach this turn, and the moves it would have left
+-- there: { [cellId] = { left, from } }. A unit with all its moves can always
+-- take one step, whatever it costs; after that a step needs the moves for it.
+function Game:reach(u)
+    local best = { [u.cell] = { left = u.moves } }
+    local open = { self.cells[u.cell] }
+    while #open > 0 do
+        -- The cell with the most moves left first.
+        local bi = 1
+        for k = 2, #open do
+            if best[open[k].id].left > best[open[bi].id].left then bi = k end
+        end
+        local cell = table.remove(open, bi)
+        local left = best[cell.id].left
+        if left > 0 then
+            for _, n in ipairs(self:neighbours(cell)) do
+                local cost = self:moveCost(n)
+                if cost and self:canPass(u, n) and (left >= cost or left == u.def.moves) then
+                    local l = max(0, left - cost)
+                    if not best[n.id] or best[n.id].left < l then
+                        best[n.id] = { left = l, from = cell.id }
+                        open[#open + 1] = n
+                    end
+                end
+            end
+        end
+    end
+    -- Only where it could stop.
+    for id in pairs(best) do
+        if id ~= u.cell and not self:canStand(u, self.cells[id]) then best[id].through = true end
+    end
+    return best
+end
+
+-- The cheapest way for u from its cell to `goal` (a list of cell ids, not
+-- counting where it stands), or nil. `toAttack`: the goal may hold an enemy,
+-- and the path ends next to it.
+function Game:path(u, goal, toAttack)
+    local start = u.cell
+    if start == goal then return {} end
+    local g = self.cells[goal]
+    local cost, from = { [start] = 0 }, {}
+    local open = { start }
+    local function h(id) local c = self.cells[id] return H.distance(c.c, c.r, g.c, g.r) end
+    while #open > 0 do
+        local bi, bv = 1, math.huge
+        for k, id in ipairs(open) do
+            local v = cost[id] + h(id)
+            if v < bv then bi, bv = k, v end
+        end
+        local id = table.remove(open, bi)
+        if id == goal then break end
+        local cell = self.cells[id]
+        for _, n in ipairs(self:neighbours(cell)) do
+            local step = self:moveCost(n)
+            local ok = step and self:canPass(u, n)
+            if n.id == goal then
+                ok = step and (toAttack or self:canStand(u, n))
+            end
+            if ok then
+                -- Through a hex one of ours holds only if there is no other
+                -- way: a unit cannot stop there if its moves run out.
+                local c = cost[id] + step + ((n.id ~= goal and not self:canStand(u, n)) and 1.5 or 0)
+                if not cost[n.id] or c < cost[n.id] then
+                    if not cost[n.id] then open[#open + 1] = n.id end
+                    cost[n.id], from[n.id] = c, id
+                end
+            end
+        end
+    end
+    if not cost[goal] then return nil end
+    local out, id = {}, goal
+    while id ~= start do
+        table.insert(out, 1, id)
+        id = from[id]
+    end
+    if toAttack then out[#out] = nil end
+    return out
+end
+
+-- Moves u one step to a neighbouring cell, if it can. Answers whether it did.
+function Game:step(u, toId)
+    local to = self.cells[toId]
+    local cost = self:moveCost(to)
+    if not cost or u.moves <= 0 then return false end
+    if not (u.moves >= cost or u.moves == u.def.moves) then return false end
+    if not self:canPass(u, to) then return false end
+    local slot = self:slot(u)
+    if slot[u.cell] == u then slot[u.cell] = nil end
+    u.cell = toId
+    u.moves = max(0, u.moves - cost)
+    u.fortified, u.acted = false, true
+    u.trail[#u.trail + 1] = toId
+    -- Stepping through a cell another of ours holds: pass on, but come back
+    -- into the slot if it ends here and the slot is free.
+    if not slot[toId] then slot[toId] = u end
+    -- A military unit walking onto an enemy civilian takes it.
+    local c = self.civ[toId]
+    if not u.def.civilian and c and c.owner ~= u.owner then self:capture(u, c) end
+    self:look(self.players[u.owner])
+    return true
+end
+
+-- Puts u on a neighbouring cell whatever it costs, with nothing left to move:
+-- a melee unit taking the hex or the city it has just won.
+function Game:relocate(u, toId)
+    local slot = self:slot(u)
+    if slot[u.cell] == u then slot[u.cell] = nil end
+    u.cell = toId
+    slot[toId] = u
+    u.moves, u.fortified, u.acted = 0, false, true
+    u.trail[#u.trail + 1] = toId
+    local c = self.civ[toId]
+    if not u.def.civilian and c and c.owner ~= u.owner then self:capture(u, c) end
+    self:look(self.players[u.owner])
+end
+
+-- Walks u along a path as far as its moves go this turn, never stopping on a
+-- cell it cannot stand on. What is left is kept as u.dest for next turn.
+function Game:walk(u, path)
+    local k = 1
+    while k <= #path do
+        local id = path[k]
+        -- Do not walk into a cell we could not stop in unless the moves after
+        -- it carry us on.
+        local cell = self.cells[id]
+        if not self:canStand(u, cell) then
+            local cost = self:moveCost(cell)
+            local nextId = path[k + 1]
+            local nextCost = nextId and self:moveCost(self.cells[nextId])
+            if not cost or not nextCost or u.moves - cost < nextCost then break end
+        end
+        if not self:step(u, id) then break end
+        k = k + 1
+    end
+    if self:slot(u)[u.cell] ~= u then
+        -- Stopped where another of ours stands (it should not happen): stay.
+        self:slot(u)[u.cell] = self:slot(u)[u.cell] or u
+    end
+    local rest = {}
+    for n = k, #path do rest[#rest + 1] = path[n] end
+    u.dest = #rest > 0 and path[#path] or nil
+    return k > 1
+end
+
+-- An order to go to `goal`: moves now, and on in later turns.
+function Game:moveTo(u, goal)
+    local p = self:path(u, goal)
+    if not p then return false end
+    u.sleep = false
+    return self:walk(u, p)
+end
+
+function Game:capture(by, u)
+    local cell = u.cell
+    self:removeUnit(u)
+    self:tell(u.owner, "A " .. u.def.name .. " WAS CAPTURED")
+    if u.kind == "settler" or u.kind == "builder" then
+        local taken = self:addUnit("builder", by.owner, cell)
+        taken.moves = 0
+        self:tell(by.owner, "CAPTURED A " .. u.def.name)
+    end
+    self:emit({ kind = "capture", cell = cell })
+end
+
+--- combat --------------------------------------------------------------------------
+
+-- How strong a unit stands defending its cell.
+function Game:defense(u)
+    local cell = self.cells[u.cell]
+    local s = u.def.str - floor((100 - u.hp) / 10)
+    s = s + D.ELEV[cell.elev].defense + (cell.feature and D.FEATURE[cell.feature].defense or 0)
+    if u.fortified then s = s + D.COMBAT.fortify end
+    return s
+end
+
+function Game:attackStrength(u, ranged)
+    local base = ranged and u.def.ranged or u.def.str
+    return base - floor((100 - u.hp) / 10)
+end
+
+function Game:cityStrength(city)
+    local s = D.CITY.str + city.pop * 2
+    local g = self.mil[city.cell]
+    if g and g.owner == city.owner then s = max(s, g.def.str + 2) end
+    if city.buildings.walls then s = s + D.BUILDINGS.walls.defense end
+    return s
+end
+
+local function damage(rng, a, d)
+    local luck = 0.8 + rng:random() * 0.4
+    return max(1, floor(D.COMBAT.base * exp((a - d) / D.COMBAT.scale) * luck + 0.5))
+end
+
+-- What u could hit from where it stands: the cell has an enemy and is in reach.
+function Game:canAttack(u, cell)
+    if u.def.civilian or u.moves <= 0 or u.attacked then return false end
+    local target = self:foreignAt(cell, u.owner)
+    if not target then return false end
+    local d = self:dist(self.cells[u.cell], cell)
+    -- A shot needs a soldier or a city to aim at; a civilian is only taken.
+    if u.def.ranged then
+        local m = self.mil[cell.id]
+        return d <= u.def.range and ((m and m.owner ~= u.owner) or (cell.city and cell.city.owner ~= u.owner)) and true or false
+    end
+    return d == 1 and self:passable(cell)
+end
+
+-- What an attack would do: damage dealt, damage taken (a guess, no luck).
+function Game:forecast(u, cell)
+    local city = cell.city and cell.city.owner ~= u.owner and cell.city
+    local a = self:attackStrength(u, u.def.ranged)
+    local d
+    if city then d = self:cityStrength(city)
+    else
+        local t = self.mil[cell.id]
+        if not t or t.owner == u.owner then return 100, 0 end
+        d = self:defense(t)
+    end
+    local dealt = floor(D.COMBAT.base * exp((a - d) / D.COMBAT.scale) + 0.5)
+    local taken = u.def.ranged and 0 or floor(D.COMBAT.base * exp((d - a) / D.COMBAT.scale) + 0.5)
+    return dealt, taken
+end
+
+-- u attacks whatever is on `cell`. A melee attacker that kills moves in; one
+-- that brings a city to nothing takes it.
+function Game:attack(u, cell)
+    if not self:canAttack(u, cell) then return false end
+    local from = self.cells[u.cell]
+    local ranged = u.def.ranged ~= nil
+    local a = self:attackStrength(u, ranged)
+    local city = cell.city and cell.city.owner ~= u.owner and cell.city
+    local target = self.mil[cell.id]
+    if target and target.owner == u.owner then target = nil end
+    u.moves, u.attacked, u.fortified, u.acted = 0, true, false, true
+    self:emit({ kind = "attack", unit = u, from = from.id, to = cell.id, ranged = ranged })
+
+    if city then
+        local d = self:cityStrength(city)
+        local dealt = damage(self.rng, a, d)
+        city.hp = city.hp - dealt
+        self:emit({ kind = "hit", cell = cell.id, amount = dealt })
+        if not ranged then
+            local taken = damage(self.rng, d, a)
+            u.hp = u.hp - taken
+            self:emit({ kind = "hit", cell = from.id, amount = taken, unit = u })
+        end
+        if u.hp <= 0 then
+            self:kill(u, city.owner)
+        elseif city.hp <= 0 then
+            city.hp = 0
+            if not ranged then self:conquer(u, city) end
+        end
+        return true
+    end
+
+    if not target then
+        -- Only a civilian there: a melee attacker just walks in and takes it.
+        if not ranged and self.civ[cell.id] then self:relocate(u, cell.id) end
+        return true
+    end
+    local d = self:defense(target)
+    local dealt = damage(self.rng, a, d)
+    target.hp = target.hp - dealt
+    target.fortified = false
+    self:emit({ kind = "hit", cell = cell.id, amount = dealt, unit = target })
+    if not ranged then
+        local taken = damage(self.rng, d, a)
+        u.hp = u.hp - taken
+        self:emit({ kind = "hit", cell = from.id, amount = taken, unit = u })
+    end
+    if target.hp <= 0 then self:kill(target, u.owner) end
+    if u.hp <= 0 then
+        self:kill(u, target.owner)
+    elseif target.hp <= 0 and not ranged then
+        -- Into the hex it won.
+        self:relocate(u, cell.id)
+    end
+    return true
+end
+
+function Game:kill(u, by)
+    self:removeUnit(u)
+    self:emit({ kind = "death", cell = u.cell, unit = u })
+    self:tell(u.owner, "OUR " .. u.def.name .. " WAS KILLED")
+    if by then self:tell(by, "ENEMY " .. u.def.name .. " DESTROYED") end
+    self:checkAlive(self.players[u.owner])
+end
+
+--- cities --------------------------------------------------------------------------
+
+-- Can unit u found a city where it stands?
+function Game:canFound(u)
+    if u.kind ~= "settler" or u.moves <= 0 then return false end
+    local cell = self.cells[u.cell]
+    if not self:passable(cell) or cell.city then return false end
+    if cell.owner and cell.owner ~= u.owner then return false end
+    for _, c in ipairs(self.cities) do
+        if self:dist(self.cells[c.cell], cell) < 4 then return false end
+    end
+    return true
+end
+
+function Game:found(u)
+    if not self:canFound(u) then return false end
+    local p = self.players[u.owner]
+    local cell = self.cells[u.cell]
+    p.cityNames = p.cityNames + 1
+    local name = p.civ.cities[p.cityNames] or (p.name .. " " .. p.cityNames)
+    local city = {
+        id = self.nextId, name = name, owner = u.owner, cell = cell.id, pop = 1, food = 0, prod = 0,
+        culture = 0, claimed = 0, hp = D.CITY.hp, buildings = {}, worked = {},
+        capital = not p.everCity, founder = u.owner, founded = self.turn,
+    }
+    self.nextId = self.nextId + 1
+    self:removeUnit(u)
+    cell.city = city
+    -- A city clears the forest it is built in, and levels its hills.
+    cell.feature = nil
+    self:emit({ kind = "terrain", cell = cell.id })
+    cell.improvement = nil
+    self.cities[#self.cities + 1] = city
+    p.everCity = true
+    for _, n in ipairs(self:within(cell, D.CITY.claimRadius)) do
+        if not n.owner then n.owner, n.ownerCity = u.owner, city end
+    end
+    cell.owner, cell.ownerCity = u.owner, city
+    self:assignWork(city)
+    self:look(p)
+    self:emit({ kind = "found", cell = cell.id, city = city })
+    self:tell(u.owner, name .. " WAS FOUNDED")
+    return city
+end
+
+function Game:citiesOf(owner)
+    local out = {}
+    for _, c in ipairs(self.cities) do if c.owner == owner then out[#out + 1] = c end end
+    return out
+end
+
+function Game:maxHp(city) return D.CITY.hp + (city.buildings.walls and D.BUILDINGS.walls.hp or 0) end
+
+-- Food a city needs stored to grow: Civilization VI's 15 + 8n + n^1.5.
+function Game:growthNeed(city)
+    local n = city.pop - 1
+    return floor(15 + 8 * n + n ^ 1.5)
+end
+
+-- Picks the hexes a city's citizens work: the best of its own within reach,
+-- food first.
+function Game:assignWork(city)
+    for _, id in ipairs(city.worked) do
+        if self.cells[id].workedBy == city then self.cells[id].workedBy = nil end
+    end
+    city.worked = {}
+    local home = self.cells[city.cell]
+    local choices = {}
+    for _, cell in ipairs(self:within(home, D.CITY.workRadius)) do
+        if cell.owner == city.owner and not cell.city and not cell.workedBy and cell.elev ~= "mountain" then
+            local f, p, g = self:yield(cell)
+            choices[#choices + 1] = { cell = cell, v = f * 2.2 + p * 2 + g + self.rng:random() * 0.01 }
+        end
+    end
+    table.sort(choices, function(a, b) return a.v > b.v end)
+    for k = 1, min(city.pop, #choices) do
+        local cell = choices[k].cell
+        cell.workedBy = city
+        city.worked[#city.worked + 1] = cell.id
+    end
+end
+
+-- What a city makes in a turn: food, production, gold, science, culture.
+function Game:cityYield(city)
+    local f, p, g = self:yield(self.cells[city.cell])
+    for _, id in ipairs(city.worked) do
+        local a, b, c = self:yield(self.cells[id])
+        f, p, g = f + a, p + b, g + c
+    end
+    local sci, cul = city.pop * 0.5, 1 + floor(city.pop / 3)
+    if city.capital and city.owner == city.founder then
+        local pal = D.CITY.palace
+        f, p, g, sci, cul = f + pal.food, p + pal.prod, g + pal.gold, sci + pal.science, cul + pal.culture
+    end
+    for b in pairs(city.buildings) do
+        local def = D.BUILDINGS[b]
+        f, p, g = f + (def.food or 0), p + (def.prod or 0), g + (def.gold or 0)
+        sci, cul = sci + (def.science or 0), cul + (def.culture or 0)
+    end
+    return f, p, g, sci, cul
+end
+
+-- Can this player build `kind` ("unit" or "building", id) in this city?
+function Game:canBuild(city, kind, id)
+    local p = self.players[city.owner]
+    local def = kind == "unit" and D.UNITS[id] or D.BUILDINGS[id]
+    if not def then return false end
+    if def.tech and not p.techs[def.tech] then return false end
+    if kind == "building" and city.buildings[id] then return false end
+    return true
+end
+
+-- Everything the city could build now, units then buildings, in order.
+function Game:buildable(city)
+    local out = {}
+    for _, kind in ipairs({ "unit", "building" }) do
+        local list = {}
+        for id, def in pairs(kind == "unit" and D.UNITS or D.BUILDINGS) do
+            if self:canBuild(city, kind, id) then list[#list + 1] = { kind = kind, id = id, def = def } end
+        end
+        table.sort(list, function(a, b) return a.def.order < b.def.order end)
+        for _, it in ipairs(list) do out[#out + 1] = it end
+    end
+    return out
+end
+
+function Game:setBuild(city, kind, id)
+    if not self:canBuild(city, kind, id) then return false end
+    city.build = { kind = kind, id = id }
+    return true
+end
+
+-- Turns until done at the city's present rate, from `progress` made (what
+-- it has made so far, by default).
+function Game:turnsFor(city, cost, progress)
+    local _, p = self:cityYield(city)
+    return max(1, ceil((cost - (progress or city.prod)) / max(1, p)))
+end
+
+function Game:buyCost(city)
+    if not city.build then return nil end
+    local def = city.build.kind == "unit" and D.UNITS[city.build.id] or D.BUILDINGS[city.build.id]
+    return ceil(max(0, def.cost - city.prod) * 2.5) + 5
+end
+
+function Game:buy(city)
+    local cost = self:buyCost(city)
+    local p = self.players[city.owner]
+    if not cost or p.gold < cost or city.bought then return false end
+    local def = city.build.kind == "unit" and D.UNITS[city.build.id] or D.BUILDINGS[city.build.id]
+    if city.build.kind == "unit" and not self:placeFor(city, def) then return false end
+    if def.pop and city.pop <= def.pop then return false end
+    p.gold = p.gold - cost
+    city.prod = def.cost
+    city.bought = true
+    self:complete(city)
+    return true
+end
+
+-- Where a new unit of this kind can come out: the city's hex, or next to it.
+function Game:placeFor(city, def)
+    local slot = def.civilian and self.civ or self.mil
+    if not slot[city.cell] then return city.cell end
+    return self:freeNear(city.cell, def.civilian)
+end
+
+-- Finishes what the city is building, if it can: answers whether it did.
+function Game:complete(city)
+    local b = city.build
+    if b.kind == "unit" then
+        local def = D.UNITS[b.id]
+        if def.pop and city.pop <= def.pop then return false end
+        local at = self:placeFor(city, def)
+        if not at then return false end
+        local u = self:addUnit(b.id, city.owner, at)
+        u.moves = 0
+        if def.pop then
+            city.pop = city.pop - def.pop
+            city.food = 0
+            self:assignWork(city)
+        end
+        self:tell(city.owner, city.name .. " TRAINED A " .. def.name)
+        self:emit({ kind = "built", cell = city.cell, unit = u })
+    else
+        city.buildings[b.id] = true
+        if b.id == "walls" then city.hp = self:maxHp(city) end
+        self:tell(city.owner, city.name .. " BUILT A " .. D.BUILDINGS[b.id].name)
+        self:emit({ kind = "built", cell = city.cell })
+    end
+    local def = b.kind == "unit" and D.UNITS[b.id] or D.BUILDINGS[b.id]
+    city.prod = max(0, city.prod - def.cost)
+    city.build = nil
+    return true
+end
+
+-- Culture spills over into new hexes: the best unowned hex next to the city's
+-- land, within its reach.
+function Game:growBorder(city)
+    local home = self.cells[city.cell]
+    local best, bv
+    for _, cell in ipairs(self:within(home, D.CITY.workRadius)) do
+        if not cell.owner then
+            local touches = false
+            for _, n in ipairs(self:neighbours(cell)) do
+                if n.owner == city.owner and n.ownerCity == city then touches = true end
+            end
+            if touches then
+                local f, p, g = self:yield(cell)
+                local v = f * 2 + p * 2 + g + (cell.resource and 2 or 0) - self:dist(home, cell) * 1.5
+                if not bv or v > bv then best, bv = cell, v end
+            end
+        end
+    end
+    if best then
+        best.owner, best.ownerCity = city.owner, city
+        city.claimed = city.claimed + 1
+        self:emit({ kind = "border", cell = best.id })
+        return true
+    end
+end
+
+function Game:borderNeed(city)
+    return floor(D.CITY.borderCost + 6 * city.claimed ^ 1.3)
+end
+
+-- A city with walls shoots the weakest enemy in reach.
+function Game:cityStrike(city)
+    if not city.buildings.walls or city.hp <= 0 then return end
+    local home = self.cells[city.cell]
+    local best
+    for _, cell in ipairs(self:within(home, D.CITY.rangedRange)) do
+        local u = self.mil[cell.id] or self.civ[cell.id]
+        if u and u.owner ~= city.owner and (not best or u.hp < best.hp) then best = u end
+    end
+    if not best then return end
+    local dealt = damage(self.rng, self:cityStrength(city), self:defense(best))
+    best.hp = best.hp - dealt
+    self:emit({ kind = "attack", from = city.cell, to = best.cell, ranged = true, city = city })
+    self:emit({ kind = "hit", cell = best.cell, amount = dealt, unit = best })
+    if best.hp <= 0 then self:kill(best, city.owner) end
+end
+
+-- A melee unit walks into a city with nothing left: it changes hands.
+function Game:conquer(u, city)
+    local old = city.owner
+    local cell = self.cells[city.cell]
+    -- Whatever of theirs was inside is lost with it.
+    for _, slot in ipairs({ self.mil, self.civ }) do
+        local v = slot[cell.id]
+        if v and v.owner ~= u.owner then self:removeUnit(v) end
+    end
+    city.owner = u.owner
+    city.pop = max(1, city.pop - 1)
+    city.hp = 50
+    city.build, city.prod = nil, 0
+    city.buildings.walls = nil
+    for _, n in ipairs(self.cells) do
+        if n.ownerCity == city then n.owner = u.owner end
+    end
+    self:relocate(u, cell.id)
+    self:assignWork(city)
+    self:emit({ kind = "conquer", cell = cell.id, city = city })
+    self:tell(old, city.name .. " HAS FALLEN TO " .. self.players[u.owner].name)
+    self:tell(u.owner, "WE HAVE TAKEN " .. city.name)
+    self:checkAlive(self.players[old])
+end
+
+-- A player with no cities left and no settler to found one is out.
+function Game:checkAlive(p)
+    if not p.alive then return end
+    if #self:citiesOf(p.id) > 0 then return end
+    for _, u in ipairs(self.units) do
+        if u.owner == p.id and u.kind == "settler" then return end
+    end
+    if not p.everCity and self.turn < 5 then return end
+    p.alive = false
+    for _, u in ipairs(self:unitsOf(p.id)) do self:removeUnit(u) end
+    self:tell(nil, p.name .. " HAS BEEN DESTROYED")
+    self:emit({ kind = "eliminated", player = p.id })
+end
+
+--- science -------------------------------------------------------------------------
+
+function Game:canResearch(p, id)
+    local t = D.TECH[id]
+    if not t or p.techs[id] then return false end
+    for _, need in ipairs(t.needs) do if not p.techs[need] then return false end end
+    return true
+end
+
+function Game:researchable(p)
+    local out = {}
+    for _, t in ipairs(D.TECHS) do
+        if self:canResearch(p, t.id) then out[#out + 1] = t end
+    end
+    return out
+end
+
+--- sight ---------------------------------------------------------------------------
+
+-- What a player sees now: round its units and cities, and all its land.
+function Game:look(p)
+    local vis = {}
+    local function see(cell, n)
+        for _, m in ipairs(self:within(cell, n)) do vis[m.id] = true end
+    end
+    for _, u in ipairs(self.units) do
+        if u.owner == p.id then
+            local cell = self.cells[u.cell]
+            see(cell, u.def.sight + (cell.elev == "hills" and 1 or 0))
+        end
+    end
+    for _, c in ipairs(self.cities) do
+        if c.owner == p.id then see(self.cells[c.cell], 2) end
+    end
+    for _, cell in ipairs(self.cells) do
+        if cell.owner == p.id then vis[cell.id] = true end
+    end
+    local changed = false
+    for id in pairs(vis) do
+        if not p.explored[id] then p.explored[id] = true changed = true end
+        if not p.visible[id] then changed = true end
+    end
+    for id in pairs(p.visible) do if not vis[id] then changed = true end end
+    p.visible = vis
+    if changed then p.sightChanged = true end
+end
+
+--- turns ---------------------------------------------------------------------------
+
+-- The start of a player's turn: moves back, the wounded heal, orders to go
+-- somewhere carried on.
+function Game:beginTurn(p)
+    for _, u in ipairs(self:unitsOf(p.id)) do
+        if not u.acted and u.hp < 100 then
+            local cell = self.cells[u.cell]
+            local heal = D.COMBAT.healField
+            if cell.owner == p.id then heal = D.COMBAT.healHome end
+            if cell.city and cell.city.owner == p.id then heal = D.COMBAT.healCity end
+            u.hp = min(100, u.hp + heal)
+        end
+        u.moves, u.acted, u.attacked, u.skipped = u.def.moves, false, false, false
+        u.trail = { u.cell }
+    end
+    for _, u in ipairs(self:unitsOf(p.id)) do
+        if u.dest and not u.dead then
+            if u.dest == u.cell then u.dest = nil
+            elseif not self:moveTo(u, u.dest) then u.dest = nil end
+        end
+    end
+    for _, c in ipairs(self:citiesOf(p.id)) do c.bought = false end
+end
+
+-- The end of a player's turn: its cities grow and build, its science and
+-- gold come in, its walls shoot.
+function Game:finishTurn(p)
+    local sci, gold = 0, 0
+    for _, city in ipairs(self:citiesOf(p.id)) do
+        self:assignWork(city)
+        local f, pr, g, s, cu = self:cityYield(city)
+        sci, gold = sci + s, gold + g
+        -- Food: two a citizen; the rest stored towards the next.
+        city.food = city.food + f - city.pop * 2
+        if city.food >= self:growthNeed(city) then
+            city.food = city.food - self:growthNeed(city)
+            city.pop = city.pop + 1
+            self:assignWork(city)
+            self:tell(p.id, city.name .. " HAS GROWN TO " .. city.pop)
+        elseif city.food < 0 then
+            if city.pop > 1 then
+                city.pop = city.pop - 1
+                self:assignWork(city)
+                self:tell(p.id, city.name .. " IS STARVING")
+            end
+            city.food = 0
+        end
+        if city.build then
+            city.prod = city.prod + pr
+            local def = city.build.kind == "unit" and D.UNITS[city.build.id] or D.BUILDINGS[city.build.id]
+            if city.prod >= def.cost then self:complete(city) end
+        end
+        city.culture = city.culture + cu
+        if city.culture >= self:borderNeed(city) then
+            city.culture = city.culture - self:borderNeed(city)
+            self:growBorder(city)
+        end
+        city.hp = min(self:maxHp(city), city.hp + D.CITY.heal)
+        self:cityStrike(city)
+    end
+    -- Upkeep: a unit beyond the free ones costs one gold.
+    local units = #self:unitsOf(p.id)
+    local cities = #self:citiesOf(p.id)
+    gold = gold - max(0, units - (2 + cities))
+    p.gold = max(0, p.gold + gold)
+    p.lastGold, p.lastScience = gold, sci
+    if p.researching then
+        p.science = p.science + sci
+        local t = D.TECH[p.researching]
+        if p.science >= t.cost then
+            p.science = p.science - t.cost
+            p.techs[t.id] = true
+            p.researching = nil
+            self:tell(p.id, "WE HAVE LEARNED " .. t.name)
+            self:emit({ kind = "tech", player = p.id, tech = t.id })
+        end
+    else
+        -- Science made with nothing chosen is kept for the next one.
+        p.science = p.science + sci
+    end
+    self:look(p)
+end
+
+-- The per-turn figures for the top bar: gold, science, culture.
+function Game:income(p)
+    local sci, gold, cul = 0, 0, 0
+    for _, city in ipairs(self:citiesOf(p.id)) do
+        local _, _, g, s, c = self:cityYield(city)
+        sci, gold, cul = sci + s, gold + g, cul + c
+    end
+    local units = #self:unitsOf(p.id)
+    gold = gold - max(0, units - (2 + #self:citiesOf(p.id)))
+    return gold, sci, cul
+end
+
+function Game:score(p)
+    local s = 0
+    for _, c in ipairs(self:citiesOf(p.id)) do s = s + 5 + c.pop * 2 end
+    for _ in pairs(p.techs) do s = s + 4 end
+    for _ in pairs(p.explored) do s = s + 0.05 end
+    return floor(s)
+end
+
+-- How the game stands for the human: nil while it goes on, or "won" / "lost"
+-- and why.
+function Game:outcome()
+    local me = self.players[1]
+    if not me.alive then return "lost", "YOUR CIVILIZATION HAS FALLEN" end
+    local rivals = 0
+    for k = 2, #self.players do if self.players[k].alive then rivals = rivals + 1 end end
+    if rivals == 0 then return "won", "DOMINATION VICTORY" end
+    -- Holding every capital also wins.
+    local capitals, held = 0, 0
+    for _, c in ipairs(self.cities) do
+        if c.capital then
+            capitals = capitals + 1
+            if c.owner == 1 then held = held + 1 end
+        end
+    end
+    if capitals >= #self.players and held == capitals then return "won", "DOMINATION VICTORY" end
+    if self.turn > D.LAST_TURN then
+        local mine, best = self:score(me), 0
+        for k = 2, #self.players do best = max(best, self:score(self.players[k])) end
+        if mine >= best then return "won", "SCORE VICTORY" end
+        return "lost", "TIME HAS RUN OUT"
+    end
+end
+
+-- The human ends their turn: they finish, every other civilization plays,
+-- and the next turn begins. `ai` is the module that plays them.
+function Game:endTurn(ai)
+    local me = self.players[1]
+    self:finishTurn(me)
+    for k = 2, #self.players do
+        local p = self.players[k]
+        if p.alive then
+            self.current = k
+            self:beginTurn(p)
+            if ai then ai.play(self, p) end
+            self:finishTurn(p)
+        end
+    end
+    self.current = 1
+    self.turn = self.turn + 1
+    for _, p in ipairs(self.players) do self:checkAlive(p) end
+    self:beginTurn(me)
+    self:look(me)
+end
+
+-- The first of the player's units still wanting orders, after `after`.
+function Game:idleUnit(owner, after)
+    local list = self:unitsOf(owner)
+    local start = 0
+    for k, u in ipairs(list) do if u == after then start = k end end
+    for n = 1, #list do
+        local u = list[(start + n - 1) % #list + 1]
+        if u.moves > 0 and not u.fortified and not u.sleep and not u.dest and not u.skipped then return u end
+    end
+end
+
+-- A city of this player that has nothing to build.
+function Game:idleCity(owner)
+    for _, c in ipairs(self:citiesOf(owner)) do
+        if not c.build then return c end
+    end
+end
+
+-- Things a builder can make on its cell.
+function Game:improvementsFor(u)
+    if u.kind ~= "builder" or u.moves <= 0 then return {} end
+    local cell = self.cells[u.cell]
+    if cell.owner ~= u.owner or cell.city or self:isWater(cell) or cell.elev == "mountain" then return {} end
+    local p = self.players[u.owner]
+    local out = {}
+    if cell.improvement ~= "farm" and cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert" then
+        out[#out + 1] = "farm"
+    end
+    if cell.improvement ~= "mine" and (cell.elev == "hills" or cell.resource == "stone" or cell.resource == "gems")
+        and p.techs.mining then
+        out[#out + 1] = "mine"
+    end
+    return out
+end
+
+function Game:improve(u, what)
+    local ok = false
+    for _, k in ipairs(self:improvementsFor(u)) do if k == what then ok = true end end
+    if not ok then return false end
+    local cell = self.cells[u.cell]
+    cell.improvement = what
+    u.moves, u.acted = 0, true
+    u.charges = u.charges - 1
+    self:emit({ kind = "improve", cell = cell.id })
+    if u.charges <= 0 then self:removeUnit(u) end
+    return true
+end
+
+return Game
