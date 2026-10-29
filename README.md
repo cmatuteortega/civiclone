@@ -1,4 +1,4 @@
-# Civiclone
+# Sepia
 
 A small Civilization VI–style strategy game for [LÖVE](https://love2d.org) 11,
 drawn in eight shades of sepia and nothing else:
@@ -27,7 +27,7 @@ LÖVE's save folder, and quits.
 
 ## Builds
 
-Every push builds the game as **Sepia**, with a city among a few hexes of the
+Every push builds the game, with a city among a few hexes of the
 map as its icon (`assets/icon/icon.png`): an Android APK
 (`.github/workflows/android.yml`, on LÖVE 12 for Android) and Windows, macOS
 and Linux apps plus a bare `.love` (`.github/workflows/desktop.yml`, on LÖVE

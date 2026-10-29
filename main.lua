@@ -1,4 +1,4 @@
--- Civiclone: a small Civilization in eight shades of sepia.
+-- Sepia: a small Civilization in eight shades of sepia.
 --
 -- A hex map traced once into a picture with a depth buffer behind it
 -- (src/world.lua), by underroot's 3D method (src/tracer.lua): hexes standing
@@ -206,8 +206,8 @@ local function title()
     local y = floor(S.vh / 2) - 56
     Draw.rect("o", cx - 130, y - 10, 260, 124)
     Draw.frame("k", cx - 128, y - 8, 256, 120)
-    bigText("o", "CIVICLONE", cx + 1, y + 1, 4)
-    bigText("w", "CIVICLONE", cx, y, 4)
+    bigText("o", "SEPIA", cx + 1, y + 1, 4)
+    bigText("w", "SEPIA", cx, y, 4)
     local sub = "BUILD AN EMPIRE ON A MAP OF SEPIA HEXES"
     Draw.text("c", sub, cx - floor(Font.width(sub) / 2), y + 26)
     Draw.button("NEW GAME", cx - 40, y + 40, 80, 14, function() S.newGame() end, { strong = true })

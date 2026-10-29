@@ -1,4 +1,4 @@
-# Civiclone: the guide
+# Sepia: the guide
 
 Everything the game does, and every number behind it, as built. The rules
 live in `src/game.lua` and `src/ai.lua`. Every number is in `src/defs.lua`, so
