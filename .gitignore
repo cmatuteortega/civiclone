@@ -1,2 +1,3 @@
 *.love
 *.png.tmp
+__pycache__/
