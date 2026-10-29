@@ -27,6 +27,8 @@ LÖVE's save folder, and quits.
 
 ## Playing
 
+**[GUIDE.md](GUIDE.md)** explains every mechanic and number in full.
+
 You lead Aurelia, in light cloth. Two rivals share the continent: Umbra, in
 dark cloth, and Varro, in light cloth banded with dark. Their borders are
 drawn the same way: light, dark, or dashed.
