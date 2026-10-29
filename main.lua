@@ -8,7 +8,8 @@
 -- each pixel kept only where it is nearer than the map there.
 --
 -- Everything renders into a low-res canvas scaled up by a whole number, in
--- the eight colours of src/palette.lua and nothing else.
+-- the eight colours of src/palette.lua and nothing else. Every sound is
+-- synthesised at load, off the main thread (src/synth.lua, src/ui/audio.lua).
 --
 -- This file starts the game, runs each frame and lays the two pictures on
 -- the window. The rules are in src/game.lua and src/ai.lua, the numbers in
@@ -26,6 +27,7 @@ local Draw = require "src.ui.draw"
 local Game = require "src.game"
 local World = require "src.world"
 local Font = require "src.font"
+local Audio = require "src.ui.audio"
 
 local floor = math.floor
 
@@ -34,6 +36,8 @@ for _, name in ipairs({ "mousepressed", "mousereleased", "mousemoved", "wheelmov
 end
 
 function love.resize() View.fit() end
+function love.visible(v) Audio.hide(not v) end
+function love.quit() Audio.stop() end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
 -- bar fills, then the first turn.
@@ -72,7 +76,14 @@ function love.load(args)
         if a == "--shot" then S.plan = { file = args[n + 1] or "shot.png", turns = 0, frames = 0 } end
         if a == "--turns" and S.plan then S.plan.turns = tonumber(args[n + 1]) or 0 end
         if a == "--select" and S.plan then S.plan.select = args[n + 1] end
+        -- `--sounds` writes every sound as a .wav into the save folder, and quits.
+        if a == "--sounds" then
+            print("wrote " .. Audio.dump())
+            love.event.quit()
+        end
     end
+    -- Pictures are taken in silence.
+    if not S.plan then Audio.init() end
 end
 
 -- The dev plan above, a frame at a time.
@@ -119,6 +130,7 @@ function love.update(dt)
     dt = math.min(dt, 1 / 20)
     S.clock = S.clock + dt
     S.dt = dt
+    Audio.update(dt)
     if S.mode == "loading" then
         local t0 = love.timer.getTime()
         while coroutine.status(S.painter) ~= "dead" and love.timer.getTime() - t0 < 1 / 30 do
@@ -197,6 +209,7 @@ local function title()
         "DRAG OR WASD: PAN   WHEEL: ZOOM   G: GRID   T: RESEARCH",
         "ENTER: NEXT   SHIFT+ENTER: END TURN   SPACE: SKIP",
         "B: FOUND CITY   F: FORTIFY   R: FARM   M: MINE   H: CAPITAL",
+        "V: SOUND LOUD, SOFT OR OFF",
     }
     for k, l in ipairs(help) do Draw.text("t", l, cx - floor(Font.width(l) / 2), y + 76 + (k - 1) * 7) end
 end

@@ -758,7 +758,7 @@ function Game:conquer(u, city)
     end
     self:relocate(u, cell.id)
     self:assignWork(city)
-    self:emit({ kind = "conquer", cell = cell.id, city = city })
+    self:emit({ kind = "conquer", cell = cell.id, city = city, from = old })
     self:tell(old, city.name .. " HAS FALLEN TO " .. self.players[u.owner].name)
     self:tell(u.owner, "WE HAVE TAKEN " .. city.name)
     self:checkAlive(self.players[old])
@@ -865,6 +865,7 @@ function Game:finishTurn(p)
             city.pop = city.pop + 1
             self:assignWork(city)
             self:tell(p.id, city.name .. " HAS GROWN TO " .. city.pop)
+            self:emit({ kind = "grow", cell = city.cell, city = city })
         elseif city.food < 0 then
             if city.pop > 1 then
                 city.pop = city.pop - 1

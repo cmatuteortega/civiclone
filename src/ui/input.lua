@@ -7,6 +7,7 @@ local View = require "src.ui.view"
 local Hud = require "src.ui.hud"
 local Draw = require "src.ui.draw"
 local O = require "src.ui.orders"
+local Audio = require "src.ui.audio"
 
 local abs = math.abs
 
@@ -53,7 +54,8 @@ function Input.mousepressed(x, y, b)
         S.drag = { x = x, y = y, camx = S.camx, camy = S.camy, moved = false, button = b }
     elseif b == 2 then
         Input.findHover()
-        O.command(S.hover)
+        local u = S.selected and S.selected.unit
+        if not O.command(S.hover) and u and u.owner == 1 and S.hover and S.hover.id ~= u.cell then Audio.play("deny") end
     end
 end
 
@@ -77,7 +79,10 @@ function Input.mousereleased(x, y, b)
     local btn = S.pressed
     S.pressed = nil
     if btn then
-        if Draw.inside(btn, S.mouse.x, S.mouse.y) and btn.fn then btn.fn() end
+        if Draw.inside(btn, S.mouse.x, S.mouse.y) and btn.fn then
+            Audio.play("click")
+            btn.fn()
+        end
         return
     end
     local d = S.drag
@@ -96,6 +101,11 @@ end
 function Input.keypressed(key)
     if key == "f11" or (key == "return" and (love.keyboard.isDown("lalt", "ralt"))) then
         love.window.setFullscreen(not love.window.getFullscreen(), "desktop")
+        return
+    end
+    if key == "v" then
+        local level = Audio.cycle()
+        if S.mode == "play" then table.insert(S.msgs, 1, { text = "SOUND: " .. level, t = 0 }) end
         return
     end
     if S.mode ~= "play" then

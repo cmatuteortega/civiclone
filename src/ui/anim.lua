@@ -1,7 +1,7 @@
 -- What moves on the board: units walking the hexes they were moved through,
 -- a lunge at whatever they attack, the flash of a hit and its number rising,
 -- the dying fading out. The rules happen at once (src/game.lua); this plays
--- them back.
+-- them back, and hands each event to the sound (src/ui/audio.lua) as it does.
 --
 -- Each unit has a drawn state: where it is drawn (x, y, z), the hexes still
 -- to walk, the way it faces and its step. The game leaves the hexes a unit
@@ -9,6 +9,7 @@
 
 local H = require "src.hex"
 local S = require "src.ui.state"
+local Audio = require "src.ui.audio"
 
 local max, min, floor = math.max, math.min, math.floor
 
@@ -52,6 +53,7 @@ end
 -- Takes what the game has put on its list since last time.
 function Anim.events(game)
     for _, e in ipairs(game.events) do
+        Audio.hear(game, e)
         if e.kind == "attack" then
             local from, to = game.cells[e.from], game.cells[e.to]
             if e.unit then
@@ -103,6 +105,7 @@ function Anim.update(game, dt)
             if d <= step then
                 a.x, a.y, a.z = tx, ty, tz
                 table.remove(a.queue, 1)
+                Audio.step(u, to)
             else
                 a.x, a.z = a.x + dx / d * step, a.z + dz / d * step
                 -- Up or down the terraces halfway across.

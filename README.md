@@ -44,6 +44,7 @@ drawn the same way: light, dark, or dashed.
 | B / F / Z / Space | Found city / fortify / sleep / skip |
 | R / M | Builder: farm / mine |
 | T, H, G, Tab, Esc | Research, go to capital, hex grid, next unit, deselect |
+| V | Sound: loud, soft or off |
 
 ### The rules
 
@@ -103,6 +104,32 @@ of one material disagree, and ink round every silhouette and depth step.
 From underroot: the tracer and its passes, the affine kit, the overlay and
 stamping, the 3×5 pixel font, the coroutine-sliced load, and the test runner.
 
+## How it sounds
+
+Like the picture, every sound is made from nothing at load: no sample files.
+**`src/synth.lua`** is underroot's synth, by way of herding's: a sound is a
+few voices mixed, each an oscillator with its pitch swept, a low or high pass,
+vibrato, tremolo and frequency modulation, an envelope that dies away as a
+power curve, and maybe an echo. Plucks, bells, knocks on wood and frame drums
+are built from those. A worker thread (`src/audiothread.lua`) renders it all
+in about two seconds while the title is up, so no frame waits on it.
+
+- **Effects** for what you see happen, panned to its hex and quieter off the
+  edge of the screen: footsteps, hooves and leaves as units walk, bronze
+  clashing, bowstrings, blows, a city founded, a technology learned, a horn
+  when enemy soldiers first come near your cities. A turn's news (a unit
+  trained, a city grown, a border pushed out) comes one item at a time.
+- **The land under the camera.** Wind always; the sea, birds, leaves and
+  the wind on the heights each as loud as how much of the screen is coast,
+  open ground, forest or hills.
+- **Music:** forty seconds in D dorian in six layers of the same length,
+  started together so they stay in step. The pad plays from the start, and
+  strings, a lyre, a flute and a low drone come in as your empire grows.
+  Frame drums join while enemies are near. Every few minutes the music draws
+  back and lets the land be heard.
+
+`love . --sounds` writes every sound into LÖVE's save folder as a `.wav`.
+
 ## The code
 
 | File | What |
@@ -116,7 +143,8 @@ stamping, the 3×5 pixel font, the coroutine-sliced load, and the test runner.
 | `src/rng.lua` | Dice and noise without LÖVE |
 | `src/tracer.lua`, `src/shapes.lua` | The 3D method and its solids |
 | `src/world.lua`, `src/models.lua` | The map's picture, and everything on it |
-| `src/ui/` | Camera, overlay, board, HUD, orders, input, animation |
+| `src/synth.lua`, `src/audiothread.lua` | Every sound and the music, synthesised |
+| `src/ui/` | Camera, overlay, board, HUD, orders, input, animation, sound |
 
 ## Tests
 
@@ -127,4 +155,5 @@ luacheck main.lua conf.lua src tests
 
 The rules never touch LÖVE, so the tests run under plain LuaJIT. They cover
 hex geometry, founding, moving, fighting, taking cities, building, research,
-and whole games with the computer playing every side.
+whole games with the computer playing every side, and every sound rendering
+(the music's layers all exactly one length).

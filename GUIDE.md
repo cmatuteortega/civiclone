@@ -21,7 +21,8 @@ that is the file to edit to tune the game.
 15. [The rival civilizations](#the-rival-civilizations)
 16. [Winning and losing](#winning-and-losing)
 17. [How it is drawn](#how-it-is-drawn)
-18. [Developer notes](#developer-notes)
+18. [How it sounds](#how-it-sounds)
+19. [Developer notes](#developer-notes)
 
 ---
 
@@ -76,6 +77,7 @@ with your first idle unit (the settler) selected.
 | T | Open or close research |
 | H | Select your capital |
 | G | Show or hide the hex grid |
+| V | Sound: loud, soft or off (kept between games) |
 | Esc | Close the open panel, or deselect |
 | F11, Alt+Enter | Fullscreen |
 
@@ -602,15 +604,93 @@ screen plays them back:
 - ranged shots arc
 - the dead flash out
 
+## How it sounds
+
+Nothing is recorded. Every sound is synthesised when the game starts
+(`src/synth.lua`, underroot's synth by way of herding's), on a worker thread
+(`src/audiothread.lua`), in about two seconds. Until a sound is ready it is
+simply not played. `src/ui/audio.lua` decides what plays and how loud.
+
+**The synth.** A sound is a few voices mixed. Each voice is one of these
+oscillators: sine, triangle, a soft sine with some of its octaves, square,
+saw, noise, or noise held at a pitch. Its pitch can be swept, it can go
+through a low or high pass (also swept), and it can have vibrato, tremolo
+and frequency modulation. It opens over a few milliseconds and dies away as
+a power curve. A sound may echo four times. From these come a plucked lyre
+string, a struck bell (a sine and the inharmonic partials of a bar), a knock
+on wood and a frame drum. Each effect has a shortest gap between two plays,
+a most-at-once, and a small random wander in pitch, so a hundred footsteps
+don't sound like one footstep a hundred times.
+
+**Effects.** You hear only what you can see: an event in the fog is silent.
+Each sound is panned to where its hex is on the screen, and is a third as
+loud if the hex is off the edge.
+
+| What | Sound |
+| --- | --- |
+| Choosing a unit, a city | Two knocks on wood (lower for civilians); two bells |
+| A button, a panel opened or closed | A click; a page turned |
+| A right click a unit can't follow | Two low knocks |
+| A unit walking onto a hex | A footstep; hooves for a horseman; leaves in a forest |
+| Fortify, sleep | A thump on a shield; two falling lyre notes |
+| A melee attack | Bronze clashing as the lunge lands, and the blow |
+| A ranged attack (and a city's walls) | A bowstring and the arrow's rush, the blow when it lands |
+| A city hit | Stone cracking |
+| A unit killed | A falling thud and two low notes |
+| A civilian captured | Two low notes |
+| A city founded | A drum and a rising lyre with a bell |
+| A builder's farm or mine | Two scrapes of a spade and a thud |
+| The end of the turn | A frame drum and two bells |
+| Your city trains or builds something, grows, or pushes out its border; you learn a technology | A hammer and a bell; two notes rising; a high shimmer; a rising lyre. One at a time, at most four a turn |
+| Enemy soldiers in sight on your land or within 4 hexes of your city | A distant horn, at most once every 90 seconds |
+| A city taken; one of yours lost; a civilization destroyed | Drums, a horn and bells; a horn falling; a gong |
+| Victory, defeat | A rising fanfare; a falling one |
+
+**The land.** Every half second, 35 points spread over the screen are
+looked at, counting only explored hexes. The mix follows what is there:
+
+| Loop | How loud |
+| --- | --- |
+| Wind | 0.14, plus 0.18 × the share of open ground and high ground |
+| The sea | 0.5 × (share of water)^0.6 |
+| Birds, and a dove far off | 0.32 × the share of open ground and forest × 1.6, at most 0.32 |
+| Leaves | 0.4 × (share of forest)^0.7 |
+| Wind on the heights | 0.4 × (share of hills and mountains)^0.8 |
+
+Each is a few seconds long, crossfaded end into start, its swells a whole
+number of cycles over its length, so the seam doesn't show.
+
+**Music.** Forty seconds in D dorian: Dm9, B♭maj7, Fadd9, Cadd9, ten seconds
+each. Six layers, each exactly forty seconds, all started at once so they
+stay in step, each faded in slowly once earned:
+
+| Layer | In when |
+| --- | --- |
+| A pad: root and fifth, breathing | Always |
+| Strings: third and colour | You have a city |
+| A lyre, one note a beat, with an echo | Two cities, or turn 12 |
+| A flute melody, falling home to D | Two technologies, or turn 30 |
+| A drone an octave under the root | Three cities, or turn 50 |
+| Frame drums | Enemy soldiers in sight near home (as for the horn) |
+
+The title plays the pad, strings, lyre and flute over wind, birds and a little
+sea. The music plays for 160 seconds, then draws back to under a third for 45
+while the land carries on, then comes back. The drums don't draw back.
+
+**Volume.** V goes round loud, soft (half) and off. The choice is saved in
+LÖVE's save folder as `sound`. When the window is hidden, everything pauses
+and picks up where it left off.
+
 ## Developer notes
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, map determinism, founding, multi-turn moves, combat, capture, growth, production, research, builders, and 100-turn all-AI games |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, map determinism, founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, and every sound rendering (never silent, never clipping, the music's layers one length) |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
-| `love . --play --shot out.png --turns 40 --select city` | Let the AI play your side for 40 turns, select your capital, screenshot into LÖVE's save folder, and quit |
+| `love . --play --shot out.png --turns 40 --select city` | Let the AI play your side for 40 turns, select your capital, screenshot into LÖVE's save folder, and quit (silently) |
+| `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |
 
 To change the game, start in `src/defs.lua`: the map size, last turn, terrain
 yields, unit and building stats, the technology tree, city and combat

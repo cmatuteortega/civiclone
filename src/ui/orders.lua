@@ -7,6 +7,7 @@ local S = require "src.ui.state"
 local View = require "src.ui.view"
 local Anim = require "src.ui.anim"
 local AI = require "src.ai"
+local Audio = require "src.ui.audio"
 
 local max = math.max
 
@@ -183,12 +184,14 @@ function O.actions(u)
         out[#out + 1] = { label = u.fortified and "WAKE" or "FORTIFY", key = "F", fn = function()
             u.fortified = not u.fortified
             u.dest = nil
+            if u.fortified then Audio.play("fortify") end
             if u.fortified then O.nextUnit(u) end
         end }
     else
         out[#out + 1] = { label = u.sleep and "WAKE" or "SLEEP", key = "Z", fn = function()
             u.sleep = not u.sleep
             u.dest = nil
+            if u.sleep then Audio.play("sleep") end
             if u.sleep then O.nextUnit(u) end
         end }
     end
@@ -232,6 +235,7 @@ function O.endTurn()
     if not O.canEnd() then return end
     local g = S.game
     S.selected, S.panel = nil, nil
+    Audio.play("turn")
     g:endTurn(AI)
     O.collectLog()
     local result, why = g:outcome()

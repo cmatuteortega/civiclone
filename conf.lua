@@ -8,9 +8,6 @@ function love.conf(t)
     t.window.minwidth = 640
     t.window.minheight = 400
     t.window.vsync = 1
-    -- No sound yet.
-    t.modules.audio = false
-    t.modules.sound = false
     t.modules.joystick = false
     t.modules.physics = false
     t.modules.video = false
