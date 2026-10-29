@@ -25,6 +25,16 @@ the title, and `--touch` shows the touch-screen buttons. For checking how it loo
 city]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits.
 
+## Builds
+
+Every push builds the game as **Sepia**, with a city among a few hexes of the
+map as its icon (`assets/icon/icon.png`): an Android APK
+(`.github/workflows/android.yml`, on LÖVE 12 for Android) and Windows, macOS
+and Linux apps plus a bare `.love` (`.github/workflows/desktop.yml`, on LÖVE
+11.5). They are the run's artifacts; a `v*` tag also attaches them to a GitHub
+Release. Signing secrets and the app id are described at the top of each
+workflow.
+
 ## Playing
 
 **[GUIDE.md](GUIDE.md)** explains every mechanic and number in full.

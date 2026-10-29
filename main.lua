@@ -66,6 +66,8 @@ end
 
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
+    -- The title-bar / taskbar icon: the same city as the builds' (assets/icon/).
+    love.window.setIcon(love.image.newImageData("assets/icon/icon.png"))
     love.graphics.setLineStyle("rough")
     local os = love.system.getOS()
     S.phone = os == "Android" or os == "iOS"
