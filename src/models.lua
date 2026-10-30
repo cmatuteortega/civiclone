@@ -374,18 +374,55 @@ end
 
 --- improvements -----------------------------------------------------------------
 
--- A farm's barn; the furrows are laid on the ground a pixel at a time.
-function M.farm()
-    return kept("farm", function()
+-- A farm: a round thatched farmhouse and a haystack in one corner, and a low
+-- dry-stone wall along a few of the hex's edges; the crop rows are laid on
+-- the ground a pixel at a time (src/ui/board.lua). Three layouts, so a run of
+-- farms is not one picture over and over: each says where the farmstead
+-- stands, which edges are walled, and which way the rows run (degrees).
+M.FARM_LAYOUTS = {
+    { home = { -5.5, -5 }, hay = 1, walls = { 0, 1, 2 }, rows = 30 },
+    { home = { 5.5, -5 }, hay = -1, walls = { 2, 3, 1 }, rows = 90 },
+    { home = { -7, 1 }, hay = 1, walls = { 5, 0, 1 }, rows = 150 },
+}
+function M.farmLayout(cellId) return M.FARM_LAYOUTS[cellId % #M.FARM_LAYOUTS + 1] end
+
+local FARM_SCALE = 1.3
+-- `open`: a set of edges not to wall, those shared with another farm, so
+-- neighbouring farms read as one field.
+function M.farm(layout, open)
+    layout = layout or M.FARM_LAYOUTS[1]
+    open = open or {}
+    local key = { "farm", layout.home[1], layout.home[2] }
+    for _, e in ipairs(layout.walls) do key[#key + 1] = open[e] and "-" or e end
+    return kept(table.concat(key, ":"), function()
         local parts = {}
-        parts[#parts + 1] = part(Sh.box(-5, 0, -4, 5, 4, 3.4), R.wood, 1, function(ux, uy, uz)
-            if math.abs(ux) < 0.3 and uy < 0.75 and uz > 0.98 then return IDX.u end
+        local hx, hz = layout.home[1], layout.home[2]
+        -- The farmhouse: round walls, a door to the front, a cone of thatch.
+        parts[#parts + 1] = part(Sh.prism(8, hx, 0, hz, 2.4, 3, 0, math.pi / 8), R.wall, 1, function(ux, uy, uz)
+            if uz > 0.75 and math.abs(ux) < 0.3 and uy < 0.7 then return IDX.u end
         end)
-        parts[#parts + 1] = part(Sh.roof(-5, 3.4, -4, 5.8, 4.8, 2.6), R.straw, 2)
-        -- A haystack.
-        parts[#parts + 1] = part(Sh.ell(4.5, 0.5, -4, 2.4, 3, 2.4), R.straw, 3)
+        parts[#parts + 1] = part(Sh.pyramid(8, hx, 2.8, hz, 2.9, 4.2, 0, math.pi / 8), R.straw, 2, function(ux, uy, uz)
+            if uy < 0.12 then return IDX.t end
+        end)
+        -- A haystack beside it, a little to the front.
+        parts[#parts + 1] = part(Sh.ell(hx + layout.hay * 5.4, 0.3, hz + 0.6, 1.6, 2.3, 1.6), R.straw, 3,
+            function(ux, uy) if floor((uy + 1) * 3) % 2 == 0 and uy > -0.3 then return IDX.t end end)
+        -- Walls just inside the hex's edges, in room units brought to the
+        -- model's own (it is painted FARM_SCALE times as big).
+        local r = (14 - 1.5) / FARM_SCALE
+        for _, e in ipairs(layout.walls) do
+            if not open[e] then
+                local a0, a1 = math.rad(60 * e - 30), math.rad(60 * e + 30)
+                local x0, z0, x1, z1 = r * cos(a0), r * sin(a0), r * cos(a1), r * sin(a1)
+                local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
+                parts[#parts + 1] = part(Sh.box((x0 + x1) / 2, 0, (z0 + z1) / 2, len + 0.6, 0.9, 1,
+                    -math.atan2(z1 - z0, x1 - x0)), R.stone, 10 + e, function(ux, uy)
+                        if floor((ux + 1) * 7 + (uy > 0.5 and 0.5 or 0)) % 2 == 0 and uy < 0.95 then return IDX.t end
+                    end)
+            end
+        end
         return parts
-    end, 1.3)
+    end, FARM_SCALE)
 end
 
 -- A mine: a heap of spoil with a dark adit framed in timber, a headframe

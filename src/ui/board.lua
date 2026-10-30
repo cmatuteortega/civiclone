@@ -55,15 +55,33 @@ local function borders(me)
     end
 end
 
--- A farm's furrows: every other band of its top a step darker.
-local function furrows(cell)
+-- A farm's crop rows: bands across its top, a ridge a step lighter, then a
+-- furrow a step darker, then the ground's own, running the way its layout
+-- says. Light against dark shows on grassland as well as on plains.
+local function furrows(cell, layout, seen)
     local w = S.world
+    local a = math.rad(layout.rows)
+    local ca, sa = math.cos(a), math.sin(a)
     P.eachTop(cell, function(i, j, n)
-        if floor((w.wx[n] - w.wz[n] * 0.4) / 2.4) % 2 == 0 and H.inset(w.wx[n], w.wz[n], cell.x, cell.z) > 2.5 then
+        local x, z = w.wx[n], w.wz[n]
+        if H.inset(x, z, cell.x, cell.z) > 2.5 then
+            local band = floor((x * ca + z * sa) / 1.6) % 3
             local k = w.key[n]
-            P.put(T.DARKER[k], i, j)
+            if band == 0 then k = T.LIGHTER[k] elseif band == 1 then k = T.DARKER[k] end
+            if band ~= 2 or not seen then P.put(seen and k or T.DARKER[k], i, j) end
         end
     end)
+end
+
+-- The edges of a farm that face another farm: left open, so they read as
+-- one field.
+local function farmOpen(cell)
+    local open = {}
+    for e = 0, 5 do
+        local n = S.game:cell(H.step(cell.c, cell.r, e))
+        if n and n.improvement == "farm" then open[e] = true end
+    end
+    return open
 end
 
 -- A hex's top a step lighter, every other pixel: where a unit can go.
@@ -137,10 +155,15 @@ local function things(me)
     local list = {}
     for _, cell in ipairs(g.cells) do
         if cell.improvement and me.explored[cell.id] then
-            if cell.improvement == "farm" then furrows(cell) end
-            list[#list + 1] = { z = cell.z - 1, draw = function()
-                P.stamp(cell.improvement == "farm" and M.farm() or M.mine(cell.elev == "hills"), cell.x, cell.top, cell.z)
-            end }
+            local pic
+            if cell.improvement == "farm" then
+                local layout = M.farmLayout(cell.id)
+                furrows(cell, layout, me.visible[cell.id])
+                pic = M.farm(layout, farmOpen(cell))
+            else
+                pic = M.mine(cell.elev == "hills")
+            end
+            list[#list + 1] = { z = cell.z - 1, draw = function() P.stamp(pic, cell.x, cell.top, cell.z) end }
         end
     end
     for _, c in ipairs(g.cities) do
