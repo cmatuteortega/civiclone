@@ -632,8 +632,12 @@ crown stands, how much fog darkens it, and its colour.
   plains hexes beside a forest, with nothing built on them, have one or two
   deer, some of them stags. They graze, look up and wander. When any unit
   comes within a hex, they run into the forest and vanish. They come back 12
-  seconds after the hex is left alone. They are not part of the game or its
-  save.
+  seconds after the hex is left alone. They are small, about half a
+  person's height.
+- **Sheep**, after herding's: half the flat farms have two to four grazing
+  across from the farmhouse, and on most of those a collie runs a lap round
+  them now and then and sits to watch. Sheep don't run from anyone.
+- Neither deer nor sheep are part of the game or its save.
 - **Mines** wind their wheel for a few seconds, rest, and let it back down.
 - **Units** standing idle rise a pixel for a moment every few seconds, each
   at its own time. Fortified units stand still.

@@ -528,6 +528,57 @@ end
 
 --- wildlife ------------------------------------------------------------------------
 
+-- Herding's sheep, brought down to the map: a cloud of wool, puffs of one
+-- part so they run into each other uninked, a dark face and ears, four
+-- stubby legs. `pose` 0 head up, 1 grazing, 2 and 3 the two steps of a walk.
+local WOOL, FACE = ramp("w", "w", "c", "s"), ramp("t", "n", "u", "o")
+function M.sheep(face, pose)
+    return kept(table.concat({ "sheep", face, pose }, ":"), function()
+        local parts = {}
+        for _, p in ipairs({ { -0.4, 5.0, 0, 6.0, 4.2, 4.8 }, { -3.0, 7.0, 1.8, 3.4, 3.0, 3.0 },
+            { -2.8, 7.0, -2.0, 3.3, 3.0, 3.0 }, { 1.0, 7.6, 1.6, 3.3, 3.0, 3.0 },
+            { 1.0, 7.5, -1.8, 3.3, 3.0, 3.0 }, { -5.4, 5.6, 0, 2.6, 2.6, 2.8 } }) do
+            parts[#parts + 1] = part(Sh.ell(p[1], p[2], p[3], p[4], p[5], p[6]), WOOL, 1)
+        end
+        local hx, hy = 6.4, 6.6
+        if pose == 1 then hx, hy = 7.2, 2.8 end
+        parts[#parts + 1] = part(Sh.ell(hx, hy, 0, 3.0, 2.7, 2.5), FACE, 2)
+        parts[#parts + 1] = part(Sh.ell(hx + 2.0, hy - 0.8, 0, 1.5, 1.6, 1.6), FACE, 2)
+        parts[#parts + 1] = part(Sh.ell(hx - 0.6, hy + 1.0, 2.8, 0.8, 1.0, 1.4), FACE, 3)
+        parts[#parts + 1] = part(Sh.ell(hx - 0.6, hy + 1.0, -2.8, 0.8, 1.0, 1.4), FACE, 3)
+        parts[#parts + 1] = part(Sh.ell(hx - 1.6, hy + 2.2, 0, 2.0, 1.4, 1.8), WOOL, 1) -- the topknot
+        local st = pose == 2 and 0.9 or (pose == 3 and -0.9 or 0)
+        for _, l in ipairs({ { 3.4, 2.4, st }, { 3.4, -2.4, -st }, { -3.4, 2.4, -st }, { -3.4, -2.4, st } }) do
+            parts[#parts + 1] = part(Sh.ell(l[1] + l[3], 1.2, l[2], 1.0, 1.7, 1.0), FACE, 4)
+        end
+        return place(parts, math.rad(60 * face))
+    end, M.UNIT_SCALE * 0.3)
+end
+
+-- And herding's collie, who keeps them: a dark coat, cream chest, muzzle and
+-- tail tip. `gait` 0..3 is where the legs are in the stride.
+local COAT, CREAM = ramp("k", "n", "u", "o"), ramp("w", "w", "c", "s")
+function M.dog(face, gait)
+    return kept(table.concat({ "dog", face, gait }, ":"), function()
+        local hy = 9.4
+        local parts = {
+            part(Sh.ell(0, 6.4, 0, 6.2, 3.6, 3.4), COAT, 1),
+            part(Sh.ell(4.2, 6.4, 0, 2.8, 3.2, 3.0), CREAM, 2), -- the chest and ruff
+            part(Sh.ell(7.2, hy, 0, 3.1, 2.9, 2.8), COAT, 3),
+            part(Sh.ell(9.8, hy - 1.0, 0, 2.0, 1.4, 1.5), CREAM, 4), -- muzzle
+            part(Sh.ell(6.4, hy + 2.6, 1.6, 0.8, 1.6, 0.9), COAT, 5),
+            part(Sh.ell(6.4, hy + 2.6, -1.6, 0.8, 1.6, 0.9), COAT, 5),
+            part(Sh.ell(-7.0, 7.2, 0, 3.0, 1.7, 1.6), COAT, 6), -- a brush of a tail
+            part(Sh.ell(-9.6, 7.8, 0, 1.6, 1.4, 1.3), CREAM, 7),
+        }
+        local swing = sin(gait / 4 * math.pi * 2) * 1.8
+        for _, l in ipairs({ { 3.8, 2.0, 1 }, { 3.8, -2.0, -1 }, { -3.8, 2.0, -1 }, { -3.8, -2.0, 1 } }) do
+            parts[#parts + 1] = part(Sh.ell(l[1] + swing * l[3], 1.6, l[2], 1.1, 2.0, 1.1), l[1] > 0 and CREAM or COAT, 8)
+        end
+        return place(parts, math.rad(60 * face))
+    end, M.UNIT_SCALE * 0.26)
+end
+
 -- A deer, facing `face` (0..5, as a unit), in pose 0 head up, 1 grazing, or
 -- 2 and 3 the two bounds of a run. Antlers on some (`stag`).
 function M.deer(face, pose, stag)
@@ -554,7 +605,7 @@ function M.deer(face, pose, stag)
             end
         end
         return place(parts, math.rad(60 * face))
-    end, M.UNIT_SCALE * 0.95)
+    end, M.UNIT_SCALE * 0.55)
 end
 
 return M

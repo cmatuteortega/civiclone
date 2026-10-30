@@ -33,7 +33,8 @@ over the desert.
 
 There is life on it too. Flocks of birds cross now and then, and gulls
 wheel over the shore (`src/ui/birds.lua`). Deer graze at the forests' edges
-and bound off into the trees when anyone comes near (`src/ui/wild.lua`).
+and bound off into the trees when anyone comes near, and sheep graze on
+the farms with a collie keeping them (`src/ui/wild.lua`).
 Mine wheels wind, and units at rest take a breath.
 
 ![Deer and birds](shots/07-life.gif)

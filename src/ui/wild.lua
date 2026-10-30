@@ -3,6 +3,10 @@
 -- of them they bound off into the trees and are gone, and come back out a
 -- while after the hex is quiet again.
 --
+-- And sheep on half the farms, two to four of them grazing across from the
+-- farmhouse, and on some a collie who runs a lap round them now and then and
+-- sits to watch. Tame: they don't mind who comes by.
+--
 -- Nothing of this is in the game's rules or its save: the deer are the
 -- screen's alone, and found again from the map whenever it changes.
 
@@ -20,13 +24,15 @@ local WALK = 3       -- room units a second, grazing about
 local RUN = 26       -- and bounding off
 local QUIET = 12     -- seconds a hex must be left alone before they come back
 local ROAM = 4.5     -- how far from its spot a deer wanders
+local FOLDS = 0.5    -- of the farms, how many keep sheep
+local LAP, SIT = 5, 9 -- seconds the dog runs round them, and sits
 
 local function grain(a, b)
     local n = sin(a * 12.9898 + b * 78.233) * 43758.5453
     return n - floor(n)
 end
 
-local herds, foundAt, foundIn = {}, -1, nil
+local herds, flocks, foundAt, foundIn = {}, {}, -1, nil
 
 -- The facing (0..5) nearest the way from (dx, dz).
 local function facing(dx, dz)
@@ -63,6 +69,28 @@ local function find(g)
         end
     end
     herds = found
+
+    -- The sheep: on farms, across from the farmhouse.
+    local folds = {}
+    for _, cell in ipairs(g.cells) do
+        if cell.improvement == "farm" and cell.elev == "flat" and grain(cell.id, 6) < FOLDS then
+            local old = flocks[cell.id]
+            if old then
+                folds[cell.id] = old
+            else
+                local home = M.farmLayout(cell.id).home
+                local sx, sz = cell.x - home[1] * M.FARM_SCALE * 0.45, cell.z - home[2] * M.FARM_SCALE * 0.45
+                local flock = { cell = cell, sx = sx, sz = sz, deer = {} }
+                for n = 1, 2 + floor(grain(cell.id, 7) * 3) do
+                    flock.deer[n] = { x = sx + (grain(n, cell.id * 3) - 0.5) * 10, z = sz + (grain(cell.id * 3, n) - 0.5) * 7,
+                        face = floor(grain(cell.id, n + 4) * 6), pose = 1, wait = grain(n, cell.id + 1) * 5 }
+                end
+                if grain(cell.id, 8) < 0.6 then flock.dog = { t = grain(cell.id, 9) * (LAP + SIT), a = 0, walk = 0 } end
+                folds[cell.id] = flock
+            end
+        end
+    end
+    flocks = folds
 end
 
 -- Is anyone on the hex or next to it?
@@ -100,13 +128,33 @@ local function graze(herd, d, dt)
     d.tx, d.tz = herd.sx + math.cos(a) * r, herd.sz + math.sin(a) * r
 end
 
+-- The sheep graze about; the dog runs its lap round them, then sits facing
+-- them.
+local function tend(flock, dt)
+    for _, d in ipairs(flock.deer) do graze(flock, d, dt) end
+    local dog = flock.dog
+    if not dog then return end
+    dog.t = (dog.t + dt) % (LAP + SIT)
+    if dog.t < LAP then
+        dog.a = dog.a + dt * 1.4
+        dog.walk = dog.walk + dt * 10
+        dog.gait = floor(dog.walk) % 4
+        dog.face = facing(-math.sin(dog.a) * 8, math.cos(dog.a) * 6)
+    else
+        dog.gait = 0
+        dog.face = facing(-math.cos(dog.a), -math.sin(dog.a))
+    end
+    dog.x, dog.z = flock.sx + math.cos(dog.a) * 8, flock.sz + math.sin(dog.a) * 6
+end
+
 function Wild.update(dt)
     local g = S.game
     if not g or Sea.still() then return end
     -- Found again each turn and whenever a hex changes.
     local stamp = g.turn * 1000 + (S.world.version or 0)
-    if g ~= foundIn then herds, foundIn = {}, g end
+    if g ~= foundIn then herds, flocks, foundIn = {}, {}, g end
     if stamp ~= foundAt then find(g) foundAt = stamp end
+    for _, flock in pairs(flocks) do tend(flock, dt) end
     for _, herd in pairs(herds) do
         local near = disturbed(g, herd.cell)
         if near then herd.quiet = 0 else herd.quiet = herd.quiet + dt end
@@ -156,6 +204,18 @@ function Wild.things(list, me, stamp)
                 list[#list + 1] = { z = d.z, draw = function()
                     stamp(M.deer(d.face, d.pose, d.stag), d.x, y, d.z)
                 end }
+            end
+        end
+    end
+    for _, flock in pairs(flocks) do
+        if me.visible[flock.cell.id] then
+            local y = flock.cell.top
+            for _, d in ipairs(flock.deer) do
+                list[#list + 1] = { z = d.z, draw = function() stamp(M.sheep(d.face, d.pose), d.x, y, d.z) end }
+            end
+            local dog = flock.dog
+            if dog and dog.x then
+                list[#list + 1] = { z = dog.z, draw = function() stamp(M.dog(dog.face, dog.gait), dog.x, y, dog.z) end }
             end
         end
     end
