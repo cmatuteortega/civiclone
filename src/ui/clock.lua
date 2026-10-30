@@ -5,10 +5,10 @@
 --
 -- Four looks, a setting:
 --
+--   dial   a round face that turns, day half light and night half dark,
+--          under a fixed pointer, a tick for each turn of the day (the default)
 --   arc    the sun's path as a dotted arch over a horizon; the sun walks it
 --          by day and the moon by night, under a sky that darkens
---   dial   a round face that turns, day half light and night half dark,
---          under a fixed pointer, a tick for each turn of the day
 --   strip  a day's sky as a ribbon in the top bar, sliding under a marker,
 --          the sun at each noon and the moon at each midnight
 --   scene  a little window: hills, a town and the sea, the sun rising from
@@ -313,7 +313,7 @@ end
 --- which ----------------------------------------------------------------------------
 
 function Clock.look()
-    return Clock.force or Settings.get("clock") or "arc"
+    return Clock.force or Settings.get("clock") or "dial"
 end
 
 -- Under the top bar, at the right (left of the touch buttons on a touch

@@ -26,7 +26,7 @@ Settings.LIST = {
     { id = "seaMotion", tab = "display", name = "MOVING WATER", values = ONOFF.values, show = ONOFF.show, default = true },
     { id = "landMotion", tab = "display", name = "WIND AND LIFE", values = ONOFF.values, show = ONOFF.show, default = true },
     { id = "dayNight", tab = "display", name = "DAY AND NIGHT", values = ONOFF.values, show = ONOFF.show, default = true },
-    { id = "clock", tab = "display", name = "CLOCK", values = { "arc", "dial", "strip", "scene", "off" }, default = "arc",
+    { id = "clock", tab = "display", name = "CLOCK", values = { "dial", "arc", "strip", "scene", "off" }, default = "dial",
         show = function(v) return v:upper() end },
     { id = "showFps", tab = "display", name = "SHOW FRAME RATE", values = ONOFF.values, show = ONOFF.show, default = false },
     -- Interface.

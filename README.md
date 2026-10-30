@@ -49,8 +49,8 @@ At night ink keeps the darkest key to itself, so every outline still reads,
 lamps light the towns in dithered pools and their windows one by one, the
 moon leaves a path of glints on the sea, and units go down at most a step.
 A clock under the top bar shows the hour (`src/ui/clock.lua`), in one of
-four looks chosen in the settings: the sun's arc over a horizon, a turning
-dial, a strip of sky in the top bar, or a little scene of hills, a town and
+four looks chosen in the settings: a turning dial (the default), the sun's
+arc over a horizon, a strip of sky in the top bar, or a little scene of hills, a town and
 the sea that the sun rises out of and sets into.
 
 ## Running it
