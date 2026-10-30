@@ -19,6 +19,7 @@ local Font = require "src.font"
 local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
 local Settings = require "src.settings"
+local Clock = require "src.ui.clock"
 
 local floor, max, min = math.floor, math.max, math.min
 local text, rect, button, icon = Draw.text, Draw.rect, Draw.button, Draw.icon
@@ -71,6 +72,8 @@ local function topBar()
     button("MENU", S.vw - 25, 1, 24, 9, Menu.openPause)
     local right = "TURN " .. g.turn .. "  " .. D.year(g.turn)
     text("c", right, S.vw - Font.width(right) - 29, 3)
+    -- The clock's strip, if that is its look, left of the turn.
+    Clock.inBar(S.vw - Font.width(right) - 33)
 end
 
 --- news ----------------------------------------------------------------------------
@@ -385,6 +388,7 @@ function Hud.draw(dt)
     S.buttons, S.panels = {}, {}
     topBar()
     messages(dt)
+    Clock.draw(S.touch and S.vw - TOUCH_W - 5 or S.vw - 3)
     local sel = S.selected
     if sel and sel.unit and not sel.unit.dead then unitPanel(sel.unit) end
     if sel and sel.city then cityPanel(sel.city) end

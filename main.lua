@@ -103,6 +103,8 @@ function love.load(args)
         if a == "--select" and S.plan then S.plan.select = args[n + 1] end
         -- `--hour h`: every turn played at h o'clock (0..24), to see the light.
         if a == "--hour" and tonumber(args[n + 1]) then Daylight.force = tonumber(args[n + 1]) / 24 end
+        -- `--clock look`: the clock drawn so (arc, dial, strip, scene, off).
+        if a == "--clock" then require("src.ui.clock").force = args[n + 1] end
         -- `--open settings:audio` (or `pause`) shows a menu in the picture.
         if a == "--open" and S.plan then S.plan.open = args[n + 1] end
         -- `--sounds` writes every sound as a .wav into the save folder, and quits.
