@@ -5,6 +5,10 @@
 -- A finger is the pointer: LÖVE turns the first one's taps and drags into
 -- left clicks. Two fingers pinch to zoom and drag together to pan, and until
 -- the last of them lifts the pretend pointer is ignored.
+--
+-- Windows come before the board: a press on one is its own (src/ui/windows.lua),
+-- and while a menu is up (src/ui/menu.lua) the board and its keys wait. Keys
+-- are looked up in the bindings (src/settings.lua), not by name.
 
 local S = require "src.ui.state"
 local View = require "src.ui.view"
@@ -12,6 +16,9 @@ local Hud = require "src.ui.hud"
 local Draw = require "src.ui.draw"
 local O = require "src.ui.orders"
 local Audio = require "src.ui.audio"
+local Win = require "src.ui.windows"
+local Menu = require "src.ui.menu"
+local Settings = require "src.settings"
 
 local abs, log, sqrt = math.abs, math.log, math.sqrt
 
@@ -28,14 +35,20 @@ end
 -- The hex under the pointer, unless the HUD is.
 function Input.findHover()
     S.hover = nil
-    if S.mode ~= "play" or not S.world then return end
+    if S.mode ~= "play" or not S.world or Win.modal() then return end
+    if Win.at(S.mouse.x, S.mouse.y) then return end
     if Hud.covers(S.mouse.x, S.mouse.y) then return end
     local i, j = View.toBoard(S.mouse.wx, S.mouse.wy)
     S.hover = S.world:pick(i, j)
 end
 
+-- Behind a modal window nothing can be pressed.
+local function firstLive(kind)
+    return Win.modalFrom and Win.modalFrom[kind] or 1
+end
+
 local function buttonAt(x, y)
-    for k = #S.buttons, 1, -1 do
+    for k = #S.buttons, firstLive("buttons"), -1 do
         local b = S.buttons[k]
         if Draw.inside(b, x, y) then return b end
     end
@@ -47,15 +60,27 @@ function Input.mousepressed(x, y, b)
     local btn = buttonAt(S.mouse.x, S.mouse.y)
     if btn then
         S.pressed = btn
+        local w = Win.at(S.mouse.x, S.mouse.y)
+        if w and not Win.modal() then Win.raise(w.id) end
         return
     end
+    -- A slider, the minimap: a press there, and a drag after it.
+    for k = #S.panels, firstLive("panels"), -1 do
+        local r = S.panels[k]
+        if r.fn and Draw.inside(r, S.mouse.x, S.mouse.y) then
+            -- Under a window, only the window's own.
+            local w = Win.at(S.mouse.x, S.mouse.y)
+            if not w or (k >= w.panelFrom and k <= w.panelTo) then
+                r.fn(S.mouse.x, S.mouse.y)
+                S.miniDrag = r
+                return
+            end
+        end
+    end
+    if Win.press(S.mouse.x, S.mouse.y) then return end
     if S.mode ~= "play" then return end
     for k = #S.panels, 1, -1 do
-        local r = S.panels[k]
-        if Draw.inside(r, S.mouse.x, S.mouse.y) then
-            if r.fn then r.fn(S.mouse.x, S.mouse.y) S.miniDrag = r end
-            return
-        end
+        if Draw.inside(S.panels[k], S.mouse.x, S.mouse.y) then return end
     end
     if S.over and not S.over.hidden then return end
     if b == 1 or b == 3 then
@@ -70,6 +95,7 @@ end
 function Input.mousemoved(x, y)
     if S.pinched then return end
     point(x, y)
+    if Win.dragging() then Win.move(S.mouse.x, S.mouse.y) return end
     if S.miniDrag and love.mouse.isDown(1) then S.miniDrag.fn(S.mouse.x, S.mouse.y) return end
     local d = S.drag
     if d then
@@ -86,6 +112,7 @@ function Input.mousereleased(x, y, b)
     if S.pinched then return end
     point(x, y)
     S.miniDrag = nil
+    if Win.dragging() then Win.release() end
     local btn = S.pressed
     S.pressed = nil
     if btn then
@@ -104,7 +131,7 @@ function Input.mousereleased(x, y, b)
 end
 
 function Input.wheelmoved(_, dy)
-    if S.mode ~= "play" or dy == 0 then return end
+    if S.mode ~= "play" or dy == 0 or Win.modal() or Win.at(S.mouse.x, S.mouse.y) then return end
     View.zoom(dy > 0 and 1 or -1, S.mouse.wx, S.mouse.wy)
 end
 
@@ -123,9 +150,10 @@ local function pair()
 end
 
 function Input.touchpressed(id, x, y)
-    S.touch = true
+    S.touchSeen = true
+    Menu.applyTouch()
     touches[id] = { x = x, y = y }
-    if S.mode ~= "play" or pinch then return end
+    if S.mode ~= "play" or pinch or Win.modal() or Win.dragging() then return end
     local d, mx, my = pair()
     if d then
         -- The first finger's press, drag or hold on a button ends here.
@@ -164,40 +192,50 @@ end
 --- keys ------------------------------------------------------------------------------
 
 function Input.keypressed(key)
-    if key == "f11" or (key == "return" and (love.keyboard.isDown("lalt", "ralt"))) then
-        love.window.setFullscreen(not love.window.getFullscreen(), "desktop")
+    if Menu.key(key) then return end
+    local is = Settings.is
+    if is("fullscreen", key) or (key == "return" and love.keyboard.isDown("lalt", "ralt")) then
+        local mode = Settings.get("mode") == "windowed" and "borderless" or "windowed"
+        Settings.set("mode", mode)
+        Menu.applyDisplay()
+        Settings.save()
         return
     end
-    if key == "v" then O.cycleSound() return end
+    if key == "escape" then
+        if Menu.back() then return end
+        if S.mode ~= "play" then love.event.quit() return end
+        if S.panel then S.panel = nil
+        elseif S.selected then O.select(nil)
+        else Menu.openPause() end
+        return
+    end
+    if is("sound", key) then O.cycleSound() return end
+    if Menu.open() then return end
     if S.mode ~= "play" then
         if key == "return" or key == "space" then S.newGame() end
-        if key == "escape" then love.event.quit() end
         return
     end
     local u = S.selected and S.selected.unit
-    if key == "escape" then
-        if S.panel then S.panel = nil elseif S.selected then O.select(nil) end
-        return
-    end
-    if key == "return" or key == "kpenter" then
+    if is("endTurn", key) then O.endTurn() return end
+    if is("main", key) or (key == "kpenter" and Settings.key("main") == "return") then
         if love.keyboard.isDown("lshift", "rshift") then O.endTurn() return end
         local _, fn = O.mainAction()
         if fn then fn() end
         return
     end
-    if key == "g" then S.grid = not S.grid return end
-    if key == "t" then S.panel = S.panel == "research" and nil or "research" return end
-    if key == "h" then
+    if is("grid", key) then O.toggleGrid() return end
+    if is("research", key) then S.panel = S.panel == "research" and nil or "research" return end
+    if is("capital", key) then
         local cap = S.game:citiesOf(1)[1]
         if cap then O.select(cap, true) end
         return
     end
-    if key == "=" or key == "kp+" then View.zoom(1, S.mouse.wx, S.mouse.wy) return end
-    if key == "-" or key == "kp-" then View.zoom(-1, S.mouse.wx, S.mouse.wy) return end
-    if key == "tab" then O.nextUnit(u) return end
+    if is("zoomIn", key) or key == "kp+" then View.zoom(1, S.mouse.wx, S.mouse.wy) return end
+    if is("zoomOut", key) or key == "kp-" then View.zoom(-1, S.mouse.wx, S.mouse.wy) return end
+    if is("nextUnit", key) then O.nextUnit(u) return end
     if u then
         for _, a in ipairs(O.actions(u)) do
-            if (a.key == "SPACE" and key == "space") or (a.key:lower() == key) then
+            if is(a.cmd, key) then
                 if not a.off then a.fn() end
                 return
             end

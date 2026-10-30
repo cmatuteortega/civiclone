@@ -4,15 +4,37 @@
 
 local ffi = require "ffi"
 local S = require "src.ui.state"
+local Settings = require "src.settings"
 
 local floor, ceil, max, min = math.floor, math.ceil, math.max, math.min
 
 local View = {}
 
+-- The board's zoom before any steps in or out: as set, or the whole number
+-- that makes the window's short edge nearest S.SHORT of its pixels.
+function View.baseZoom()
+    local w, h = love.graphics.getDimensions()
+    local set = Settings.get("mapScale") or 0
+    if set > 0 then return max(1, min(set, floor(min(w, h) / 100))) end
+    return max(1, floor(min(w, h) / S.SHORT + 0.5))
+end
+
+-- The HUD's zoom: as set (as far as leaves the HUD room enough), else picked
+-- off the short edge likewise.
+function View.uiZoom()
+    local w, h = love.graphics.getDimensions()
+    local set = Settings.get("uiScale") or 0
+    if set > 0 then
+        local most = max(1, min(floor(w / 300), floor(h / 180)))
+        return max(1, min(set, most))
+    end
+    return max(1, floor(min(w, h) / (S.phone and S.UI_SHORT_PHONE or S.UI_SHORT) + 0.5))
+end
+
 function View.fit()
     local w, h = love.graphics.getDimensions()
-    local base = max(1, floor(min(w, h) / S.SHORT + 0.5))
-    S.uz = max(1, floor(min(w, h) / (S.phone and S.UI_SHORT_PHONE or S.UI_SHORT) + 0.5))
+    local base = View.baseZoom()
+    S.uz = View.uiZoom()
     S.vw, S.vh = ceil(w / S.uz), ceil(h / S.uz)
     S.ui = love.graphics.newCanvas(S.vw, S.vh)
     S.ui:setFilter("nearest", "nearest")
@@ -70,8 +92,7 @@ end
 -- Zooms a step in or out, keeping the board pixel under window pixel
 -- (x, y) where it is. Says whether it changed.
 function View.zoom(step, x, y)
-    local w, h = love.graphics.getDimensions()
-    local base = max(1, floor(min(w, h) / S.SHORT + 0.5))
+    local base = View.baseZoom()
     local new = max(-base + 1, min(3, S.zoomStep + step))
     if new == S.zoomStep then return false end
     local bi, bj = x / S.zoom + S.camx, y / S.zoom + S.camy
@@ -82,14 +103,26 @@ function View.zoom(step, x, y)
     return true
 end
 
+-- How near the window's edge, in its pixels, the pointer pans the camera.
+local EDGE = 3
+
 function View.update(dt)
     local k = love.keyboard
-    local speed = 260 / S.zoom * dt
+    local speed = 260 / S.zoom * dt * Settings.get("panSpeed")
     local dx, dy = 0, 0
-    if k.isDown("left", "a") then dx = dx - speed end
-    if k.isDown("right", "d") then dx = dx + speed end
-    if k.isDown("up", "w") then dy = dy - speed end
-    if k.isDown("down", "s") then dy = dy + speed end
+    if not S.menuOpen then
+        if k.isDown("left", Settings.key("panLeft")) then dx = dx - speed end
+        if k.isDown("right", Settings.key("panRight")) then dx = dx + speed end
+        if k.isDown("up", Settings.key("panUp")) then dy = dy - speed end
+        if k.isDown("down", Settings.key("panDown")) then dy = dy + speed end
+    end
+    if Settings.get("edgePan") and not S.touch and not S.menuOpen and not S.drag
+        and love.window.hasMouseFocus() then
+        local mx, my = love.mouse.getPosition()
+        local w, h = love.graphics.getDimensions()
+        if mx < EDGE then dx = dx - speed elseif mx >= w - EDGE then dx = dx + speed end
+        if my < EDGE then dy = dy - speed elseif my >= h - EDGE then dy = dy + speed end
+    end
     if dx ~= 0 or dy ~= 0 then View.pan(dx, dy) end
     if S.camGoal then
         local f = min(1, dt * 8)

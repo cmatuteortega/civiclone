@@ -3,6 +3,9 @@
 -- selected unit's or city's panel, research, a tooltip for the hex under the
 -- pointer, a minimap, and the button that ends the turn. On a touch screen,
 -- buttons down the right edge for what only keys and the wheel do.
+--
+-- The unit's and city's panels, research and the end are windows
+-- (src/ui/windows.lua): the player can drag them where they like.
 
 local D = require "src.defs"
 local H = require "src.hex"
@@ -13,6 +16,9 @@ local View = require "src.ui.view"
 local O = require "src.ui.orders"
 local Board = require "src.ui.board"
 local Font = require "src.font"
+local Win = require "src.ui.windows"
+local Menu = require "src.ui.menu"
+local Settings = require "src.settings"
 
 local floor, max, min = math.floor, math.max, math.min
 local text, rect, button, icon = Draw.text, Draw.rect, Draw.button, Draw.icon
@@ -61,8 +67,10 @@ local function topBar()
     local w = Font.width(label) + 6
     button(label, x, 1, w, 9, function() S.panel = S.panel == "research" and nil or "research" end,
         { strong = not p.researching and #g:researchable(p) > 0 })
+    -- The menu, at the far right.
+    button("MENU", S.vw - 25, 1, 24, 9, Menu.openPause)
     local right = "TURN " .. g.turn .. "  " .. D.year(g.turn)
-    text("c", right, S.vw - Font.width(right) - 3, 3)
+    text("c", right, S.vw - Font.width(right) - 29, 3)
 end
 
 --- news ----------------------------------------------------------------------------
@@ -71,7 +79,7 @@ local function messages(dt)
     local y = 14
     for k, m in ipairs(S.msgs) do
         m.t = m.t + dt
-        if m.t < 8 then
+        if m.t < Settings.get("newsTime") then
             local w = Font.width(m.text)
             rect("o", 2, y - 1, w + 4, 7)
             text(k == 1 and "w" or "c", m.text, 4, y)
@@ -86,47 +94,57 @@ local function unitPanel(u)
     local g = S.game
     local def = u.def
     local acts = O.actions(u)
-    local w, h = 168, 38
-    local x, y = 2, S.vh - h - 2
-    Draw.panel(x, y, w, h)
-    local team = Board.TEAM[g.players[u.owner].civ.look]
-    rect(team.fill, x + 3, y + 3, 7, 7)
-    icon(u.kind, x + 4, y + 4, team.ink)
+    local w, h = 168, Win.BAR + 1 + 28
     local who = u.owner == 1 and def.name or (g.players[u.owner].name .. " " .. def.name)
-    text("w", who, x + 13, y + 4)
-    local stats = {}
-    if def.str > 0 then stats[#stats + 1] = "STR " .. def.str end
-    if def.ranged then stats[#stats + 1] = "RNG " .. def.ranged .. "/" .. def.range end
-    stats[#stats + 1] = "HP " .. max(0, u.hp)
-    stats[#stats + 1] = "MOVES " .. u.moves .. "/" .. def.moves
-    if def.charges then stats[#stats + 1] = "BUILDS " .. u.charges end
-    text("c", table.concat(stats, "  "), x + 4, y + 13)
-    local status = u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP") or (u.dest and "ON THE MOVE") or nil
-    if status then text("s", status, x + w - Font.width(status) - 4, y + 4) end
-    local bx = x + 3
-    for _, a in ipairs(acts) do
-        local bw = Font.width(a.label) + 8
-        button(a.label, bx, y + h - 14, bw, 11, a.fn, { off = a.off or u.moves <= 0 and a.label ~= "WAKE" })
-        bx = bx + bw + 2
-    end
+    Win.add({ id = "unit", title = who, w = w, h = h, x = 2, y = S.vh - h - 2,
+        close = function() O.select(nil) end,
+        draw = function(x, y)
+            local team = Board.TEAM[g.players[u.owner].civ.look]
+            rect("o", x + 3, y + 2, 9, 9)
+            rect(team.fill, x + 4, y + 3, 7, 7)
+            icon(u.kind, x + 5, y + 4, team.ink)
+            local stats = {}
+            if def.str > 0 then stats[#stats + 1] = "STR " .. def.str end
+            if def.ranged then stats[#stats + 1] = "RNG " .. def.ranged .. "/" .. def.range end
+            stats[#stats + 1] = "HP " .. max(0, u.hp)
+            stats[#stats + 1] = "MOVES " .. u.moves .. "/" .. def.moves
+            if def.charges then stats[#stats + 1] = "BUILDS " .. u.charges end
+            text("c", table.concat(stats, "  "), x + 15, y + 4)
+            local status = u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP") or (u.dest and "ON THE MOVE") or nil
+            if status then text("s", status, x + w - Font.width(status) - 4, y + 18) end
+            local bx = x + 3
+            for _, a in ipairs(acts) do
+                local bw = Font.width(a.label) + 8
+                button(a.label, bx, y + 14, bw, 11, a.fn, { off = a.off or u.moves <= 0 and a.label ~= "WAKE" })
+                bx = bx + bw + 2
+            end
+        end })
 end
 
 --- a city's panel ---------------------------------------------------------------------
 
 local function costOf(it) return it.def.cost end
 
+local cityBody
+
 local function cityPanel(c)
     local g = S.game
     local mine = c.owner == 1
     local w = 150
-    local x, y = S.vw - w - 2 - (S.touch and TOUCH_W + 2 or 0), 13
     local items = mine and g:buildable(c) or {}
     local h = 62 + (mine and (#items * 10 + 14) or 0)
-    h = min(h, S.vh - y - 24)
-    Draw.panel(x, y, w, h)
+    h = min(h, S.vh - 13 - 24)
     local cap = c.capital and " (CAPITAL)" or ""
-    text("w", c.name .. cap, x + 4, y + 4)
-    button("X", x + w - 11, y + 2, 9, 9, function() S.selected = nil end)
+    Win.add({ id = "city", title = c.name .. cap, w = w, h = h,
+        x = S.vw - w - 2 - (S.touch and TOUCH_W + 2 or 0), y = 13,
+        close = function() S.selected = nil end,
+        -- What's in it is laid out from the window's top, as its title bar
+        -- takes the room a heading had.
+        draw = function(x, y) cityBody(c, x, y - Win.BAR - 1, w, h, mine, items) end })
+end
+
+function cityBody(c, x, y, w, h, mine, items)
+    local g = S.game
     local f, p, gold, sci, cul = g:cityYield(c)
     local surplus = f - c.pop * 2
     local need = g:growthNeed(c)
@@ -180,13 +198,18 @@ end
 
 --- research ------------------------------------------------------------------------
 
+local researchBody
+
 local function researchPanel()
-    local g, p = S.game, me()
     local w, h = 200, 22 + #D.TECHS * 12
-    local x, y = floor((S.vw - w) / 2), max(14, floor((S.vh - h) / 2) - 10)
-    Draw.panel(x, y, w, h)
-    text("w", "RESEARCH", x + 4, y + 4)
-    button("X", x + w - 11, y + 2, 9, 9, function() S.panel = nil end)
+    Win.add({ id = "research", title = "RESEARCH", w = w, h = h,
+        x = floor((S.vw - w) / 2), y = max(14, floor((S.vh - h) / 2) - 10),
+        close = function() S.panel = nil end,
+        draw = function(x, y) researchBody(x, y - Win.BAR - 1, w) end })
+end
+
+function researchBody(x, y, w)
+    local g, p = S.game, me()
     local yy = y + 14
     local _, sci = g:income(p)
     for _, t in ipairs(D.TECHS) do
@@ -243,8 +266,23 @@ local function tooltip()
     local x = floor((S.vw - w) / 2) - 3
     local y = S.vh - 9 * #lines - 4
     -- On a narrow screen it goes up, clear of the unit's panel and the turn's buttons.
-    local sel = S.selected
-    if (sel and sel.unit and x < 172) or x + w + 6 > S.vw - 118 then y = y - 42 end
+    if x + w + 6 > S.vw - 118 then y = y - 42 end
+    -- Clear of the windows, too, as they were last drawn: above one, or
+    -- else beside it.
+    local bw, bh = w + 6, #lines * 8 + 3
+    local function hit(tx, ty)
+        for _, r in ipairs(Win.rects or {}) do
+            if tx < r.px + r.w and tx + bw > r.px and ty < r.py + r.h and ty + bh > r.py then return r end
+        end
+    end
+    for _ = 1, 4 do
+        local r = hit(x, y)
+        if not r then break end
+        if r.py - bh - 1 >= 12 then y = r.py - bh - 1
+        elseif r.px - bw - 1 >= 0 then x = r.px - bw - 1
+        elseif r.px + r.w + bw + 1 <= S.vw then x = r.px + r.w + 1
+        else break end
+    end
     rect("o", x, y, w + 6, #lines * 8 + 3)
     for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, x + 3, y + 2 + (k - 1) * 8) end
 end
@@ -300,7 +338,7 @@ local function touchButtons()
             local cap = S.game:citiesOf(1)[1]
             if cap then O.select(cap, true) end
         end },
-        { "GRID", function() S.grid = not S.grid end, S.grid },
+        { "GRID", O.toggleGrid, S.grid },
         { "SOUND", O.cycleSound },
     }
     for _, b in ipairs(list) do
@@ -311,11 +349,19 @@ end
 
 --- the end ---------------------------------------------------------------------------
 
+local overBody
+
 local function gameOver()
     local g = S.game
     local w, h = 180, 64 + #g.players * 8
-    local x, y = floor((S.vw - w) / 2), floor((S.vh - h) / 2)
-    Draw.panel(x, y, w, h)
+    h = h + Win.BAR + 1
+    Win.add({ id = "over", title = "THE END", w = w, h = h,
+        x = floor((S.vw - w) / 2), y = floor((S.vh - h) / 2),
+        draw = function(x, y) overBody(x, y, w, h - Win.BAR - 1) end })
+end
+
+function overBody(x, y, w, h)
+    local g = S.game
     love.graphics.push()
     local title = S.over.result == "won" and "VICTORY" or "DEFEAT"
     love.graphics.translate(x + floor((w - Font.width(title) * 2) / 2), y + 6)
@@ -342,7 +388,7 @@ function Hud.draw(dt)
     local sel = S.selected
     if sel and sel.unit and not sel.unit.dead then unitPanel(sel.unit) end
     if sel and sel.city then cityPanel(sel.city) end
-    if not (S.over and not S.over.hidden) then tooltip() end
+    if not (S.over and not S.over.hidden) and Settings.get("tooltips") then tooltip() end
     -- A phone's screen has no room for both the city and the minimap.
     if not (S.phone and sel and sel.city) then minimap() end
     if S.touch and not (S.over and not S.over.hidden) then touchButtons() end

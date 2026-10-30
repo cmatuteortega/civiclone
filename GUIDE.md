@@ -78,8 +78,12 @@ with your first idle unit (the settler) selected.
 | H | Select your capital |
 | G | Show or hide the hex grid |
 | V | Sound: loud, soft or off (kept between games) |
-| Esc | Close the open panel, or deselect |
-| F11, Alt+Enter | Fullscreen |
+| End | End the turn now |
+| Esc | Close the open window, or deselect; with nothing to close, the menu |
+| F11, Alt+Enter | Windowed or borderless fullscreen |
+
+These are the default keys. All but Esc and the arrows can be changed in
+Settings → Controls (Esc, or MENU at the top right, opens the menu).
 
 ## The screen
 

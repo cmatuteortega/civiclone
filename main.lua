@@ -13,7 +13,8 @@
 --
 -- This file starts the game, runs each frame and lays the two pictures on
 -- the window. The rules are in src/game.lua and src/ai.lua, the numbers in
--- src/defs.lua, the screen's parts in src/ui/.
+-- src/defs.lua, the screen's parts in src/ui/, the player's settings in
+-- src/settings.lua.
 
 local T = require "src.tracer"
 local S = require "src.ui.state"
@@ -28,6 +29,9 @@ local Game = require "src.game"
 local World = require "src.world"
 local Font = require "src.font"
 local Audio = require "src.ui.audio"
+local Win = require "src.ui.windows"
+local Menu = require "src.ui.menu"
+local Settings = require "src.settings"
 
 local floor = math.floor
 
@@ -36,8 +40,15 @@ for _, name in ipairs({ "mousepressed", "mousereleased", "mousemoved", "wheelmov
     love[name] = Input[name]
 end
 
-function love.resize() View.fit() end
-function love.visible(v) Audio.hide(not v) end
+function love.resize(w, h)
+    Menu.resized(w, h)
+    View.fit()
+end
+-- Out of sight, the sound stops; out of focus too, if the settings say.
+local visible, focused = true, true
+local function away() return not visible or (Settings.get("muteAway") and not focused) end
+function love.visible(v) visible = v Audio.hide(away()) end
+function love.focus(f) focused = f Audio.hide(away()) end
 function love.quit() Audio.stop() end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
@@ -49,6 +60,7 @@ function S.newGame(seed)
     S.world = World.new(S.game)
     S.anim, S.effects, S.msgs = {}, {}, {}
     S.selected, S.panel, S.over, S.hover = nil, nil, nil, nil
+    S.pause, S.ask = false, nil
     O.resetLog()
     S.progress = 0
     S.mode = "loading"
@@ -83,13 +95,17 @@ function love.load(args)
         if a == "--shot" then S.plan = { file = args[n + 1] or "shot.png", turns = 0, frames = 0 } end
         if a == "--turns" and S.plan then S.plan.turns = tonumber(args[n + 1]) or 0 end
         if a == "--select" and S.plan then S.plan.select = args[n + 1] end
+        -- `--open settings:audio` (or `pause`) shows a menu in the picture.
+        if a == "--open" and S.plan then S.plan.open = args[n + 1] end
         -- `--sounds` writes every sound as a .wav into the save folder, and quits.
         if a == "--sounds" then
             print("wrote " .. Audio.dump())
             love.event.quit()
         end
     end
-    View.fit()
+    -- Pictures are taken as the game starts, whatever the player has set.
+    if not S.plan then Settings.load() end
+    Menu.applyAll()
     -- Pictures are taken in silence.
     if not S.plan then Audio.init() end
 end
@@ -129,16 +145,25 @@ local function followPlan()
             end
         end
     end
+    if plan.frames == 3 and plan.open then
+        local what, tab = plan.open:match("^(%a+):?(%a*)$")
+        if what == "pause" then Menu.openPause() end
+        if what == "settings" then Menu.openSettings(tab ~= "" and tab or nil) end
+    end
     if plan.frames == 30 then S.shot = plan.file end
     if plan.frames == 32 then love.event.quit() end
 end
 
 function love.update(dt)
+    Menu.throttle()
     if S.play then S.play = nil S.newGame() end
     dt = math.min(dt, 1 / 20)
     S.clock = S.clock + dt
     S.dt = dt
+    Audio.hide(away())
     Audio.update(dt)
+    Menu.update(dt)
+    S.menuOpen = Menu.open() or Win.modal()
     if S.mode == "loading" then
         local t0 = love.timer.getTime()
         while coroutine.status(S.painter) ~= "dead" and love.timer.getTime() - t0 < 1 / 30 do
@@ -155,7 +180,7 @@ function love.update(dt)
     if S.mode ~= "play" then return end
     if S.plan then followPlan() end
     View.update(dt)
-    Anim.update(S.game, dt)
+    Anim.update(S.game, dt * Settings.get("animSpeed"))
     Input.findHover()
     if not S.over then
         local result, why = S.game:outcome()
@@ -210,20 +235,27 @@ local function title()
     bigText("w", "SEPIA", cx, y, 4)
     local sub = "BUILD AN EMPIRE ON A MAP OF SEPIA HEXES"
     Draw.text("c", sub, cx - floor(Font.width(sub) / 2), y + 26)
-    Draw.button("NEW GAME", cx - 40, y + 40, 80, 14, function() S.newGame() end, { strong = true })
-    Draw.button("QUIT", cx - 40, y + 58, 80, 12, function() love.event.quit() end)
+    Draw.button("NEW GAME", cx - 40, y + 38, 80, 14, function() S.newGame() end, { strong = true })
+    Draw.button("SETTINGS", cx - 40, y + 54, 39, 12, Menu.openSettings)
+    Draw.button("QUIT", cx + 1, y + 54, 39, 12, function() love.event.quit() end)
     local help = S.touch and {
         "TAP: SELECT, OR SEND THE CHOSEN UNIT THERE",
         "DRAG: PAN   PINCH: ZOOM",
         "THE BUTTONS DOWN THE RIGHT: ZOOM, NEXT UNIT,",
         "CAPITAL, HEX GRID AND SOUND",
-    } or {
-        "LEFT CLICK: SELECT   RIGHT CLICK: MOVE OR ATTACK",
-        "DRAG OR WASD: PAN   WHEEL: ZOOM   G: GRID   T: RESEARCH",
-        "ENTER: NEXT   SHIFT+ENTER: END TURN   SPACE: SKIP",
-        "B: FOUND CITY   F: FORTIFY   R: FARM   M: MINE   H: CAPITAL",
-        "V: SOUND LOUD, SOFT OR OFF",
-    }
+    } or (function()
+        -- As the keys are bound now.
+        local function k(cmd) return Settings.keyName(Settings.key(cmd)) end
+        return {
+            "LEFT CLICK: SELECT   RIGHT CLICK: MOVE OR ATTACK",
+            "DRAG, ARROWS OR " .. k("panUp") .. k("panLeft") .. k("panDown") .. k("panRight") .. ": PAN   WHEEL: ZOOM   "
+                .. k("grid") .. ": GRID   " .. k("research") .. ": RESEARCH",
+            k("main") .. ": NEXT   " .. k("endTurn") .. ": END TURN   " .. k("skip") .. ": SKIP",
+            k("found") .. ": FOUND CITY   " .. k("fortify") .. ": FORTIFY   " .. k("farm") .. ": FARM   "
+                .. k("mine") .. ": MINE   " .. k("capital") .. ": CAPITAL",
+            k("sound") .. ": SOUND   ESC: MENU   DRAG A WINDOW BY ITS TITLE",
+        }
+    end)()
     for k, l in ipairs(help) do Draw.text("t", l, cx - floor(Font.width(l) / 2), y + 76 + (k - 1) * 7) end
 end
 
@@ -247,8 +279,12 @@ function love.draw()
         loading()
     else
         Hud.draw(S.dt or 0)
-        Board.draw()
     end
+    -- The windows over all the rest, and the menus over them.
+    Menu.draw()
+    Win.flush()
+    Menu.drawFps()
+    if S.mode == "play" then Board.draw() end
     love.graphics.setCanvas()
     love.graphics.setColor(1, 1, 1)
     love.graphics.clear(T.RGB[T.IDX.o])

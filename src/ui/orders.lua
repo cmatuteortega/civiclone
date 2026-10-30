@@ -8,6 +8,7 @@ local View = require "src.ui.view"
 local Anim = require "src.ui.anim"
 local AI = require "src.ai"
 local Audio = require "src.ui.audio"
+local Settings = require "src.settings"
 
 local max = math.max
 
@@ -79,13 +80,17 @@ end
 -- On to the next of the player's units wanting orders, if any.
 function O.nextUnit(after)
     local u = S.game:idleUnit(1, after)
-    if u then O.select(u, true) return true end
+    if u then O.select(u, Settings.get("follow")) return true end
     O.select(nil)
     return false
 end
 
 -- After an order: if the unit has nothing left to do, the next one.
 local function after(u)
+    if not Settings.get("autoCycle") then
+        if u.dead then S.selected = nil end
+        return
+    end
     if u.dead or u.moves <= 0 or u.dest then
         if not O.nextUnit(u) then S.selected = nil end
     end
@@ -163,13 +168,14 @@ end
 
 --- a unit's orders -----------------------------------------------------------------
 
--- The orders the selected unit can be given now: { label, key, fn, off }.
+-- The orders the selected unit can be given now: { label, cmd, fn, off },
+-- `cmd` naming the key bound to it (src/settings.lua).
 function O.actions(u)
     local g = S.game
     local out = {}
     if not u or u.owner ~= 1 then return out end
     if u.kind == "settler" then
-        out[#out + 1] = { label = "FOUND CITY", key = "B", off = not g:canFound(u), fn = function()
+        out[#out + 1] = { label = "FOUND CITY", cmd = "found", off = not g:canFound(u), fn = function()
             local city = g:found(u)
             if city then O.select(city) end
         end }
@@ -177,30 +183,37 @@ function O.actions(u)
     if u.kind == "builder" then
         local can = {}
         for _, k in ipairs(g:improvementsFor(u)) do can[k] = true end
-        out[#out + 1] = { label = "FARM", key = "R", off = not can.farm, fn = function() g:improve(u, "farm") after(u) end }
-        out[#out + 1] = { label = "MINE", key = "M", off = not can.mine, fn = function() g:improve(u, "mine") after(u) end }
+        out[#out + 1] = { label = "FARM", cmd = "farm", off = not can.farm, fn = function() g:improve(u, "farm") after(u) end }
+        out[#out + 1] = { label = "MINE", cmd = "mine", off = not can.mine, fn = function() g:improve(u, "mine") after(u) end }
     end
     if not u.def.civilian then
-        out[#out + 1] = { label = u.fortified and "WAKE" or "FORTIFY", key = "F", fn = function()
+        out[#out + 1] = { label = u.fortified and "WAKE" or "FORTIFY", cmd = "fortify", fn = function()
             u.fortified = not u.fortified
             u.dest = nil
             if u.fortified then Audio.play("fortify") end
-            if u.fortified then O.nextUnit(u) end
+            if u.fortified and Settings.get("autoCycle") then O.nextUnit(u) end
         end }
     else
-        out[#out + 1] = { label = u.sleep and "WAKE" or "SLEEP", key = "Z", fn = function()
+        out[#out + 1] = { label = u.sleep and "WAKE" or "SLEEP", cmd = "sleep", fn = function()
             u.sleep = not u.sleep
             u.dest = nil
             if u.sleep then Audio.play("sleep") end
-            if u.sleep then O.nextUnit(u) end
+            if u.sleep and Settings.get("autoCycle") then O.nextUnit(u) end
         end }
     end
-    out[#out + 1] = { label = "SKIP", key = "SPACE", fn = function()
+    out[#out + 1] = { label = "SKIP", cmd = "skip", fn = function()
         u.skipped = true
         u.dest = nil
         O.nextUnit(u)
     end }
     return out
+end
+
+-- The hex grid on or off, and kept so.
+function O.toggleGrid()
+    S.grid = not S.grid
+    Settings.set("grid", S.grid)
+    Settings.save()
 end
 
 -- Sound loud, soft or off, said in the news.

@@ -11,6 +11,7 @@ local floor = math.floor
 local Draw = {}
 
 function Draw.color(k) love.graphics.setColor(T.RGB[T.IDX[k]]) end
+function Draw.rgb(k) return T.RGB[T.IDX[k]] end
 
 function Draw.rect(k, x, y, w, h)
     Draw.color(k)

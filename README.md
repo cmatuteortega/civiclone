@@ -53,8 +53,33 @@ drawn the same way: light, dark, or dashed.
 | Shift+Enter, END | End the turn even with units still idle |
 | B / F / Z / Space | Found city / fortify / sleep / skip |
 | R / M | Builder: farm / mine |
-| T, H, G, Tab, Esc | Research, go to capital, hex grid, next unit, deselect |
+| T, H, G, Tab | Research, go to capital, hex grid, next unit |
 | V | Sound: loud, soft or off |
+| Esc | Close the open window or deselect; otherwise the menu |
+| F11, Alt+Enter | Windowed or borderless fullscreen |
+
+Every key but Esc and the arrows can be rebound in the settings.
+
+### Settings and windows
+
+**Esc** (or **MENU**, top right) opens the menu: resume, settings, a new
+game, the main menu, or quit. The title screen has **SETTINGS** too.
+Everything is saved as you change it, in `settings` in LÖVE's save folder.
+
+![The settings](shots/04-settings.png)
+
+| Tab | Settings |
+| --- | --- |
+| Display | Windowed, borderless or exclusive fullscreen; resolution; vsync; a frame rate limit; a frame rate counter. A new mode or resolution reverts after 15 seconds unless you keep it |
+| Interface | Interface size and map pixel size (automatic, or any whole zoom the window allows); touch buttons; hex tooltips; how long the news stays; lock windows; snap windows to edges; reset window positions |
+| Audio | Master, music, ambience and effects volumes; mute in the background |
+| Gameplay | Animation speed; camera pan speed; pan at the screen's edges; auto-select the next unit; camera follows selection; hex grid |
+| Controls | Every command's key: click one, press the new key. A key already in use swaps |
+
+The unit and city panels, research, the menus and the end of the game are
+windows: drag one by its title bar and it stays there, between games and
+through a resize. A click brings a window to the front, and a double click
+on its title bar puts it back in its own place.
 
 On a touch screen (LÖVE for Android or iOS; `--touch` lays it out so on a
 desktop) a tap is a left click and a one-finger drag pans. Pinch to zoom, and
@@ -159,7 +184,8 @@ in about two seconds while the title is up, so no frame waits on it.
 | `src/tracer.lua`, `src/shapes.lua` | The 3D method and its solids |
 | `src/world.lua`, `src/models.lua` | The map's picture, and everything on it |
 | `src/synth.lua`, `src/audiothread.lua` | Every sound and the music, synthesised |
-| `src/ui/` | Camera, overlay, board, HUD, orders, input, animation, sound |
+| `src/settings.lua` | The player's settings and key bindings, and where windows were left |
+| `src/ui/` | Camera, overlay, board, HUD, windows, menus, orders, input, animation, sound |
 
 ## Tests
 

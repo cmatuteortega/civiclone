@@ -25,17 +25,24 @@
 -- Every few minutes the music draws back for a while and lets the land be
 -- heard.
 --
--- V goes round loud, soft and off, and is kept between games.
+-- How loud each is comes from the settings (src/settings.lua): a master
+-- volume over the music, the land and the effects, each its own. V goes the
+-- master round loud, soft and off.
 
 local D = require "src.defs"
 local Synth = require "src.synth"
 local S = require "src.ui.state"
+local Settings = require "src.settings"
 
 local floor, min, max, sqrt = math.floor, math.min, math.max, math.sqrt
 
-local Audio = { on = false, level = 1 }
+local Audio = { on = false }
 
-local LEVELS = { [1] = "LOUD", [0.5] = "SOFT", [0] = "OFF" }
+-- How loud a kind of sound is ("music", "ambience" or "effects"), 0..1,
+-- master and all.
+local function level(kind)
+    return Settings.get("master") / 100 * Settings.get(kind) / 100
+end
 -- How loud each layer of the music is when it is in.
 local MIX = { [0] = 0.32, 0.26, 0.24, 0.2, 0.28, 0.32 }
 -- The cycle the music breathes on: in for so long, then back for a while.
@@ -59,8 +66,6 @@ function Audio.init()
         love.audio.newSource(love.sound.newSoundData(1, Synth.RATE, 16, 1), "static")
     end)
     if not ok then return false end
-    local saved = love.filesystem.read("sound")
-    if LEVELS[tonumber(saved)] then Audio.level = tonumber(saved) end
     jobs, done = love.thread.getChannel("synth.jobs"), love.thread.getChannel("synth.done")
     jobs:clear()
     done:clear()
@@ -108,7 +113,7 @@ end
 -- Plays effect `name`: `pan` from -1 (left) to 1 (right), `vol` 0..1, `pitch`
 -- a factor. Not rendered yet: silence beats a stall.
 function Audio.play(name, pan, vol, pitch)
-    if not Audio.on or Audio.away or Audio.level <= 0 then return end
+    if not Audio.on or Audio.away or level("effects") <= 0 then return end
     local p = pools[name]
     if not p or not p.srcs then return end
     local def = p.def
@@ -131,7 +136,7 @@ function Audio.play(name, pan, vol, pitch)
     end
     local wob = def.wob or 0.03
     src:setPitch((pitch or 1) * (1 + (love.math.random() * 2 - 1) * wob))
-    src:setVolume(max(0, min(1, (def.vol or 0.5) * (vol or 1) * Audio.level)))
+    src:setVolume(max(0, min(1, (def.vol or 0.5) * (vol or 1) * level("effects"))))
     pan = max(-1, min(1, pan or 0)) * 0.7
     src:setPosition(pan, 0, -sqrt(1 - pan * pan))
     src:play()
@@ -325,7 +330,7 @@ function Audio.update(dt)
 
     -- The land: each loop eases to where it should be; silent ones stop.
     for name, l in pairs(loops) do
-        local want = (land[name] or 0) * Audio.level
+        local want = (land[name] or 0) * level("ambience")
         l.vol = l.vol + (want - l.vol) * min(1, dt * 1.2)
         if l.src then
             if l.vol < 0.002 and want == 0 then
@@ -348,7 +353,7 @@ function Audio.update(dt)
     local breath = (clock - musicAt) % (PLAYS + RESTS) < PLAYS and 1 or 0.3
     for k = 0, #layers do
         local l = layers[k]
-        local want = on[k] and MIX[k] * Audio.level * (k == 5 and 1 or breath) or 0
+        local want = on[k] and MIX[k] * level("music") * (k == 5 and 1 or breath) or 0
         -- In slowly, and the drums out slowly too once the danger has passed.
         l.vol = l.vol + (want - l.vol) * min(1, dt * (k == 5 and want > l.vol and 0.8 or 0.25))
         l.src:setVolume(l.vol)
@@ -364,11 +369,13 @@ function Audio.hide(away)
     elseif held then love.audio.play(held); held = nil end
 end
 
--- Loud, soft, off: what V goes round. Answers its name.
+-- Loud, soft, off: what V goes round, on the master volume. Answers its name.
 function Audio.cycle()
-    Audio.level = Audio.level >= 1 and 0.5 or (Audio.level > 0 and 0 or 1)
-    pcall(love.filesystem.write, "sound", tostring(Audio.level))
-    return LEVELS[Audio.level]
+    local m = Settings.get("master")
+    m = m >= 100 and 50 or (m > 0 and 0 or 100)
+    Settings.set("master", m)
+    Settings.save()
+    return m >= 100 and "LOUD" or (m > 0 and "SOFT" or "OFF")
 end
 
 -- Dev: every sound, loop and layer of the music written as a .wav into the
