@@ -16,8 +16,8 @@ peaks, forests, hills, and fog of war drawn as an old paper map.
 
 The sea is the one thing on the map that moves: a shader
 (`src/ui/sea.lua`) paints the water again each frame, still choosing every
-pixel from the eight colours. Ripples and crests come in trains on a swell,
-the water is rough in some patches and smooth in others, sand shows through
+pixel from the eight colours. A swell rolls in, the water is rough in some
+patches and smooth in others, sand shows through
 the shallows, and breakers come in and fall white on the shore, at different
 moments along the coast.
 

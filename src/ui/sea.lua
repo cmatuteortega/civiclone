@@ -12,13 +12,8 @@
 --
 -- Rumbo's sea (src/sea.lua there) taught most of what is here, done on the
 -- GPU rather than with sprites:
---   * the field is mostly short ripples a shade off the water, and only a few
---     strokes stand up as waves, with a shadow under them, or break white;
 --   * patches of rough water and of smooth, so the sea is not a wallpaper;
---   * the strokes come in trains on a swell that rolls towards you, so the
---     sea breathes rather than boils;
---   * a stroke is born, grows, drifts a few pixels and shrinks away, each on
---     its own clock, so nothing ticks in step;
+--   * a swell that rolls towards you, so the sea breathes rather than boils;
 --   * foam fades down the palette, through holes, not through alpha.
 -- And new here, the shore: sand showing through the shallows, a breaker that
 -- comes in from out at sea, white where it falls, and the wash it leaves on
@@ -46,7 +41,6 @@ uniform vec2 alongJ;     // room (x, z) a pixel down
 uniform float time;
 
 const float O = 1.0, U = 2.0, N = 3.0, K = 4.0, TAN = 5.0, S = 6.0, C = 7.0, W = 8.0;
-const float CW = 20.0, CH = 6.0;   // the cells strokes are dealt into, in pixels
 
 float hash(vec2 p) {
     vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -81,48 +75,6 @@ float rough(vec2 w, float t) {
     return noise(w * 0.013 + vec2(-t * 0.006, t * 0.004));
 }
 
-// The stroke over pixel p, if any: how big it is (1 a ripple, 2 a wave, 3 a
-// crest about to break; a half less at its ends) or -1 for the shadow under a
-// wave. Each cell of the grid holds one stroke at a time; a stroke drifts
-// down three pixels in its life, so a pixel asks its own row and the one
-// above. `still`: how calm the water may be at the calmest.
-float stroke(vec2 p, float t, float still) {
-    float row = floor(p.y / CH);
-    float best = 0.0;
-    for (int n = 0; n < 2; n++) {
-        float r = row - float(n);
-        float shift = floor(hash(vec2(r, 3.7)) * CW);
-        float col = floor((p.x + shift) / CW);
-        vec2 c = vec2(col, r);
-        float life = 2.6 + 2.4 * hash(c);
-        float ph = t / life + hash(c, 1.0);
-        float gen = floor(ph);
-        float u = fract(ph);
-        vec2 g = c + vec2(gen * 7.13, gen * 3.71);
-        float left = col * CW - shift;
-        vec2 w = room(vec2(left + CW * 0.5, r * CH + CH * 0.5));
-        float sw = swell(w, t);
-        float ro = max(still, rough(w, t));
-        // More of them, and bigger, on the swell's crests and in rough water.
-        float crest = smoothstep(-0.4, 0.9, sw);
-        if (hash(g, 2.0) > (0.12 + 0.8 * ro) * (0.25 + 0.75 * crest)) continue;
-        float grade = pow(ro, 1.4) * (0.35 + 0.65 * crest) * (0.45 + 0.55 * hash(g, 3.0));
-        float big = grade > 0.36 ? 3.0 : (grade > 0.16 ? 2.0 : 1.0);
-        float most = big == 1.0 ? 4.0 + 5.0 * hash(g, 5.0) : 2.0 + 5.0 * big + 5.0 * hash(g, 5.0);
-        float len = floor(most * sin(3.14159 * u) + 0.5);
-        float xc = left + most * 0.5 + hash(g, 4.0) * (CW - most);
-        float y = r * CH + floor(hash(g, 6.0) * (CH - 2.0)) + floor(u * 3.0);
-        float dx = abs(p.x + 0.5 - xc);
-        if (p.y == y && dx < len * 0.5) {
-            float k = (dx < len * 0.5 - 1.5 || big == 1.0) ? big : big - 0.5;
-            best = max(best, k);
-        } else if (p.y == y + 1.0 && big > 1.0 && dx < len * 0.5 - 1.0 && best == 0.0) {
-            best = -1.0;
-        }
-    }
-    return best;
-}
-
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec4 m = Texel(seaMask, tc);
     float kind = floor(m.r * 255.0 + 0.5);
@@ -144,17 +96,6 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     if (sw < -0.8 && ro > 0.3 && bayer4(p) < (sw < -0.93 ? 0.375 : 0.1875)) k = water - 1.0;
     // Far out the sea is deeper: its troughs wider.
     if (deep && shore > 40.0 && sw < -0.35 && ro > 0.45 && bayer4(p) < 0.25) k = O;
-
-    // The shallows are never quite still.
-    float s = stroke(p, t, deep ? 0.0 : 0.4);
-    if (s > 0.0) {
-        k = water + ceil(s);
-        if (fract(s) > 0.0) k -= 1.0;
-        // A crest about to break, now and then, shows white.
-        if (s == 3.0 && ro > 0.6 && hash(floor(p / 3.0), floor(t * 1.5)) > 0.7) k = deep ? C : W;
-    } else if (s < 0.0) {
-        k = water - 1.0;
-    }
 
     // A glint: a pixel of the sun, for a moment, on a high swell.
     if (sw > 0.6 && hash(p, floor(t * 2.0 + hash(p) * 7.0)) > 0.997) k = deep ? S : C;
