@@ -184,7 +184,7 @@ end
 local function unitBanner(u)
     local g = S.game
     local x, y, z = Anim.place(g, u)
-    local sx, sy = screen(x, y + 22, z)
+    local sx, sy = screen(x, y + 12 * M.UNIT_SCALE, z)
     -- Two on a hex: their banners side by side. In a city, under its banner.
     if #Anim.of(u).queue == 0 then
         if g.cells[u.cell].city then sx, sy = screen(x, y + 12, z) end

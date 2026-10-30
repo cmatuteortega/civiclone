@@ -10,6 +10,7 @@
 local H = require "src.hex"
 local S = require "src.ui.state"
 local Audio = require "src.ui.audio"
+local M = require "src.models"
 
 local max, min, floor = math.max, math.min, math.floor
 
@@ -63,7 +64,8 @@ function Anim.events(game)
             end
             if e.ranged then
                 S.effects[#S.effects + 1] = { kind = "shot", t = 0, life = 0.3,
-                    x0 = from.x, y0 = from.top + 10, z0 = from.z, x1 = to.x, y1 = to.top + 6, z1 = to.z }
+                    x0 = from.x, y0 = from.top + 5.5 * M.UNIT_SCALE, z0 = from.z,
+                    x1 = to.x, y1 = to.top + 3.3 * M.UNIT_SCALE, z1 = to.z }
             end
         elseif e.kind == "hit" then
             local cell = game.cells[e.cell]

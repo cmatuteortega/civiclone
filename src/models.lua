@@ -41,7 +41,7 @@ local function kept(key, build, scale)
     end
     return p
 end
-M.UNIT_SCALE, M.CITY_SCALE = 1.8, 1.45
+M.UNIT_SCALE, M.CITY_SCALE = 1.2, 1.45
 M.count = function()
     local n = 0
     for _ in pairs(cache) do n = n + 1 end
