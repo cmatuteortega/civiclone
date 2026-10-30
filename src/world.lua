@@ -146,6 +146,15 @@ MAT.trunk = { id = 8, ramp = ramp("t", "n", "u", "o") }
 MAT.wheat = { id = 9, ramp = ramp("w", "c", "s", "t"), print = function(s, x, y, z, nx, ny, nz, lev)
     if grain(x * 3, y * 3, 8) > 0.8 then return IDX.t end
 end }
+-- A plot of standing grain: its ears speckled on top, its rows down the
+-- sides.
+MAT.plot = { id = 9, ramp = MAT.wheat.ramp, print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny > 0.5 then
+        if grain(x * 3, z * 3, 8) > 0.86 then return IDX.s end
+    elseif floor(x * 1.2 + z * 0.7) % 2 == 0 then
+        return IDX.s
+    end
+end }
 MAT.stone = { id = 10, ramp = ramp("w", "c", "k", "n") }
 MAT.gem = { id = 11, ramp = ramp("w", "w", "s", "k") }
 -- Hills are their ground's own stuff, but a material of their own, so no
@@ -259,8 +268,30 @@ function World:hexSolids(cell)
 
     if cell.city then return out end
     if cell.resource == "wheat" then
-        for _, p in ipairs(scatter(cell, 4, 4, 50)) do
-            add(Sh.ell(p[1], top + 2, p[2], 1.1, 2.4, 1.1), MAT.wheat)
+        -- Two low plots of grain in rows, and between and round them a stand
+        -- of it, clump by clump, inked only round its outside. All along
+        -- one of three ways, by the hex (none end on, where a plot would
+        -- look a crate).
+        local a = math.rad(({ 0, 30, -30 })[cell.id % 3 + 1])
+        local ca, sa = math.cos(a), math.sin(a)
+        local function at(u, v) return cell.x + u * ca - v * sa, cell.z + u * sa + v * ca end
+        local plots = { { -2.2, -2.6, 5.4 }, { 2.4, 2.4, 4.4 } }
+        for _, q in ipairs(plots) do
+            local x, z = at(q[1], q[2])
+            add(Sh.box(x, top, z, q[3], 3.6, 1.6, -a), MAT.plot)
+        end
+        for row = -4, 4 do
+            for k = -4, 4 do
+                local u, v = k * 2.1 + (row % 2) * 1.05, row * 1.9
+                local clear = true
+                for _, q in ipairs(plots) do
+                    if math.abs(u - q[1]) < q[3] / 2 + 1.1 and math.abs(v - q[2]) < 2.9 then clear = false end
+                end
+                local x, z = at(u, v)
+                if clear and H.inset(x, z, cell.x, cell.z) > 4 then
+                    add(Sh.ell(x, top + 0.3, z, 1.3, 1.4, 1.3), MAT.wheat).join = "wheat"
+                end
+            end
         end
     elseif cell.resource == "stone" then
         for n, p in ipairs(scatter(cell, 3, 4, 60)) do
@@ -303,9 +334,15 @@ end
 
 function World:addCell(cell)
     local list = self:hexSolids(cell)
+    -- Solids that `join` are one part, so not inked where they meet.
+    local joined = {}
     for _, s in ipairs(list) do
-        s.part = self.nextPart
-        self.nextPart = self.nextPart % 32000 + 1
+        s.part = s.join and joined[s.join]
+        if not s.part then
+            s.part = self.nextPart
+            self.nextPart = self.nextPart % 32000 + 1
+            if s.join then joined[s.join] = s.part end
+        end
         T.prepare(s)
         self.solids[#self.solids + 1] = s
         if self.bins then self:binOne(s) end
@@ -395,7 +432,7 @@ function World:trace(i0, j0, i1, j1, yield)
                 -- sixteenths; grass and dry grass ripple; the heat shimmers
                 -- over sand.
                 local kind, sway = LAND.other, 0
-                if m == MAT.tree or m == MAT.wheat then
+                if m == MAT.tree or m.id == MAT.wheat.id then
                     local cell = best.cellRef
                     local ground = cell.top + ((m == MAT.tree and cell.elev == "hills") and 1 or 0)
                     kind = m == MAT.tree and LAND.crown or LAND.sheaf
