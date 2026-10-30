@@ -25,8 +25,9 @@
 -- The wind blows from the west, in gusts that roll east over the map. Where
 -- one passes, the crowns of the trees and the sheaves of wheat lean a pixel
 -- or two with it, by how high they stand, and the grass and the dry grass
--- show their light sides in streaks. Under all of it, land, sea and what
--- stands on them, the shadows of clouds drift the same way, a step darker in a dither.
+-- show their light sides in streaks. Over the desert the heat shimmers.
+-- Under all of it, land, sea and what stands on them, the shadows of clouds
+-- drift the same way, a step darker in a dither.
 --
 -- Marks laid over water (the hexes a city works) are not printed over it
 -- still, which would stop the water under them: the overlay carries them as
@@ -104,7 +105,7 @@ uniform vec2 overlaySize;
 uniform vec2 size;       // the picture, in pixels
 uniform float time;      // the sea's clock
 
-const float CROWN = 3.0, SHEAF = 4.0, GRASS = 5.0, PLAINS = 6.0;
+const float CROWN = 3.0, SHEAF = 4.0, GRASS = 5.0, PLAINS = 6.0, DESERT = 8.0;
 
 float what(vec4 m) { return floor(m.r * 255.0 + 0.5); }
 float keyOf(vec4 m) { return floor(m.a * 255.0 + 0.5); }
@@ -213,6 +214,17 @@ vec3 land(vec4 m, vec2 p, vec2 w) {
                 if (!sways(what(o)) && what(o) > 0.5) { k = keyOf(o); from = what(o); break; }
             }
         }
+    }
+    // Heat over the sand, stronger in patches that wander: its rows wave a
+    // pixel to and fro, and bands of glare a step lighter rise through it.
+    if (!covered && kind == DESERT) {
+        float heat = 0.4 + 0.6 * smoothstep(0.4, 0.7, noise(w * 0.018 + vec2(t * 0.04, -t * 0.02)));
+        float wave = sin(p.y * 0.9 - t * 4.0 + 6.0 * noise(w * 0.05));
+        float d = floor(wave * heat * 1.4 + 0.5);
+        vec4 o = at(p - vec2(d, 0.0));
+        if (d != 0.0 && what(o) == DESERT) k = keyOf(o);
+        float band = fract((p.y + t * 5.0 + 4.0 * noise(w * 0.04)) / 9.0);
+        if (band < 0.2 * heat && bayer4(p) < 0.25 * heat) k += 1.0;
     }
     float g = gust(w, t);
     if (from == CROWN && g > 0.45 && k > U && hash(p, floor(t * 5.0 + hash(p) * 3.0)) > 0.9) {

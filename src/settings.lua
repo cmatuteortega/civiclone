@@ -24,7 +24,7 @@ Settings.LIST = {
     { id = "fps", tab = "display", name = "FRAME RATE LIMIT", values = { 0, 30, 60, 120, 144, 240 }, default = 0,
         show = function(v) return v == 0 and "NONE" or tostring(v) end },
     { id = "seaMotion", tab = "display", name = "MOVING WATER", values = ONOFF.values, show = ONOFF.show, default = true },
-    { id = "landMotion", tab = "display", name = "WIND AND CLOUDS", values = ONOFF.values, show = ONOFF.show, default = true },
+    { id = "landMotion", tab = "display", name = "WIND AND LIFE", values = ONOFF.values, show = ONOFF.show, default = true },
     { id = "showFps", tab = "display", name = "SHOW FRAME RATE", values = ONOFF.values, show = ONOFF.show, default = false },
     -- Interface.
     { id = "uiScale", tab = "interface", name = "INTERFACE SIZE", default = 0 },

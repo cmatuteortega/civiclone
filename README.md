@@ -26,9 +26,17 @@ The same shader brings the wind over the land. Gusts roll east across the
 map, and where one passes the tree crowns and wheat sheaves lean a pixel or
 two and the grass shows its light side in streaks. Cloud shadows drift over
 land, sea and everything standing on them, and smoke rises from the
-chimneys of cities, farms and mines (`src/ui/smoke.lua`).
+chimneys of cities, farms and mines (`src/ui/smoke.lua`). Heat shimmers
+over the desert.
 
 ![Wind, clouds and smoke](shots/06-wind.gif)
+
+There is life on it too. Flocks of birds cross now and then, and gulls
+wheel over the shore (`src/ui/birds.lua`). Deer graze at the forests' edges
+and bound off into the trees when anyone comes near (`src/ui/wild.lua`).
+Mine wheels wind, and units at rest take a breath.
+
+![Deer and birds](shots/07-life.gif)
 
 ## Running it
 
@@ -86,7 +94,7 @@ Everything is saved as you change it, in `settings` in LÖVE's save folder.
 
 | Tab | Settings |
 | --- | --- |
-| Display | Windowed, borderless or exclusive fullscreen; resolution; vsync; moving water; wind and clouds; a frame rate limit; a frame rate counter. A new mode or resolution reverts after 15 seconds unless you keep it |
+| Display | Windowed, borderless or exclusive fullscreen; resolution; vsync; moving water; wind and life; a frame rate limit; a frame rate counter. A new mode or resolution reverts after 15 seconds unless you keep it |
 | Interface | Interface size and map pixel size (automatic, or any whole zoom the window allows); touch buttons; hex tooltips; how long the news stays; lock windows; snap windows to edges; reset window positions |
 | Audio | Master, music, ambience and effects volumes; mute in the background |
 | Gameplay | Animation speed; camera pan speed; pan at the screen's edges; auto-select the next unit; camera follows selection; hex grid |

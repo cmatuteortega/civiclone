@@ -33,6 +33,8 @@ local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
 local Settings = require "src.settings"
 local Sea = require "src.ui.sea"
+local Wild = require "src.ui.wild"
+local Birds = require "src.ui.birds"
 
 local floor = math.floor
 
@@ -195,6 +197,8 @@ function love.update(dt)
     if S.plan then followPlan() end
     View.update(dt)
     Anim.update(S.game, dt * Settings.get("animSpeed"))
+    Wild.update(dt)
+    Birds.update(dt)
     Input.findHover()
     if not S.over then
         local result, why = S.game:outcome()

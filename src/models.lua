@@ -486,13 +486,6 @@ function M.mine(hills)
         parts[#parts + 1] = part(Sh.seg(tx + 2.6, ty, tz + 0.6, tx + 0.4, top, tz + 0.2, 0.45), R.wood, 7)
         parts[#parts + 1] = part(Sh.seg(tx, ty, tz - 3.4, tx, top - 0.3, tz, 0.4), R.wood, 7)
         parts[#parts + 1] = part(Sh.seg(tx - 1.8, ty + 3.2, tz + 0.5, tx + 1.8, ty + 3.2, tz + 0.5, 0.35), R.wood, 8)
-        parts[#parts + 1] = part(Sh.ell(tx, top + 0.6, tz + 0.7, 2.3, 2.3, 0.35), R.straw, 10, function(ux, uy, uz)
-            local d = ux * ux + uy * uy
-            if d < 0.07 then return IDX.u end
-            if d > 0.55 then return nil end
-            if math.abs(ux) < 0.16 or math.abs(uy) < 0.16 then return IDX.t end
-            return IDX.n
-        end)
         parts[#parts + 1] = part(Sh.seg(tx + 2.1, top + 0.6, tz + 0.8, tx + 2.1, ty + 0.3, tz + 0.8, 0.14), R.dark, 11)
 
         -- The miners' hut, front right: whitewashed, its gable and door to the front.
@@ -505,6 +498,63 @@ function M.mine(hills)
         parts[#parts + 1] = part(Sh.roof(ux0, uy0 + 2.4, uz0, 3.8, 5, 2.6, math.pi / 2), R.wood, 13)
         return parts
     end, MINE_SCALE)
+end
+
+-- The winding wheel at the top of a mine's headframe, painted apart so it can
+-- turn: `step` 0..WHEEL_STEPS-1 of a quarter turn (its spokes are a cross,
+-- so a quarter turn brings it round). Stamped where the mine is.
+M.WHEEL_STEPS = 8
+function M.mineWheel(hills, step)
+    return kept(table.concat({ "wheel", hills and 1 or 0, step }, ":"), function()
+        local tx, tz = 4.6, -2
+        local ty = 0
+        if hills then
+            local u, v = tx * MINE_SCALE / 9.5, tz * MINE_SCALE / 7.5
+            local h = 1 - u * u - v * v
+            ty = h > 0 and math.max(0, (-0.8 + 4 * math.sqrt(h)) / MINE_SCALE - 0.3) or 0
+        end
+        local a = step / M.WHEEL_STEPS * math.pi / 2
+        local ca, sa = cos(a), sin(a)
+        return { part(Sh.ell(tx, ty + 8.6, tz + 0.7, 2.3, 2.3, 0.35), R.straw, 10, function(ux, uy, uz)
+            local d = ux * ux + uy * uy
+            if d < 0.07 then return IDX.u end
+            if d > 0.55 then return nil end
+            local rx, ry = ux * ca - uy * sa, ux * sa + uy * ca
+            if math.abs(rx) < 0.16 or math.abs(ry) < 0.16 then return IDX.t end
+            return IDX.n
+        end) }
+    end, MINE_SCALE)
+end
+
+--- wildlife ------------------------------------------------------------------------
+
+-- A deer, facing `face` (0..5, as a unit), in pose 0 head up, 1 grazing, or
+-- 2 and 3 the two bounds of a run. Antlers on some (`stag`).
+function M.deer(face, pose, stag)
+    return kept(table.concat({ "deer", face, pose, stag and 1 or 0 }, ":"), function()
+        local hide = R.wood
+        local parts = {}
+        local run = pose >= 2
+        local reach = pose == 2 and 1.6 or (pose == 3 and -1.2 or 0)
+        local lift = run and 0.8 or 0
+        parts[#parts + 1] = part(Sh.ell(0, 5.2 + lift, 0, 3.6, 2.1, 1.9), hide, 1)
+        for _, lz in ipairs({ -0.9, 0.9 }) do
+            parts[#parts + 1] = part(Sh.seg(2.2, 4.4 + lift, lz, 2.2 + reach, 0.3 + lift * 0.5, lz, 0.55), hide, 2)
+            parts[#parts + 1] = part(Sh.seg(-2.2, 4.4 + lift, lz, -2.2 - reach, 0.3 + lift * 0.5, lz, 0.55), hide, 2)
+        end
+        -- A white scut, raised when it runs.
+        parts[#parts + 1] = part(Sh.ell(-3.6, 6.2 + lift * 1.5, 0, 0.8, 0.8, 0.7), R.skin, 3)
+        local hx, hy = 4.4, 8.6
+        if pose == 1 then hx, hy = 4.6, 1.6 end
+        parts[#parts + 1] = part(Sh.seg(2.6, 5.6 + lift, 0, hx - 0.4, hy - 0.4 + lift, 0, 1.0, 0.7), hide, 4)
+        parts[#parts + 1] = part(Sh.ell(hx + 0.5, hy + lift, 0, 1.5, 1.0, 0.95), hide, 5)
+        if stag and pose ~= 1 then
+            for _, lz in ipairs({ -0.6, 0.6 }) do
+                parts[#parts + 1] = part(Sh.seg(hx, hy + 0.6 + lift, lz, hx - 0.8, hy + 3 + lift, lz * 2.4, 0.3), R.straw, 6)
+            end
+        end
+        return place(parts, math.rad(60 * face))
+    end, M.UNIT_SCALE * 0.95)
 end
 
 return M

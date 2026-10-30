@@ -18,6 +18,8 @@ local Font = require "src.font"
 local View = require "src.ui.view"
 local Sea = require "src.ui.sea"
 local Smoke = require "src.ui.smoke"
+local Wild = require "src.ui.wild"
+local Birds = require "src.ui.birds"
 
 local floor, min = math.floor, math.min
 local IDX = T.IDX
@@ -156,6 +158,30 @@ end
 
 --- standing up -----------------------------------------------------------------
 
+-- Which step of its turn a mine's wheel is at: it winds a load up for a few
+-- seconds, rests, lets the cage down, rests, each mine at its own moment.
+local WIND, REST = 3.5, 2.5
+local function wheelStep(cell)
+    local t = (Sea.air() + cell.id * 1.7) % (2 * (WIND + REST))
+    local turns = 2 * M.WHEEL_STEPS -- steps in one winding
+    local f
+    if t < WIND then f = t / WIND
+    elseif t < WIND + REST then f = 1
+    elseif t < 2 * WIND + REST then f = 1 - (t - WIND - REST) / WIND
+    else f = 0 end
+    f = f * f * (3 - 2 * f)
+    return floor(f * turns) % M.WHEEL_STEPS
+end
+
+-- How far up a unit standing idle is drawn: a breath, a pixel up for a
+-- moment every few seconds, no two units together. Not a fortified one.
+local function breath(u, a)
+    if Sea.still() or u.fortified or #a.queue > 0 or a.lunge then return 0 end
+    local period = 3 + (u.id % 5) * 0.23
+    local t = (Sea.air() + u.id * 0.77) % period
+    return t < 0.45 and 0.7 or 0
+end
+
 local function things(me)
     local g = S.game
     local list = {}
@@ -171,6 +197,10 @@ local function things(me)
             end
             list[#list + 1] = { z = cell.z - 1, draw = function()
                 P.stamp(pic, cell.x, cell.top, cell.z)
+                if cell.improvement == "mine" then
+                    local step = me.visible[cell.id] and wheelStep(cell) or 0
+                    P.stamp(M.mineWheel(cell.elev == "hills", step), cell.x, cell.top, cell.z)
+                end
                 if me.visible[cell.id] then Smoke.improvement(cell) end
             end }
         end
@@ -189,6 +219,7 @@ local function things(me)
         if u.owner == 1 or me.visible[u.cell] then
             local x, y, z, face, pose = Anim.place(g, u)
             local a = Anim.of(u)
+            y = y + breath(u, a)
             list[#list + 1] = { z = z + 0.1, draw = function()
                 local remap = a.flash and floor(a.flash * 20) % 2 == 0 and T.FLASH or nil
                 if u.fortified and not remap then remap = nil end
@@ -203,8 +234,10 @@ local function things(me)
             end }
         end
     end
+    Wild.things(list, me, P.stamp)
     table.sort(list, function(a, b) return a.z < b.z end)
     for _, t in ipairs(list) do t.draw() end
+    Birds.draw()
 end
 
 --- flat on top -----------------------------------------------------------------

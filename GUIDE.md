@@ -621,7 +621,24 @@ crown stands, how much fog darkens it, and its colour.
   citizens, up to three), from farmhouses and from mine huts, in puffs that
   grow, drift east and break up. It shows only where you can see.
 
-**MOVING WATER** and **WIND AND CLOUDS** in the display settings turn each
+- **Heat** shimmers over the desert. Its rows of sand waver a pixel either
+  way, and faint bands of glare rise through it, stronger in patches that
+  drift.
+- **Birds** (`src/ui/birds.lua`): every 14 to 36 seconds a flock of 3 to 7
+  crosses the screen in a loose V, mostly with the wind. The birds flap and
+  glide. Over every seventh coast hex you can see, a gull circles. Birds
+  are dark, or light over the darkest ground.
+- **Deer** (`src/ui/wild.lua`): about a third of the open, flat grass and
+  plains hexes beside a forest, with nothing built on them, have one or two
+  deer, some of them stags. They graze, look up and wander. When any unit
+  comes within a hex, they run into the forest and vanish. They come back 12
+  seconds after the hex is left alone. They are not part of the game or its
+  save.
+- **Mines** wind their wheel for a few seconds, rest, and let it back down.
+- **Units** standing idle rise a pixel for a moment every few seconds, each
+  at its own time. Fortified units stand still.
+
+**MOVING WATER** and **WIND AND LIFE** in the display settings turn each
 off.
 
 **Animation** (`src/ui/anim.lua`): the rules resolve instantly, and the

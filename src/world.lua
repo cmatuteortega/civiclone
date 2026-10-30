@@ -68,7 +68,7 @@ end
 local MAT = {}
 
 -- The kinds of land the moving picture knows (after 1 ocean and 2 coast).
-local LAND = { crown = 3, sheaf = 4, grass = 5, plains = 6, other = 7 }
+local LAND = { crown = 3, sheaf = 4, grass = 5, plains = 6, other = 7, desert = 8 }
 World.LAND = LAND
 
 MAT.grass = { id = 1, ramp = ramp("s", "k", "n", "u"), print = function(s, x, y, z, nx, ny, nz, lev)
@@ -392,7 +392,8 @@ function World:trace(i0, j0, i1, j1, yield)
                 b.edge[n] = top and H.inset(x, z, best.cellRef.x, best.cellRef.z) < 0.8 and 1 or 0
                 -- What the wind does to it, for src/ui/sea.lua: a tree's crown
                 -- and a sheaf sway, by how high above the ground they are, in
-                -- sixteenths; grass and dry grass ripple.
+                -- sixteenths; grass and dry grass ripple; the heat shimmers
+                -- over sand.
                 local kind, sway = LAND.other, 0
                 if m == MAT.tree or m == MAT.wheat then
                     local cell = best.cellRef
@@ -403,6 +404,8 @@ function World:trace(i0, j0, i1, j1, yield)
                     kind = LAND.grass
                 elseif ny > 0.9 and (m.id == MAT.plains.id or m.id == MAT.plains.id + 20) then
                     kind = LAND.plains
+                elseif ny > 0.9 and (m.id == MAT.desert.id or m.id == MAT.desert.id + 20) then
+                    kind = LAND.desert
                 end
                 b.kind[n], b.sway[n] = kind, sway
                 -- The sea's top, for src/sea.lua to set moving: which water,
@@ -508,6 +511,8 @@ function World:refresh(cellId)
     self:trace(i0, j0, i1, j1)
     T.finish(self.buf, 1.2, i0 - 1, j0 - 1, i1 + 1, j1 + 1)
     self.dirty = true
+    -- Counted, for what is found from the map (src/ui/wild.lua).
+    self.version = (self.version or 0) + 1
 end
 
 -- The picture as the player knows the map: what they see as it is, what they
