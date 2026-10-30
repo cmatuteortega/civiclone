@@ -32,6 +32,7 @@ local Audio = require "src.ui.audio"
 local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
 local Settings = require "src.settings"
+local Sea = require "src.ui.sea"
 
 local floor = math.floor
 
@@ -81,6 +82,7 @@ function love.load(args)
     -- The title-bar / taskbar icon: the same city as the builds' (assets/icon/).
     love.window.setIcon(love.image.newImageData("assets/icon/icon.png"))
     love.graphics.setLineStyle("rough")
+    Sea.load()
     local os = love.system.getOS()
     S.phone = os == "Android" or os == "iOS"
     S.touch = S.phone
@@ -130,6 +132,17 @@ local function followPlan()
             if u then O.select(u, true) end
         end
         if S.selected then View.lookAt(S.game.cells[(S.selected.unit or S.selected.city).cell], true) end
+        -- `--select coast`: the camera over the explored shore nearest the
+        -- player's first unit or city, to look at the sea.
+        if plan.select == "coast" and S.selected then
+            local from = S.game.cells[(S.selected.unit or S.selected.city).cell]
+            local best, bd = nil, math.huge
+            for _, cell in ipairs(S.game.cells) do
+                local d = S.game:dist(cell, from)
+                if cell.terrain == "coast" and S.game.players[1].explored[cell.id] and d < bd then best, bd = cell, d end
+            end
+            if best then View.lookAt(best, true) end
+        end
         -- The pointer over the furthest hex the chosen unit can reach.
         local u = S.selected and S.selected.unit
         if u then
@@ -160,6 +173,7 @@ function love.update(dt)
     dt = math.min(dt, 1 / 20)
     S.clock = S.clock + dt
     S.dt = dt
+    Sea.update(dt)
     Audio.hide(away())
     Audio.update(dt)
     Menu.update(dt)

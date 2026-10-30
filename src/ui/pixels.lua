@@ -21,9 +21,20 @@ local function putS(k, x, y)
 end
 P.putS = putS
 
+-- Mark canvas pixel (x, y), on the sea, to show `steps` lighter. The sea is
+-- painted again every frame (src/ui/sea.lua), so a mark over it can't be a
+-- colour: it is left in the alpha, which the overlay is never drawn with.
+function P.liftS(steps, x, y)
+    if x < 0 or y < 0 or x >= S.cw or y >= S.ch then return end
+    local p = (y * S.cw + x) * 4
+    if S.opx[p + 3] == 0 then S.opx[p + 3] = steps end
+end
+
 -- Put key k at board-picture pixel (i, j).
 local function put(k, i, j) putS(k, floor(i - floor(S.camx)), floor(j - floor(S.camy))) end
 P.put = put
+
+function P.lift(steps, i, j) P.liftS(steps, floor(i - floor(S.camx)), floor(j - floor(S.camy))) end
 
 -- Is room depth d nearer than the board at picture pixel (i, j)?
 local function visible(i, j, d)

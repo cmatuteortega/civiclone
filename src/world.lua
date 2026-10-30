@@ -38,6 +38,18 @@ local function grain(x, z, k)
     return n - floor(n)
 end
 
+-- How far room point (x, z) is from hex `cell`'s edge: below nothing inside it,
+-- the true distance outside, corners rounded (Inigo Quilez's hexagon).
+local function hexDistance(cell, x, z)
+    local px, py = abs(z - cell.z), abs(x - cell.x)
+    local d = 2 * min(-0.866025404 * px + 0.5 * py, 0)
+    px, py = px + 0.866025404 * d, py - 0.5 * d
+    local k = 0.577350269 * H.APOTHEM
+    px, py = px - max(-k, min(k, px)), py - H.APOTHEM
+    local l = math.sqrt(px * px + py * py)
+    return py < 0 and -l or l
+end
+
 --- what things are made of ---------------------------------------------------------
 
 -- `print` answers a key index for a pixel that is printed rather than lit (a
@@ -374,8 +386,16 @@ function World:trace(i0, j0, i1, j1, yield)
                 b.up[n] = ny > 0.7 and 1 or 0
                 local top = best.prism and ny > 0.99
                 b.edge[n] = top and H.inset(x, z, best.cellRef.x, best.cellRef.z) < 0.8 and 1 or 0
+                -- The sea's top, for src/sea.lua to set moving: which water,
+                -- and how far the land is, in quarter units up to 63.
+                if top and (m == MAT.ocean or m == MAT.coast) then
+                    b.sea[n] = m == MAT.ocean and 1 or 2
+                    b.shore[n] = min(255, floor(self:shoreDistance(best.cellRef, x, z) * 4 + 0.5))
+                else
+                    b.sea[n] = 0
+                end
             else
-                b.raw[n], b.cell[n], b.edge[n], b.up[n] = 0, 0, 0, 0
+                b.raw[n], b.cell[n], b.edge[n], b.up[n], b.sea[n] = 0, 0, 0, 0, 0
                 b.dep[n] = -1e9
                 b.wy[n] = -1e9
             end
@@ -399,6 +419,8 @@ function World:paint(yield)
     b.wy = ffi.new("float[?]", w * h)
     b.wz = ffi.new("float[?]", w * h)
     b.up = ffi.new("uint8_t[?]", w * h)
+    b.sea = ffi.new("uint8_t[?]", w * h)
+    b.shore = ffi.new("uint8_t[?]", w * h)
     self.buf = b
     self:bin()
     self:trace(0, 0, w - 1, h - 1, yield)
@@ -409,6 +431,35 @@ function World:paint(yield)
     self.px = ffi.cast("uint8_t*", self.data:getFFIPointer())
     self.image = love.graphics.newImage(self.data)
     self.image:setFilter("nearest", "nearest")
+    -- Beside it, a picture of the sea for src/sea.lua: red which water
+    -- (1 ocean, 2 coast, 0 none or unseen), green how far the land is, blue
+    -- how many steps darker the fog and the grid lay it.
+    self.seaData = love.image.newImageData(w, h, "rgba8")
+    self.spx = ffi.cast("uint8_t*", self.seaData:getFFIPointer())
+    self.seaImage = love.graphics.newImage(self.seaData)
+    self.seaImage:setFilter("nearest", "nearest")
+end
+
+-- How far room point (x, z) on water hex `cell` is from the nearest land, as
+-- far as two hexes out; further than that is open sea (64).
+function World:shoreDistance(cell, x, z)
+    self.landNear = self.landNear or {}
+    local near = self.landNear[cell.id]
+    if not near then
+        near = {}
+        for dr = -2, 2 do
+            for dc = -3, 3 do
+                local n = self:cellAt(cell.c + dc, cell.r + dr)
+                if n and not D.TERRAIN[n.terrain].water and H.distance(cell.c, cell.r, n.c, n.r) <= 2 then
+                    near[#near + 1] = n
+                end
+            end
+        end
+        self.landNear[cell.id] = near
+    end
+    local d = 64
+    for k = 1, #near do d = min(d, hexDistance(near[k], x, z)) end
+    return max(0, d)
 end
 
 -- One hex has changed (a city cleared its forest): build its solids again
@@ -442,6 +493,7 @@ end
 function World:build(explored, visible, grid)
     local w, h = self.w, self.h
     local px, key, cell, edge, flat, flatEdge = self.px, self.key, self.cell, self.buf.edge, self.buf.flat, self.buf.flatEdge
+    local spx, sea, shore, raw = self.spx, self.buf.sea, self.buf.shore, self.buf.raw
     local RGB8 = World.RGB8
     local DARK = T.DARKER
     local bg = IDX.o
@@ -451,6 +503,7 @@ function World:build(explored, visible, grid)
             local n = j * w + i
             local k = key[n]
             local c = cell[n]
+            local water, dark = 0, 0
             if k == 0 then
                 k = bg
             elseif not explored[c] then
@@ -462,15 +515,19 @@ function World:build(explored, visible, grid)
                     if grain(i, j, 90) > 0.97 then k = SPECK end
                 end
             else
-                if grid and edge[n] == 1 and (i + j) % 2 == 0 then k = DARK[k] end
-                if not visible[c] then k = DARK[k] end
+                if grid and edge[n] == 1 and (i + j) % 2 == 0 then k, dark = DARK[k], dark + 1 end
+                if not visible[c] then k, dark = DARK[k], dark + 1 end
+                -- Not where the ink has drawn the map's edge over it.
+                if key[n] == raw[n] then water = sea[n] end
             end
             local rgb = RGB8[k]
             local p = n * 4
             px[p], px[p + 1], px[p + 2], px[p + 3] = rgb[1], rgb[2], rgb[3], 255
+            spx[p], spx[p + 1], spx[p + 2], spx[p + 3] = water, shore[n], dark, 255
         end
     end
     self.image:replacePixels(self.data)
+    self.seaImage:replacePixels(self.seaData)
     self.dirty = false
 end
 

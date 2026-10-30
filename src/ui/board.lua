@@ -16,6 +16,7 @@ local Draw = require "src.ui.draw"
 local Anim = require "src.ui.anim"
 local Font = require "src.font"
 local View = require "src.ui.view"
+local Sea = require "src.ui.sea"
 
 local floor, min = math.floor, math.min
 local IDX = T.IDX
@@ -84,10 +85,14 @@ local function farmOpen(cell)
     return open
 end
 
--- A hex's top a step lighter, every other pixel: where a unit can go.
+-- A hex's top a step lighter, every other pixel: where a unit can go. On
+-- the sea, a mark for the moving water to lighten itself by.
 local function lighten(cell, step)
+    local sea = Sea.shader and S.world.buf.sea
     P.eachTop(cell, function(i, j, n)
-        if (i + j) % step == 0 then
+        if (i + j) % step == 0 and sea and sea[n] ~= 0 then
+            P.lift(1, i, j)
+        elseif (i + j) % step == 0 then
             local k = S.world.key[n]
             if S.game.players[1].visible[cell.id] then P.put(T.LIGHTER[k], i, j) else P.put(k, i, j) end
         end
@@ -309,8 +314,11 @@ function Board.draw()
     love.graphics.setCanvas(S.canvas)
     love.graphics.clear(T.RGB[IDX.o])
     love.graphics.setColor(1, 1, 1)
+    local moving = Sea.begin(w, S.overlayImage)
     love.graphics.draw(w.image, -floor(S.camx), -floor(S.camy))
+    if moving then love.graphics.setShader(Sea.cover) end
     love.graphics.draw(S.overlayImage, 0, 0)
+    love.graphics.setShader()
 end
 
 return Board
