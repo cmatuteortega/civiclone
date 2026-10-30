@@ -612,7 +612,8 @@ crown stands, how much fog darkens it, and its colour.
   shallows, breakers and their wash on the shore.
 - **The wind** blows from the west, in gusts that roll east. Tree crowns
   and wheat sheaves lean up to two pixels with a gust, by how high above the
-  ground each pixel stands, and sway a little even in a lull. The leaves
+  ground each pixel stands, and sway a little in a lull, slowly and only
+  where a breath of air drifts by, so most of them stand still. The leaves
   glint as a gust turns them, and the grass shows lighter streaks.
 - **Cloud shadows** drift east over everything: the land, the sea and what
   stands on them. They darken half the pixels one step, and a quarter at

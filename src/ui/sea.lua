@@ -155,12 +155,15 @@ bool sways(float kind) { return kind == CROWN || kind == SHEAF; }
 vec4 at(vec2 p) { return Texel(mask, (p + 0.5) / size); }
 
 // How many pixels east a swaying pixel at p leans: more the higher above
-// its ground, and a little to and fro even in the lull.
+// its ground, and a little to and fro in the lull, slowly and only where a
+// breath of air drifts by, so most of the time most of them stand still.
 float lean(vec2 p, vec4 m, float t) {
     float h = m.g * 255.0 / 16.0;
     float reach = what(m) == CROWN ? clamp((h - 2.5) / 5.0, 0.0, 1.3) : clamp(h / 4.0, 0.0, 0.9);
     vec2 w = room(p);
-    float sway = 1.7 * gust(w, t) + 0.5 * sin(t * 1.9 + 6.283 * noise(w * 0.035)) - 0.1;
+    float breath = smoothstep(0.45, 0.75, noise(w * 0.008 - vec2(t * 0.03, 0.0)));
+    float lull = 0.5 * sin(t * 1.1 + 6.283 * noise(w * 0.035)) * breath;
+    float sway = 1.5 * gust(w, t) + lull - 0.1;
     return clamp(floor(reach * sway + 0.5), -1.0, 2.0);
 }
 
