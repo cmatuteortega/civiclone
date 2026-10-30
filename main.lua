@@ -33,6 +33,7 @@ local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
 local Settings = require "src.settings"
 local Sea = require "src.ui.sea"
+local Daylight = require "src.ui.daylight"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
 
@@ -85,6 +86,7 @@ function love.load(args)
     love.window.setIcon(love.image.newImageData("assets/icon/icon.png"))
     love.graphics.setLineStyle("rough")
     Sea.load()
+    Daylight.load()
     local os = love.system.getOS()
     S.phone = os == "Android" or os == "iOS"
     S.touch = S.phone
@@ -99,6 +101,8 @@ function love.load(args)
         if a == "--shot" then S.plan = { file = args[n + 1] or "shot.png", turns = 0, frames = 0 } end
         if a == "--turns" and S.plan then S.plan.turns = tonumber(args[n + 1]) or 0 end
         if a == "--select" and S.plan then S.plan.select = args[n + 1] end
+        -- `--hour h`: every turn played at h o'clock (0..24), to see the light.
+        if a == "--hour" and tonumber(args[n + 1]) then Daylight.force = tonumber(args[n + 1]) / 24 end
         -- `--open settings:audio` (or `pause`) shows a menu in the picture.
         if a == "--open" and S.plan then S.plan.open = args[n + 1] end
         -- `--sounds` writes every sound as a .wav into the save folder, and quits.
@@ -197,6 +201,7 @@ function love.update(dt)
     if S.plan then followPlan() end
     View.update(dt)
     Anim.update(S.game, dt * Settings.get("animSpeed"))
+    Daylight.update(dt)
     Wild.update(dt)
     Birds.update(dt)
     Input.findHover()

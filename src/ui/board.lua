@@ -17,6 +17,7 @@ local Anim = require "src.ui.anim"
 local Font = require "src.font"
 local View = require "src.ui.view"
 local Sea = require "src.ui.sea"
+local Daylight = require "src.ui.daylight"
 local Smoke = require "src.ui.smoke"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
@@ -348,11 +349,13 @@ function Board.draw()
     marks()
     things(me)
     S.overlayImage:replacePixels(S.overlay)
+    Daylight.draw(w)
 
     love.graphics.setCanvas(S.canvas)
     love.graphics.clear(T.RGB[IDX.o])
     love.graphics.setColor(1, 1, 1)
     local moving = Sea.begin(w, S.overlayImage, floor(S.camx), floor(S.camy))
+    if moving then Daylight.apply(Sea.shader, Sea.cover, S.cw) end
     love.graphics.draw(w.image, -floor(S.camx), -floor(S.camy))
     if moving then love.graphics.setShader(Sea.cover) end
     love.graphics.draw(S.overlayImage, 0, 0)

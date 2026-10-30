@@ -61,6 +61,10 @@ do
     HX, HY, HZ = HX / n, HY / n, HZ / n
 end
 
+-- The lamp and its half-way vector, for the light of the hour to be laid
+-- against (src/ui/daylight.lua).
+T.LAMP, T.HALF = { LX, LY, LZ }, { HX, HY, HZ }
+
 local CREASE = 0.55
 
 --- palette keys as small numbers ------------------------------------------------
@@ -160,8 +164,13 @@ function T.finish(b, edge, i0, j0, i1, j1)
     i1, j1 = min(w - 1, i1 or w - 1), min(h - 1, j1 or h - 1)
     local raw, out, lev, shd, part, mat, dep, dif = b.raw, b.key, b.lev, b.shd, b.part, b.mat, b.dep, b.dif
     local nx, ny, nz = b.nx, b.ny, b.nz
+    -- `inked`, if the buffer keeps one, says which pixels the ink was laid on.
+    local inked = b.inked
     for j = j0, j1 do
-        for i = i0, i1 do out[j * w + i] = raw[j * w + i] end
+        for i = i0, i1 do
+            out[j * w + i] = raw[j * w + i]
+            if inked then inked[j * w + i] = 0 end
+        end
     end
 
     -- Each pair is looked at once, from its left or upper pixel; a region
@@ -195,6 +204,7 @@ function T.finish(b, edge, i0, j0, i1, j1)
                 if (rim and not b.open) or (not rim and (inked(p, p - 1) or inked(p, p + 1)
                     or inked(p, p - w) or inked(p, p + w))) then
                     out[p] = INK
+                    if b.inked then b.inked[p] = 1 end
                 end
             end
         end
@@ -378,7 +388,8 @@ end
 -- the model's pivot (the ground under it). A part answers its `ramp`, an
 -- optional `print` (a function of the point in its own space, the ramp level
 -- and the room normal, answering a key index to paint, a ramp to use instead,
--- or nothing) and its `id` (what the ink pass tells parts apart by).
+-- or nothing; and after a key, true if it is a window or a door that is lit
+-- at night) and its `id` (what the ink pass tells parts apart by).
 local BACK = 200
 
 function T.paint(parts, edge)
@@ -395,6 +406,7 @@ function T.paint(parts, edge)
     local b = T.buffer(w, h)
     local best = ffi.new("float[?]", w * h)
     for n = 0, w * h - 1 do best[n] = 1e9 end
+    local win, lamps = ffi.new("uint8_t[?]", w * h), false
 
     for _, p in ipairs(parts) do
         local hit = T.HIT[p.kind or "ell"]
@@ -407,7 +419,9 @@ function T.paint(parts, edge)
                     best[n] = t
                     local r = p.ramp
                     local k, lev = T.shade(r, nx, ny, nz)
-                    local printed = p.print and p.print(ux, uy, uz, lev, nx, ny, nz)
+                    local printed, lamp
+                    if p.print then printed, lamp = p.print(ux, uy, uz, lev, nx, ny, nz) end
+                    win[n] = lamp and 1 or 0
                     if type(printed) == "table" then
                         r = printed
                         k, lev = T.shade(r, nx, ny, nz)
@@ -424,8 +438,14 @@ function T.paint(parts, edge)
         end
     end
     T.finish(b, edge or 2)
-    -- `oi, oj`: the pixel of the picture the pivot falls on.
-    return { w = w, h = h, oi = -i0, oj = -j0, key = b.key, dep = b.dep }
+    -- A window the ink went round is ink.
+    for n = 0, w * h - 1 do
+        if b.key[n] == IDX.o then win[n] = 0 end
+        if win[n] == 1 then lamps = true end
+    end
+    -- `oi, oj`: the pixel of the picture the pivot falls on. `win`, if any of
+    -- it is a window: 1 at each pixel that is.
+    return { w = w, h = h, oi = -i0, oj = -j0, key = b.key, dep = b.dep, win = lamps and win or nil }
 end
 
 return T

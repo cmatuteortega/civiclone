@@ -12,12 +12,18 @@ local floor, max, min, abs = math.floor, math.max, math.min, math.abs
 local P = {}
 local RGB8 = World.RGB8
 
--- Put key k at canvas pixel (x, y).
-local function putS(k, x, y)
+-- The alpha a pixel is put with that is a window or a door, lit at night
+-- (src/ui/sea.lua's cover), and one that is the rest of a building with
+-- windows, which takes the night as the ground does. Neither is blended:
+-- the cover draws every pixel of the overlay whole.
+P.LAMP, P.WALL = 250, 252
+
+-- Put key k at canvas pixel (x, y); `a` the alpha, if not the plain 255.
+local function putS(k, x, y, a)
     if k == 0 or x < 0 or y < 0 or x >= S.cw or y >= S.ch then return end
     local p = (y * S.cw + x) * 4
     local c = RGB8[k]
-    S.opx[p], S.opx[p + 1], S.opx[p + 2], S.opx[p + 3] = c[1], c[2], c[3], 255
+    S.opx[p], S.opx[p + 1], S.opx[p + 2], S.opx[p + 3] = c[1], c[2], c[3], a or 255
 end
 P.putS = putS
 
@@ -31,7 +37,7 @@ function P.liftS(steps, x, y)
 end
 
 -- Put key k at board-picture pixel (i, j).
-local function put(k, i, j) putS(k, floor(i - floor(S.camx)), floor(j - floor(S.camy))) end
+local function put(k, i, j, a) putS(k, floor(i - floor(S.camx)), floor(j - floor(S.camy)), a) end
 P.put = put
 
 function P.lift(steps, i, j) P.liftS(steps, floor(i - floor(S.camx)), floor(j - floor(S.camy))) end
@@ -52,18 +58,21 @@ local function onScreen(i, j, pad)
 end
 P.onScreen = onScreen
 
--- A picture laid down with its pivot at a room point, through a remap.
+-- A picture laid down with its pivot at a room point, through a remap. If it
+-- has windows, they are put as lamps and the rest of it as walls.
 function P.stamp(pic, x, y, z, remap)
     remap = remap or T.SAME
     local si, sj, d = S.world:toImage(x, y, z)
     local bi, bj = floor(si) - pic.oi, floor(sj) - pic.oj
     if not onScreen(bi, bj, pic.w + pic.h) then return end
-    local w = pic.w
+    local w, win, lamp, wall = pic.w, pic.win, P.LAMP, P.WALL
     for pj = 0, pic.h - 1 do
         for pi = 0, w - 1 do
             local n = pj * w + pi
             local k = pic.key[n]
-            if k ~= 0 and visible(bi + pi, bj + pj, d + pic.dep[n]) then put(remap[k], bi + pi, bj + pj) end
+            if k ~= 0 and visible(bi + pi, bj + pj, d + pic.dep[n]) then
+                put(remap[k], bi + pi, bj + pj, win and (win[n] == 1 and lamp or wall) or nil)
+            end
         end
     end
 end

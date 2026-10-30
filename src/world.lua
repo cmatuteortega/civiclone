@@ -482,6 +482,7 @@ function World:paint(yield)
     b.shore = ffi.new("uint8_t[?]", w * h)
     b.kind = ffi.new("uint8_t[?]", w * h)
     b.sway = ffi.new("uint8_t[?]", w * h)
+    b.inked = ffi.new("uint8_t[?]", w * h)
     self.buf = b
     self:bin()
     self:trace(0, 0, w - 1, h - 1, yield)
@@ -501,6 +502,50 @@ function World:paint(yield)
     self.mpx = ffi.cast("uint8_t*", self.maskData:getFFIPointer())
     self.maskImage = love.graphics.newImage(self.maskData)
     self.maskImage:setFilter("nearest", "nearest")
+    -- And two more for the light of the hour (src/ui/daylight.lua): each
+    -- pixel's normal, and how near it is.
+    self.shapeData = love.image.newImageData(w, h, "rgba8")
+    self.spx = ffi.cast("uint8_t*", self.shapeData:getFFIPointer())
+    self.nearData = love.image.newImageData(w, h, "rgba8")
+    self.npx = ffi.cast("uint8_t*", self.nearData:getFFIPointer())
+    self:shape(0, 0, w - 1, h - 1)
+    self.shapeImage = love.graphics.newImage(self.shapeData)
+    self.shapeImage:setFilter("nearest", "nearest")
+    self.nearImage = love.graphics.newImage(self.nearData)
+    self.nearImage:setFilter("nearest", "nearest")
+end
+
+-- How near is laid in the near picture: in 32nds of a unit, from 64 behind
+-- the room's origin, in two bytes.
+World.NEAR_FROM, World.NEAR_STEPS = -64, 32
+
+-- The shape picture and the near picture from (i0, j0) to (i1, j1). Shape:
+-- the normal in red, green and blue (each -1..1 laid as 0..1), and alpha 1
+-- where the light may change the pixel (not where the ink was laid, nor
+-- where nothing is). Near: red and green how near, high byte first, as
+-- NEAR_FROM and NEAR_STEPS say; alpha 0 where nothing is.
+function World:shape(i0, j0, i1, j1)
+    local b, w = self.buf, self.w
+    local spx, npx = self.spx, self.npx
+    local key, raw, inked, dep, nx, ny, nz = b.key, b.raw, b.inked, b.dep, b.nx, b.ny, b.nz
+    local from, steps = World.NEAR_FROM, World.NEAR_STEPS
+    for j = j0, j1 do
+        for i = i0, i1 do
+            local n = j * w + i
+            local p = n * 4
+            if key[n] == 0 then
+                spx[p], spx[p + 1], spx[p + 2], spx[p + 3] = 128, 128, 128, 0
+                npx[p], npx[p + 1], npx[p + 2], npx[p + 3] = 0, 0, 0, 0
+            else
+                spx[p] = floor((nx[n] * 0.5 + 0.5) * 255 + 0.5)
+                spx[p + 1] = floor((ny[n] * 0.5 + 0.5) * 255 + 0.5)
+                spx[p + 2] = floor((nz[n] * 0.5 + 0.5) * 255 + 0.5)
+                spx[p + 3] = (raw[n] == 0 or inked[n] == 1) and 0 or 255
+                local c = max(1, min(65535, floor((dep[n] - from) * steps + 0.5)))
+                npx[p], npx[p + 1], npx[p + 2], npx[p + 3] = floor(c / 256), c % 256, 0, 255
+            end
+        end
+    end
 end
 
 -- How far room point (x, z) on water hex `cell` is from the nearest land, as
@@ -547,8 +592,12 @@ function World:refresh(cellId)
     i1, j1 = min(self.w - 1, i1 + 1), min(self.h - 1, j1 + 1)
     self:trace(i0, j0, i1, j1)
     T.finish(self.buf, 1.2, i0 - 1, j0 - 1, i1 + 1, j1 + 1)
+    self:shape(max(0, i0 - 1), max(0, j0 - 1), min(self.w - 1, i1 + 1), min(self.h - 1, j1 + 1))
+    self.shapeImage:replacePixels(self.shapeData)
+    self.nearImage:replacePixels(self.nearData)
     self.dirty = true
-    -- Counted, for what is found from the map (src/ui/wild.lua).
+    -- Counted, for what is found from the map (src/ui/wild.lua) and the
+    -- light laid on it (src/ui/daylight.lua).
     self.version = (self.version or 0) + 1
 end
 

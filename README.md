@@ -39,6 +39,16 @@ Mine wheels wind, and units at rest take a breath.
 
 ![Deer and birds](shots/07-life.gif)
 
+And the days go round (`src/ui/daylight.lua`). Each turn is played at an
+hour, and as a turn ends the light goes on to the next: the sun rising in
+the east and setting in the west with long shadows behind the mountains,
+gilding what faces it low down, then the dusk, a night under a moon and a
+dawn. It is still only the eight colours: the light moves each pixel whole
+steps up or down them, off its normal, in the same dither as the clouds.
+At night ink keeps the darkest key to itself, so every outline still reads,
+lamps light the towns in dithered pools and their windows one by one, the
+moon leaves a path of glints on the sea, and units go down at most a step.
+
 ## Running it
 
 ```
@@ -48,7 +58,7 @@ love .
 Optional flags: `--seed N` plays the map made from seed N, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
 city|coast]` lets the computer play your side for N turns, takes a screenshot into
-LÖVE's save folder, and quits.
+LÖVE's save folder, and quits. `--hour H` plays every turn at H o'clock (0 to 24).
 
 ## Builds
 
@@ -95,7 +105,7 @@ Everything is saved as you change it, in `settings` in LÖVE's save folder.
 
 | Tab | Settings |
 | --- | --- |
-| Display | Windowed, borderless or exclusive fullscreen; resolution; vsync; moving water; wind and life; a frame rate limit; a frame rate counter. A new mode or resolution reverts after 15 seconds unless you keep it |
+| Display | Windowed, borderless or exclusive fullscreen; resolution; vsync; moving water; wind and life; day and night; a frame rate limit; a frame rate counter. A new mode or resolution reverts after 15 seconds unless you keep it |
 | Interface | Interface size and map pixel size (automatic, or any whole zoom the window allows); touch buttons; hex tooltips; how long the news stays; lock windows; snap windows to edges; reset window positions |
 | Audio | Master, music, ambience and effects volumes; mute in the background |
 | Gameplay | Animation speed; camera pan speed; pan at the screen's edges; auto-select the next unit; camera follows selection; hex grid |

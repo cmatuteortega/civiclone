@@ -304,8 +304,8 @@ local function house(parts, x, z, look, id, size, turn)
     local w, d, ht = 4 * size, 3.4 * size, 2.6 * size
     local h = turn and math.pi / 2 or 0
     parts[#parts + 1] = part(Sh.box(x, 0, z, w, d, ht, h), R.wall, id, function(ux, uy, uz, lev)
-        -- A dark door or window in the middle of a wall.
-        if math.abs(ux) < 0.25 and uy < 0.7 and uy > 0.15 and math.abs(uz) > 0.98 then return IDX.n end
+        -- A dark door or window in the middle of a wall, lit at night.
+        if math.abs(ux) < 0.25 and uy < 0.7 and uy > 0.15 and math.abs(uz) > 0.98 then return IDX.n, true end
     end)
     parts[#parts + 1] = part(Sh.roof(x, ht, z, w + 1, d + 1.2, 2.6 * size, h), look.roof, id + 1, banded(look))
 end
@@ -327,7 +327,7 @@ function M.city(look, pop, capital, built)
         if capital then
             -- The palace: a hall, its roof, and a tower with a pointed top.
             parts[#parts + 1] = part(Sh.box(0, 0, 0, 8, 6, 4.5), R.stone, 1, function(ux, uy, uz)
-                if uy > 0.2 and uy < 0.75 and math.abs(uz) > 0.98 and floor((ux + 1) * 3) % 2 == 1 then return IDX.k end
+                if uy > 0.2 and uy < 0.75 and math.abs(uz) > 0.98 and floor((ux + 1) * 3) % 2 == 1 then return IDX.k, true end
             end)
             parts[#parts + 1] = part(Sh.roof(0, 4.5, 0, 9, 7.2, 3.2), L.roof, 2, banded(L))
             parts[#parts + 1] = part(Sh.prism(6, 3.5, 0, 1.5, 2, 10, 0, 0.5), R.stone, 3)
@@ -342,7 +342,7 @@ function M.city(look, pop, capital, built)
         end
         if b.library then
             parts[#parts + 1] = part(Sh.box(-3, 0, -12, 7, 4, 4), R.stone, 32, function(ux, uy, uz)
-                if math.abs(uz) > 0.98 and floor((ux + 1) * 4) % 2 == 0 and uy < 0.85 then return IDX.k end
+                if math.abs(uz) > 0.98 and floor((ux + 1) * 4) % 2 == 0 and uy < 0.85 then return IDX.k, true end
             end)
             parts[#parts + 1] = part(Sh.roof(-3, 4, -12, 7.6, 4.8, 1.6), R.stone, 33)
         end
@@ -401,7 +401,7 @@ function M.farm(layout, open)
         local hx, hz = layout.home[1], layout.home[2]
         -- The farmhouse: round walls, a door to the front, a cone of thatch.
         parts[#parts + 1] = part(Sh.prism(8, hx, 0, hz, 2.4, 3, 0, math.pi / 8), R.wall, 1, function(ux, uy, uz)
-            if uz > 0.75 and math.abs(ux) < 0.3 and uy < 0.7 then return IDX.u end
+            if uz > 0.75 and math.abs(ux) < 0.3 and uy < 0.7 then return IDX.u, true end
         end)
         parts[#parts + 1] = part(Sh.pyramid(8, hx, 2.8, hz, 2.9, 4.2, 0, math.pi / 8), R.straw, 2, function(ux, uy, uz)
             if uy < 0.12 then return IDX.t end

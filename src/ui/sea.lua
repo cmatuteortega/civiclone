@@ -32,6 +32,12 @@
 -- Marks laid over water (the hexes a city works) are not printed over it
 -- still, which would stop the water under them: the overlay carries them as
 -- a step to lighten by (src/ui/pixels.lua, P.lift) and this applies them.
+--
+-- And the light of the hour (src/ui/daylight.lua) is laid on here: the sun
+-- or the moon relighting each pixel, the night over it, the lamps of the
+-- towns giving some back, and the moon's path on the sea. Units and the rest
+-- of the overlay take the night at most a step down, so they always read;
+-- buildings take it as the ground does, and their windows light up.
 
 local T = require "src.tracer"
 local D = require "src.defs"
@@ -48,6 +54,11 @@ uniform vec2 alongI;     // room (x, z) a pixel right
 uniform vec2 alongJ;     // room (x, z) a pixel down
 uniform float air;       // the wind's clock
 uniform float weather;   // 1 for the wind and the clouds, 0 for the land still
+uniform vec2 size;       // the board's picture, in pixels
+uniform Image light;     // src/ui/daylight.lua's: r steps down (16ths, from 128), g a lamp's glow, b 1 to relight
+uniform float lit;       // 1 while the days go round, 0 for the map as the tracer left it
+uniform float exposure;  // steps the night takes off the lightest keys: 0 by day
+uniform float night;     // 0 by day, 1 in the dark
 
 const float O = 1.0, U = 2.0, N = 3.0, K = 4.0, TAN = 5.0, S = 6.0, C = 7.0, W = 8.0;
 
@@ -96,14 +107,45 @@ float cloud(vec2 p, vec2 w, float t) {
     if (c > edge) return d < 0.25 ? 1.0 : 0.0;
     return 0.0;
 }
+
+vec4 lightAt(vec2 p) { return Texel(light, (p + 0.5) / size); }
+
+// The night laid on key k at p: lighter keys further down than dark ones,
+// then `glow` of what it took given back by the lamps, in dithered rings.
+// Never down to ink, in the dark: ink keeps the darkest key, so the
+// outlines read.
+float nightfall(float k, vec2 p, float glow) {
+    float thr = bayer4(p);
+    k = floor(k + exposure * clamp((k - 1.5) / 4.5, 0.2, 1.4) + thr);
+    float lift = glow * (-exposure);
+    k += floor(lift) + (thr < fract(lift) ? 1.0 : 0.0);
+    return clamp(k, thr < night ? U : O, W);
+}
+
+// Key k at board pixel p, as the tracer laid it (before the fog), in the
+// light of the hour: relit by the sun or the moon, then the night, and the
+// lamps, laid over it.
+float daylight(float k, vec2 p) {
+    if (lit < 0.5) return k;
+    vec4 l = lightAt(p);
+    if (l.b < 0.5) return k;
+    k -= (floor(l.r * 255.0 + 0.5) - 128.0) / 16.0;
+    return nightfall(k, p, l.g * 1.4 + l.g * l.g * night * 0.9 / max(-exposure, 0.01));
+}
+
+// The paper map and the dark round it take the night, but no sun.
+float dusk(float k, vec2 p) {
+    if (lit < 0.5 || k < 1.5) return k;
+    return nightfall(k, p, 0.0);
+}
 ]]
 
 local SOURCE = COMMON .. [[
 uniform Image mask;      // r what (1 ocean, 2 coast, 3.. land), g land's distance x4 or height x16, b steps darker, a key
 uniform Image overlay;   // the board's overlay: alpha 1..3 marks steps lighter
 uniform vec2 overlaySize;
-uniform vec2 size;       // the picture, in pixels
 uniform float time;      // the sea's clock
+uniform float moonX;     // the canvas's column under the moon
 
 const float CROWN = 3.0, SHEAF = 4.0, GRASS = 5.0, PLAINS = 6.0, DESERT = 8.0;
 
@@ -183,15 +225,32 @@ vec3 sea(vec4 m, vec2 p, vec2 w, vec2 sc) {
     vec4 o = Texel(overlay, sc / overlaySize);
     if (o.a > 0.0 && o.a < 0.5) k += floor(o.a * 255.0 + 0.5);
 
+    k = daylight(k, p);
+    // The moon on the sea: a broken path of glints under it that shimmer.
+    if (lit > 0.5 && night > 0.3 && dark < 0.5) {
+        float off = (sc.x - moonX) / 30.0;
+        float path = exp(-off * off);
+        if (hash(vec2(floor(p.x / 2.0), p.y), floor(t * 5.0)) > 1.0 - 0.22 * path * night) k = path > 0.6 ? W : S;
+    }
+
     k = clamp(k - dark - cloud(p, w, air), 1.0, 8.0);
     return key(k);
+}
+
+// Key k at p, darkened `dark` steps by the fog and the grid, in the light of
+// the hour: the light is laid on the key under the fog, and the fog again
+// after.
+float lightLand(float k, float dark, vec2 p) {
+    if (lit < 0.5) return k;
+    return clamp(daylight(k + dark, p) - dark, 1.0, 8.0);
 }
 
 vec3 land(vec4 m, vec2 p, vec2 w) {
     float kind = what(m);
     float t = air;
     float k = keyOf(m);
-    if (weather < 0.5) return key(k);
+    float dark = floor(m.b * 255.0 + 0.5);
+    if (weather < 0.5) return key(lightLand(k, dark, p));
     float from = kind;
     // Whatever leans onto this pixel, from the west or from the east.
     bool covered = false;
@@ -235,15 +294,18 @@ vec3 land(vec4 m, vec2 p, vec2 w) {
         float streak = noise(w * vec2(0.05, 0.4) - vec2(t * 0.9, 0.0));
         if (streak * g > 0.42 && bayer4(p + vec2(floor(t * 3.0), 0.0)) < 0.25) k += 1.0;
     }
-    k = clamp(k - cloud(p, w, t), 1.0, 8.0);
+    k = clamp(lightLand(k, dark, p) - cloud(p, w, t), 1.0, 8.0);
     return key(k);
 }
 
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec4 m = Texel(mask, tc);
     float kind = what(m);
-    if (kind < 0.5) return Texel(tex, tc) * color;
     vec2 p = floor(tc * size);
+    if (kind < 0.5) {
+        if (lit < 0.5) return Texel(tex, tc) * color;
+        return vec4(key(dusk(keyOf(m), p)), 1.0) * color;
+    }
     vec2 w = room(p + 0.5);
     vec3 c = kind < 2.5 ? sea(m, p, w, sc) : land(m, p, w);
     return vec4(c, 1.0) * color;
@@ -252,23 +314,42 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 
 -- The overlay drawn over the board: only the pixels it covers, not the marks
 -- it leaves for the sea to lighten; and what stands there under the clouds
--- too, a step darker.
+-- too, a step darker. At night it goes down at most a step, and the lamps
+-- light it; but a building (alpha P.WALL) takes the night as the ground does
+-- and half the lamps' glow, and its windows (alpha P.LAMP) light up one by
+-- one as it gets dark.
 local COVER = COMMON .. [[
 uniform vec2 cam;        // the board picture's pixel at the canvas's corner
 
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec4 px = Texel(tex, tc);
-    if (px.a < 0.99) discard;
+    if (px.a < 0.9) discard;
+    bool window = px.a < 0.984, wall = px.a < 0.995;
     vec2 p = floor(sc) + cam;
-    if (cloud(p, room(p + 0.5), air) < 0.5) return px * color;
-    // Which key it is, to go a step down from.
+    float shade = cloud(p, room(p + 0.5), air);
+    if (shade < 0.5 && lit < 0.5) return vec4(px.rgb, 1.0) * color;
+    // Which key it is, to go down or up from.
     float k = 1.0, best = 9.0;
     for (int n = 1; n <= 8; n++) {
         vec3 d = key(float(n)) - px.rgb;
         float e = dot(d, d);
         if (e < best) { best = e; k = float(n); }
     }
-    return vec4(key(max(1.0, k - 1.0)), 1.0) * color;
+    k = max(1.0, k - shade);
+    if (lit > 0.5 && k > 1.5) {
+        float glow = lightAt(p).g;
+        if (wall) {
+            // A building: the night as on the ground, half the lamps' glow,
+            // so its lit windows show.
+            k = nightfall(k, p, glow * 0.7);
+            if (window && night * 1.2 - 0.1 > hash(p, 4.0)) k = W;
+        } else {
+            // Anyone else: at most a step down, so they always read.
+            float e = max(exposure * 0.5, -1.0);
+            k = clamp(floor(k + e - e * glow * 1.5 + bayer4(p)), 1.0, 8.0);
+        }
+    }
+    return vec4(key(k), 1.0) * color;
 }
 ]]
 
@@ -330,7 +411,9 @@ function Sea.begin(w, overlay, camx, camy)
         s:send("weather", weather)
     end
     sh:send("mask", w.maskImage)
-    sh:send("size", { w.w, w.h })
+    for _, s in ipairs({ sh, Sea.cover }) do
+        if s:hasUniform("size") then s:send("size", { w.w, w.h }) end
+    end
     sh:send("overlay", overlay)
     sh:send("overlaySize", { overlay:getWidth(), overlay:getHeight() })
     sh:send("time", time)
@@ -338,6 +421,9 @@ function Sea.begin(w, overlay, camx, camy)
     love.graphics.setShader(sh)
     return true
 end
+
+-- The shaders' source, for checking them outside the game.
+Sea.SOURCE, Sea.COVER = SOURCE, COVER
 
 Sea.time = function() return time end
 -- The wind's clock, stopped when the land is set still.

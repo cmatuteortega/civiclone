@@ -642,8 +642,41 @@ crown stands, how much fog darkens it, and its colour.
 - **Units** standing idle rise a pixel for a moment every few seconds, each
   at its own time. Fortified units stand still.
 
-**MOVING WATER** and **WIND AND LIFE** in the display settings turn each
-off.
+**Day and night** (`src/ui/daylight.lua`): each turn is played at an hour,
+eight turns to a day: noon, afternoon, sunset, dusk, midnight, dawn,
+morning and late morning. When a turn ends the light takes 2.4 seconds to
+go on to the next hour (faster with the animation speed). Nothing is
+blended or tinted: the light only moves each pixel up or down the eight
+keys, dithered as the cloud shadows are.
+
+- **The sun** rises in the east, passes high in the south and sets in the
+  west. Each pixel of the map is lit again off its normal (the world keeps
+  them, and how near each pixel is, in two pictures beside the mask): the
+  ramp level the sun lays against the level the tracer's lamp laid, a step
+  at most either way. Its **shadows** are found by walking from each pixel
+  towards the sun over how near everything is; anything nearer the camera
+  on the way stands in front of it, and the pixel goes a step further down.
+  Low, they reach far: mountains throw them across the plains at either
+  end of the day. A low sun **gilds** what faces it a step lighter.
+- **The night** takes up to 2.3 steps off the lightest keys and less off the
+  dark ones, so the dark still has steps in it. Ink keeps the darkest key to
+  itself, so every outline still reads. A **moon** from the upper right
+  keeps the shapes, at half strength.
+- **Lamps**: round every town you know of, the light comes back in
+  dithered rings, further for a bigger town or a capital. Doors and windows
+  light up one by one as it gets dark.
+- **The moon's path**: a broken column of glints on the sea under it, that
+  shimmer.
+- **Units** and everything else that stands on the map go down at most one
+  step, so they always read; buildings take the night as the ground does.
+- The paper map of the unexplored takes the night, but no sun.
+
+The light is worked out on the GPU into a picture the map's size, drawn
+again only when the hour, the map or the towns change; the board's shader
+lays it on each frame.
+
+**MOVING WATER**, **WIND AND LIFE** and **DAY AND NIGHT** in the display
+settings turn each off.
 
 **Animation** (`src/ui/anim.lua`): the rules resolve instantly, and the
 screen plays them back:
@@ -735,11 +768,12 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, map determinism, founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, and every sound rendering (never silent, never clipping, the music's layers one length) |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, and every sound rendering (never silent, never clipping, the music's layers one length) |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
 | `love . --play --shot out.png --turns 40 --select city` | Let the AI play your side for 40 turns, select your capital, screenshot into LÖVE's save folder, and quit (silently) |
+| `love . --play --shot night.png --turns 40 --hour 0` | The same at midnight: `--hour H` plays every turn at H o'clock |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |
 
 To change the game, start in `src/defs.lua`: the map size, last turn, terrain
