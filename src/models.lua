@@ -388,21 +388,83 @@ function M.farm()
     end, 1.3)
 end
 
--- A mine: a heap of spoil, a dark adit in its face, and its timbers.
-function M.mine()
-    return kept("mine", function()
+-- A mine: a heap of spoil with a dark adit framed in timber, a headframe
+-- over the shaft with its winding wheel, the miners' hut, and a cart of ore
+-- on rails out of the adit. `hills`: each piece stands on the hill's mound
+-- (src/world.lua) rather than sunk in it.
+local MINE_SCALE = 1.4
+function M.mine(hills)
+    return kept(hills and "mine:hills" or "mine", function()
         local parts = {}
-        parts[#parts + 1] = part(Sh.ell(0, 0, -2, 7, 4.5, 5), R.stone, 1, function(ux, uy, uz, lev)
-            if uz > 0.55 and math.abs(ux) < 0.28 and uy < 0.5 then return IDX.o end
+        -- The ground under (x, z): the hill's middle mound, in model units.
+        local function ground(x, z)
+            if not hills then return 0 end
+            local u, v = x * MINE_SCALE / 9.5, z * MINE_SCALE / 7.5
+            local h = 1 - u * u - v * v
+            return h > 0 and math.max(0, (-0.8 + 4 * math.sqrt(h)) / MINE_SCALE - 0.3) or 0
+        end
+
+        -- The spoil heap, back left, the adit in its face framed in timber.
+        local hx, hz = -4, -3.6
+        local fz = hz + 3.3
+        local hy = math.max(ground(hx, hz), ground(hx, fz))
+        parts[#parts + 1] = part(Sh.ell(hx, hy, hz, 4.4, 3.6, 3.6), R.stone, 1, function(ux, uy, uz, lev)
+            if uz > 0.55 and math.abs(ux) < 0.32 and uy < 0.6 then return IDX.o end
         end)
-        parts[#parts + 1] = part(Sh.seg(-1.8, 0, 2.6, -1.8, 3.6, 2.8, 0.5), R.wood, 2)
-        parts[#parts + 1] = part(Sh.seg(1.8, 0, 2.6, 1.8, 3.6, 2.8, 0.5), R.wood, 2)
-        parts[#parts + 1] = part(Sh.seg(-2.4, 3.6, 2.8, 2.4, 3.6, 2.8, 0.5), R.wood, 2)
-        -- A cart of ore.
-        parts[#parts + 1] = part(Sh.box(6, 0.8, 5, 3, 2.2, 1.6), R.wood, 3)
-        parts[#parts + 1] = part(Sh.ell(6, 2.4, 5, 1.4, 0.8, 1), R.dark, 4)
+        parts[#parts + 1] = part(Sh.seg(hx - 1.4, hy, fz, hx - 1.4, hy + 2.6, fz, 0.45), R.straw, 2)
+        parts[#parts + 1] = part(Sh.seg(hx + 1.4, hy, fz, hx + 1.4, hy + 2.6, fz, 0.45), R.straw, 2)
+        parts[#parts + 1] = part(Sh.seg(hx - 2, hy + 2.7, fz, hx + 2, hy + 2.7, fz, 0.5), R.straw, 2)
+
+        -- Rails from the adit out to the front, and a cart of ore on them.
+        local ax, az, bx, bz = hx, fz + 0.3, hx + 4, 8
+        local dx, dz = bx - ax, bz - az
+        local len = math.sqrt(dx * dx + dz * dz)
+        local nx, nz = -dz / len * 0.75, dx / len * 0.75
+        for _, side in ipairs({ -1, 1 }) do
+            local px, pz, py = ax + nx * side, az + nz * side, ground(ax, az)
+            for k = 1, 3 do
+                local qx, qz = ax + dx * k / 3 + nx * side, az + dz * k / 3 + nz * side
+                local qy = ground(qx, qz)
+                parts[#parts + 1] = part(Sh.seg(px, py + 0.12, pz, qx, qy + 0.12, qz, 0.22), R.dark, 3)
+                px, pz, py = qx, qz, qy
+            end
+        end
+        local cx, cz = ax + dx * 0.55, az + dz * 0.55
+        local cy = ground(cx, cz)
+        local turn = math.atan2(dz, dx)
+        parts[#parts + 1] = part(Sh.box(cx, cy + 0.6, cz, 3, 2.2, 1.5, turn), R.wood, 4)
+        parts[#parts + 1] = part(Sh.ell(cx, cy + 2.1, cz, 1.3, 0.8, 1.1), R.dark, 5, function(ux, uy, uz)
+            if uy > 0.5 and floor(ux * 4 + uz * 4) % 3 == 0 then return IDX.t end
+        end)
+
+        -- The headframe, right: an A of two legs seen from the front, a strut
+        -- behind, and the winding wheel at the top, its rope down the shaft.
+        local tx, tz = 4.6, -2
+        local ty = ground(tx, tz)
+        local top = ty + 8
+        parts[#parts + 1] = part(Sh.seg(tx - 2.6, ty, tz + 0.6, tx - 0.4, top, tz + 0.2, 0.45), R.wood, 7)
+        parts[#parts + 1] = part(Sh.seg(tx + 2.6, ty, tz + 0.6, tx + 0.4, top, tz + 0.2, 0.45), R.wood, 7)
+        parts[#parts + 1] = part(Sh.seg(tx, ty, tz - 3.4, tx, top - 0.3, tz, 0.4), R.wood, 7)
+        parts[#parts + 1] = part(Sh.seg(tx - 1.8, ty + 3.2, tz + 0.5, tx + 1.8, ty + 3.2, tz + 0.5, 0.35), R.wood, 8)
+        parts[#parts + 1] = part(Sh.ell(tx, top + 0.6, tz + 0.7, 2.3, 2.3, 0.35), R.straw, 10, function(ux, uy, uz)
+            local d = ux * ux + uy * uy
+            if d < 0.07 then return IDX.u end
+            if d > 0.55 then return nil end
+            if math.abs(ux) < 0.16 or math.abs(uy) < 0.16 then return IDX.t end
+            return IDX.n
+        end)
+        parts[#parts + 1] = part(Sh.seg(tx + 2.1, top + 0.6, tz + 0.8, tx + 2.1, ty + 0.3, tz + 0.8, 0.14), R.dark, 11)
+
+        -- The miners' hut, front right: whitewashed, its gable and door to the front.
+        local ux0, uz0 = 4.4, 5
+        local uy0 = ground(ux0, uz0)
+        parts[#parts + 1] = part(Sh.box(ux0, uy0, uz0, 4, 3, 2.4), R.wall, 12, function(ux, uy, uz)
+            if math.abs(ux + 0.3) < 0.22 and uy < 0.75 and uz > 0.98 then return IDX.u end
+            if math.abs(ux - 0.45) < 0.16 and uy > 0.35 and uy < 0.7 and uz > 0.98 then return IDX.u end
+        end)
+        parts[#parts + 1] = part(Sh.roof(ux0, uy0 + 2.4, uz0, 3.8, 5, 2.6, math.pi / 2), R.wood, 13)
         return parts
-    end, 1.2)
+    end, MINE_SCALE)
 end
 
 return M

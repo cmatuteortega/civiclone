@@ -139,7 +139,7 @@ local function things(me)
         if cell.improvement and me.explored[cell.id] then
             if cell.improvement == "farm" then furrows(cell) end
             list[#list + 1] = { z = cell.z - 1, draw = function()
-                P.stamp(cell.improvement == "farm" and M.farm() or M.mine(), cell.x, cell.top, cell.z)
+                P.stamp(cell.improvement == "farm" and M.farm() or M.mine(cell.elev == "hills"), cell.x, cell.top, cell.z)
             end }
         end
     end
