@@ -297,6 +297,7 @@ end
 local SPOTS = {
     { -6, -4 }, { 6, -4 }, { -7, 2 }, { 7, 2 }, { 0, -7 }, { -4, 6 }, { 4, 6 }, { -9, -2 }, { 9, -2 },
 }
+M.CITY_SPOTS = SPOTS
 
 local function house(parts, x, z, look, id, size, turn)
     size = size or 1
@@ -387,6 +388,7 @@ M.FARM_LAYOUTS = {
 function M.farmLayout(cellId) return M.FARM_LAYOUTS[cellId % #M.FARM_LAYOUTS + 1] end
 
 local FARM_SCALE = 1.3
+M.FARM_SCALE = FARM_SCALE
 -- `open`: a set of edges not to wall, those shared with another farm, so
 -- neighbouring farms read as one field.
 function M.farm(layout, open)
@@ -430,6 +432,7 @@ end
 -- on rails out of the adit. `hills`: each piece stands on the hill's mound
 -- (src/world.lua) rather than sunk in it.
 local MINE_SCALE = 1.4
+M.MINE_SCALE = MINE_SCALE
 function M.mine(hills)
     return kept(hills and "mine:hills" or "mine", function()
         local parts = {}

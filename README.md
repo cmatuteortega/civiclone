@@ -14,14 +14,21 @@ peaks, forests, hills, and fog of war drawn as an old paper map.
 ![A capital and its production](shots/02-city.png)
 ![An empire at turn 76](shots/03-turn80.png)
 
-The sea is the one thing on the map that moves: a shader
-(`src/ui/sea.lua`) paints the water again each frame, still choosing every
-pixel from the eight colours. A swell rolls in, the water is rough in some
-patches and smooth in others, sand shows through
+The map moves. A shader (`src/ui/sea.lua`) paints the water again each
+frame, still choosing every pixel from the eight colours. A swell rolls in,
+the water is rough in some patches and smooth in others, sand shows through
 the shallows, and breakers come in and fall white on the shore, at different
 moments along the coast.
 
 ![The sea moving](shots/05-sea.gif)
+
+The same shader brings the wind over the land. Gusts roll east across the
+map, and where one passes the tree crowns and wheat sheaves lean a pixel or
+two and the grass shows its light side in streaks. Cloud shadows drift over
+land, sea and everything standing on them, and smoke rises from the
+chimneys of cities, farms and mines (`src/ui/smoke.lua`).
+
+![Wind, clouds and smoke](shots/06-wind.gif)
 
 ## Running it
 
@@ -79,7 +86,7 @@ Everything is saved as you change it, in `settings` in LÖVE's save folder.
 
 | Tab | Settings |
 | --- | --- |
-| Display | Windowed, borderless or exclusive fullscreen; resolution; vsync; moving water; a frame rate limit; a frame rate counter. A new mode or resolution reverts after 15 seconds unless you keep it |
+| Display | Windowed, borderless or exclusive fullscreen; resolution; vsync; moving water; wind and clouds; a frame rate limit; a frame rate counter. A new mode or resolution reverts after 15 seconds unless you keep it |
 | Interface | Interface size and map pixel size (automatic, or any whole zoom the window allows); touch buttons; hex tooltips; how long the news stays; lock windows; snap windows to edges; reset window positions |
 | Audio | Master, music, ambience and effects volumes; mute in the background |
 | Gameplay | Animation speed; camera pan speed; pan at the screen's edges; auto-select the next unit; camera follows selection; hex grid |

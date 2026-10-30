@@ -67,6 +67,10 @@ end
 
 local MAT = {}
 
+-- The kinds of land the moving picture knows (after 1 ocean and 2 coast).
+local LAND = { crown = 3, sheaf = 4, grass = 5, plains = 6, other = 7 }
+World.LAND = LAND
+
 MAT.grass = { id = 1, ramp = ramp("s", "k", "n", "u"), print = function(s, x, y, z, nx, ny, nz, lev)
     if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
     local g = grain(x, z, 1)
@@ -386,6 +390,21 @@ function World:trace(i0, j0, i1, j1, yield)
                 b.up[n] = ny > 0.7 and 1 or 0
                 local top = best.prism and ny > 0.99
                 b.edge[n] = top and H.inset(x, z, best.cellRef.x, best.cellRef.z) < 0.8 and 1 or 0
+                -- What the wind does to it, for src/ui/sea.lua: a tree's crown
+                -- and a sheaf sway, by how high above the ground they are, in
+                -- sixteenths; grass and dry grass ripple.
+                local kind, sway = LAND.other, 0
+                if m == MAT.tree or m == MAT.wheat then
+                    local cell = best.cellRef
+                    local ground = cell.top + ((m == MAT.tree and cell.elev == "hills") and 1 or 0)
+                    kind = m == MAT.tree and LAND.crown or LAND.sheaf
+                    sway = max(0, min(255, floor((y - ground) * 16)))
+                elseif ny > 0.9 and (m.id == MAT.grass.id or m.id == MAT.grass.id + 20) then
+                    kind = LAND.grass
+                elseif ny > 0.9 and (m.id == MAT.plains.id or m.id == MAT.plains.id + 20) then
+                    kind = LAND.plains
+                end
+                b.kind[n], b.sway[n] = kind, sway
                 -- The sea's top, for src/sea.lua to set moving: which water,
                 -- and how far the land is, in quarter units up to 63.
                 if top and (m == MAT.ocean or m == MAT.coast) then
@@ -395,7 +414,7 @@ function World:trace(i0, j0, i1, j1, yield)
                     b.sea[n] = 0
                 end
             else
-                b.raw[n], b.cell[n], b.edge[n], b.up[n], b.sea[n] = 0, 0, 0, 0, 0
+                b.raw[n], b.cell[n], b.edge[n], b.up[n], b.sea[n], b.kind[n] = 0, 0, 0, 0, 0, 0
                 b.dep[n] = -1e9
                 b.wy[n] = -1e9
             end
@@ -421,6 +440,8 @@ function World:paint(yield)
     b.up = ffi.new("uint8_t[?]", w * h)
     b.sea = ffi.new("uint8_t[?]", w * h)
     b.shore = ffi.new("uint8_t[?]", w * h)
+    b.kind = ffi.new("uint8_t[?]", w * h)
+    b.sway = ffi.new("uint8_t[?]", w * h)
     self.buf = b
     self:bin()
     self:trace(0, 0, w - 1, h - 1, yield)
@@ -431,13 +452,15 @@ function World:paint(yield)
     self.px = ffi.cast("uint8_t*", self.data:getFFIPointer())
     self.image = love.graphics.newImage(self.data)
     self.image:setFilter("nearest", "nearest")
-    -- Beside it, a picture of the sea for src/sea.lua: red which water
-    -- (1 ocean, 2 coast, 0 none or unseen), green how far the land is, blue
-    -- how many steps darker the fog and the grid lay it.
-    self.seaData = love.image.newImageData(w, h, "rgba8")
-    self.spx = ffi.cast("uint8_t*", self.seaData:getFFIPointer())
-    self.seaImage = love.graphics.newImage(self.seaData)
-    self.seaImage:setFilter("nearest", "nearest")
+    -- Beside it, a picture of what moves for src/ui/sea.lua: red what it is
+    -- (1 ocean, 2 coast, or a kind of land from LAND; 0 unseen, or ink on
+    -- the water), green how far the land is from water or how high a crown
+    -- stands, blue how many steps darker the fog and the grid lay it, alpha
+    -- the key laid there.
+    self.maskData = love.image.newImageData(w, h, "rgba8")
+    self.mpx = ffi.cast("uint8_t*", self.maskData:getFFIPointer())
+    self.maskImage = love.graphics.newImage(self.maskData)
+    self.maskImage:setFilter("nearest", "nearest")
 end
 
 -- How far room point (x, z) on water hex `cell` is from the nearest land, as
@@ -493,7 +516,8 @@ end
 function World:build(explored, visible, grid)
     local w, h = self.w, self.h
     local px, key, cell, edge, flat, flatEdge = self.px, self.key, self.cell, self.buf.edge, self.buf.flat, self.buf.flatEdge
-    local spx, sea, shore, raw = self.spx, self.buf.sea, self.buf.shore, self.buf.raw
+    local mpx, sea, shore, raw = self.mpx, self.buf.sea, self.buf.shore, self.buf.raw
+    local kind, sway = self.buf.kind, self.buf.sway
     local RGB8 = World.RGB8
     local DARK = T.DARKER
     local bg = IDX.o
@@ -503,7 +527,7 @@ function World:build(explored, visible, grid)
             local n = j * w + i
             local k = key[n]
             local c = cell[n]
-            local water, dark = 0, 0
+            local what, dark = 0, 0
             if k == 0 then
                 k = bg
             elseif not explored[c] then
@@ -517,17 +541,17 @@ function World:build(explored, visible, grid)
             else
                 if grid and edge[n] == 1 and (i + j) % 2 == 0 then k, dark = DARK[k], dark + 1 end
                 if not visible[c] then k, dark = DARK[k], dark + 1 end
-                -- Not where the ink has drawn the map's edge over it.
-                if key[n] == raw[n] then water = sea[n] end
+                -- Water, but not where the ink has drawn the map's edge over it.
+                if sea[n] ~= 0 then what = key[n] == raw[n] and sea[n] or 0 else what = kind[n] end
             end
             local rgb = RGB8[k]
             local p = n * 4
             px[p], px[p + 1], px[p + 2], px[p + 3] = rgb[1], rgb[2], rgb[3], 255
-            spx[p], spx[p + 1], spx[p + 2], spx[p + 3] = water, shore[n], dark, 255
+            mpx[p], mpx[p + 1], mpx[p + 2], mpx[p + 3] = what, sea[n] ~= 0 and shore[n] or sway[n], dark, k
         end
     end
     self.image:replacePixels(self.data)
-    self.seaImage:replacePixels(self.seaData)
+    self.maskImage:replacePixels(self.maskData)
     self.dirty = false
 end
 

@@ -1,14 +1,17 @@
--- The sea, moving: a shader the board's picture is drawn through, that
--- paints every pixel of open water again each frame. The tracer laid the
--- sea down still; this sets it going, and it holds to the tracer's rules:
--- each pixel is still *chosen* off the eight keys, never blended, and the
--- fog and the grid still take it down a step at a time.
+-- The sea, moving, and the wind over the land: a shader the board's picture
+-- is drawn through, that paints every pixel of open water again each frame,
+-- and every pixel of land the wind or a cloud's shadow is on. The tracer
+-- laid the map down still; this sets it going, and it holds to the tracer's
+-- rules: each pixel is still *chosen* off the eight keys, never blended, and
+-- the fog and the grid still take it down a step at a time.
 --
--- What it knows of a pixel comes from the world's sea picture (src/world.lua,
--- World:paint): which water it is, how far the land is, and how many steps
--- darker to lay it. Where in the room it is it works out itself: the sea's
--- top is all at one level, and with no perspective a level is a plain linear
--- map of the picture.
+-- What it knows of a pixel comes from the world's mask (src/world.lua,
+-- World:paint): what is there (which water, or which kind of land), how far
+-- the land is or how high a tree's crown stands, how many steps darker to
+-- lay it, and its key. Where in the room it is it works out itself: the
+-- sea's top is all at one level, and with no perspective a level is a plain
+-- linear map of the picture. The land is taken as if at that level too,
+-- which is near enough for a gust or a cloud.
 --
 -- Rumbo's sea (src/sea.lua there) taught most of what is here, done on the
 -- GPU rather than with sprites:
@@ -18,6 +21,12 @@
 -- And new here, the shore: sand showing through the shallows, a breaker that
 -- comes in from out at sea, white where it falls, and the wash it leaves on
 -- the land's edge, all at different moments along a coast.
+--
+-- The wind blows from the west, in gusts that roll east over the map. Where
+-- one passes, the crowns of the trees and the sheaves of wheat lean a pixel
+-- or two with it, by how high they stand, and the grass and the dry grass
+-- show their light sides in streaks. Under all of it, land, sea and what
+-- stands on them, the shadows of clouds drift the same way, a step darker in a dither.
 --
 -- Marks laid over water (the hexes a city works) are not printed over it
 -- still, which would stop the water under them: the overlay carries them as
@@ -29,16 +38,15 @@ local Settings = require "src.settings"
 
 local Sea = {}
 
-local SOURCE = [[
-uniform Image seaMask;   // r which water (1 ocean, 2 coast), g land's distance x4, b steps darker
+-- What the board's shader and the overlay's share: noise, dither, where a
+-- pixel is in the room, the wind and the clouds.
+local COMMON = [[
 uniform Image palette;   // the eight keys, darkest first
-uniform Image overlay;   // the board's overlay: alpha 1..3 marks steps lighter
-uniform vec2 overlaySize;
-uniform vec2 size;       // the picture, in pixels
 uniform vec2 base;       // room (x, z) at the picture's corner, on the sea's level
 uniform vec2 alongI;     // room (x, z) a pixel right
 uniform vec2 alongJ;     // room (x, z) a pixel down
-uniform float time;
+uniform float air;       // the wind's clock
+uniform float weather;   // 1 for the wind and the clouds, 0 for the land still
 
 const float O = 1.0, U = 2.0, N = 3.0, K = 4.0, TAN = 5.0, S = 6.0, C = 7.0, W = 8.0;
 
@@ -63,6 +71,56 @@ float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
 
 vec2 room(vec2 p) { return base + p.x * alongI + p.y * alongJ; }
 
+vec3 key(float k) { return Texel(palette, vec2((k - 0.5) / 8.0, 0.5)).rgb; }
+
+// A gust, 0..1: fronts that roll east, bent by a slow noise, strong in
+// some places and nothing in others.
+float gust(vec2 w, float t) {
+    float bend = 3.0 * noise(w * 0.011 + vec2(0.0, t * 0.01));
+    float front = sin(w.x * 0.034 + w.y * 0.008 - t * 0.75 + bend);
+    float strength = smoothstep(0.25, 0.7, noise(w * 0.006 - vec2(t * 0.02, 0.0)));
+    return smoothstep(0.35, 0.95, front) * strength;
+}
+
+// The shadows of clouds: 1 where one lies, 0 where not. Not a full step
+// darker but half its pixels, and a quarter at the edge, so the land under
+// them still reads.
+float cloud(vec2 p, vec2 w, float t) {
+    if (weather < 0.5) return 0.0;
+    vec2 q = w * 0.0042 - vec2(t * 0.012, t * 0.003);
+    float c = noise(q) * 0.7 + noise(q * 2.3 + 5.2) * 0.3;
+    float edge = 0.66 + 0.04 * sin(t * 0.013);
+    float d = bayer4(p);
+    if (c > edge + 0.03) return d < 0.5 ? 1.0 : 0.0;
+    if (c > edge) return d < 0.25 ? 1.0 : 0.0;
+    return 0.0;
+}
+]]
+
+local SOURCE = COMMON .. [[
+uniform Image mask;      // r what (1 ocean, 2 coast, 3.. land), g land's distance x4 or height x16, b steps darker, a key
+uniform Image overlay;   // the board's overlay: alpha 1..3 marks steps lighter
+uniform vec2 overlaySize;
+uniform vec2 size;       // the picture, in pixels
+uniform float time;      // the sea's clock
+
+const float CROWN = 3.0, SHEAF = 4.0, GRASS = 5.0, PLAINS = 6.0;
+
+float what(vec4 m) { return floor(m.r * 255.0 + 0.5); }
+float keyOf(vec4 m) { return floor(m.a * 255.0 + 0.5); }
+bool sways(float kind) { return kind == CROWN || kind == SHEAF; }
+vec4 at(vec2 p) { return Texel(mask, (p + 0.5) / size); }
+
+// How many pixels east a swaying pixel at p leans: more the higher above
+// its ground, and a little to and fro even in the lull.
+float lean(vec2 p, vec4 m, float t) {
+    float h = m.g * 255.0 / 16.0;
+    float reach = what(m) == CROWN ? clamp((h - 2.5) / 5.0, 0.0, 1.3) : clamp(h / 4.0, 0.0, 0.9);
+    vec2 w = room(p);
+    float sway = 1.7 * gust(w, t) + 0.5 * sin(t * 1.9 + 6.283 * noise(w * 0.035)) - 0.1;
+    return clamp(floor(reach * sway + 0.5), -1.0, 2.0);
+}
+
 // The long swell, rolling towards you and a little east, its crests bent by
 // a slow noise so no two are ruled straight.
 float swell(vec2 w, float t) {
@@ -75,15 +133,10 @@ float rough(vec2 w, float t) {
     return noise(w * 0.013 + vec2(-t * 0.006, t * 0.004));
 }
 
-vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-    vec4 m = Texel(seaMask, tc);
-    float kind = floor(m.r * 255.0 + 0.5);
-    if (kind < 0.5) return Texel(tex, tc) * color;
+vec3 sea(vec4 m, vec2 p, vec2 w, vec2 sc) {
+    float kind = what(m);
     float shore = m.g * 255.0 / 4.0;
     float dark = floor(m.b * 255.0 + 0.5);
-
-    vec2 p = floor(tc * size);
-    vec2 w = room(p + 0.5);
     float t = time;
     bool deep = kind < 1.5;
     float water = deep ? U : N;
@@ -91,7 +144,6 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
 
     float sw = swell(w, t);
     float ro = rough(w, t);
-
     // The swell's troughs, a step darker in a thin dither, where the sea is up.
     if (sw < -0.8 && ro > 0.3 && bayer4(p) < (sw < -0.93 ? 0.375 : 0.1875)) k = water - 1.0;
     // Far out the sea is deeper: its troughs wider.
@@ -130,25 +182,90 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     vec4 o = Texel(overlay, sc / overlaySize);
     if (o.a > 0.0 && o.a < 0.5) k += floor(o.a * 255.0 + 0.5);
 
-    k = clamp(k - dark, 1.0, 8.0);
-    return vec4(Texel(palette, vec2((k - 0.5) / 8.0, 0.5)).rgb, 1.0) * color;
+    k = clamp(k - dark - cloud(p, w, air), 1.0, 8.0);
+    return key(k);
+}
+
+vec3 land(vec4 m, vec2 p, vec2 w) {
+    float kind = what(m);
+    float t = air;
+    float k = keyOf(m);
+    if (weather < 0.5) return key(k);
+    float from = kind;
+    // Whatever leans onto this pixel, from the west or from the east.
+    bool covered = false;
+    for (int n = 0; n < 3; n++) {
+        float d = n == 0 ? 1.0 : (n == 1 ? 2.0 : -1.0);
+        vec4 o = at(p - vec2(d, 0.0));
+        if (sways(what(o)) && lean(p - vec2(d, 0.0), o, t) == d) {
+            k = keyOf(o);
+            from = what(o);
+            covered = true;
+            break;
+        }
+    }
+    // Leaned off: what is behind it, taken from the side it left.
+    if (!covered && sways(kind)) {
+        float d = lean(p, m, t);
+        if (d != 0.0) {
+            for (int n = 1; n <= 3; n++) {
+                vec4 o = at(p - vec2(sign(d) * float(n), 0.0));
+                if (!sways(what(o)) && what(o) > 0.5) { k = keyOf(o); from = what(o); break; }
+            }
+        }
+    }
+    float g = gust(w, t);
+    if (from == CROWN && g > 0.45 && k > U && hash(p, floor(t * 5.0 + hash(p) * 3.0)) > 0.9) {
+        // Leaves turned over by the gust, a glint of their light side.
+        k += 1.0;
+    } else if ((from == GRASS || from == PLAINS) && g > 0.3) {
+        // The grass laid over in streaks that run with the wind.
+        float streak = noise(w * vec2(0.05, 0.4) - vec2(t * 0.9, 0.0));
+        if (streak * g > 0.42 && bayer4(p + vec2(floor(t * 3.0), 0.0)) < 0.25) k += 1.0;
+    }
+    k = clamp(k - cloud(p, w, t), 1.0, 8.0);
+    return key(k);
+}
+
+vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
+    vec4 m = Texel(mask, tc);
+    float kind = what(m);
+    if (kind < 0.5) return Texel(tex, tc) * color;
+    vec2 p = floor(tc * size);
+    vec2 w = room(p + 0.5);
+    vec3 c = kind < 2.5 ? sea(m, p, w, sc) : land(m, p, w);
+    return vec4(c, 1.0) * color;
 }
 ]]
 
 -- The overlay drawn over the board: only the pixels it covers, not the marks
--- it leaves for the sea to lighten.
-local COVER = [[
+-- it leaves for the sea to lighten; and what stands there under the clouds
+-- too, a step darker.
+local COVER = COMMON .. [[
+uniform vec2 cam;        // the board picture's pixel at the canvas's corner
+
 vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
-    vec4 p = Texel(tex, tc);
-    if (p.a < 0.99) discard;
-    return p * color;
+    vec4 px = Texel(tex, tc);
+    if (px.a < 0.99) discard;
+    vec2 p = floor(sc) + cam;
+    if (cloud(p, room(p + 0.5), air) < 0.5) return px * color;
+    // Which key it is, to go a step down from.
+    float k = 1.0, best = 9.0;
+    for (int n = 1; n <= 8; n++) {
+        vec3 d = key(float(n)) - px.rgb;
+        float e = dot(d, d);
+        if (e < best) { best = e; k = float(n); }
+    }
+    return vec4(key(max(1.0, k - 1.0)), 1.0) * color;
 }
 ]]
 
-local time = 0
+local time, air = 0, 0
+
+local function still() return Settings.get("landMotion") == false end
 
 -- Compiles the shaders. If the graphics can't, the board is drawn as the
--- tracer left it, the sea still.
+-- tracer left it, still.
 function Sea.load()
     local ok, shader = pcall(love.graphics.newShader, SOURCE)
     if not ok then
@@ -156,25 +273,31 @@ function Sea.load()
         return
     end
     local ok2, cover = pcall(love.graphics.newShader, COVER)
-    if not ok2 then return end
+    if not ok2 then
+        print("sea: no moving water: " .. tostring(cover))
+        return
+    end
     Sea.shader, Sea.cover = shader, cover
     local data = love.image.newImageData(8, 1, "rgba8")
     for k, c in ipairs(T.RGB) do data:setPixel(k - 1, 0, c[1], c[2], c[3], 1) end
     Sea.palette = love.graphics.newImage(data)
     Sea.palette:setFilter("nearest", "nearest")
     shader:send("palette", Sea.palette)
+    cover:send("palette", Sea.palette)
 end
 
 function Sea.update(dt)
     -- Kept short, so the GPU's floats hold their fraction; the jump back is
     -- once an hour.
     if Settings.get("seaMotion") ~= false then time = (time + dt) % 3600 end
+    if not still() then air = (air + dt) % 3600 end
 end
 
 -- Sets the shader going for world `w` drawn at the canvas's (x, y), with the
--- overlay `overlay` (an image the canvas's size) over it. Answers whether
--- it did: if not, draw as usual.
-function Sea.begin(w, overlay)
+-- overlay `overlay` (an image the canvas's size) over it, the board picture's
+-- pixel (camx, camy) at the canvas's corner. Answers whether it did: if not,
+-- draw as usual. The overlay is then drawn through Sea.cover.
+function Sea.begin(w, overlay, camx, camy)
     local sh = Sea.shader
     if not sh then return false end
     if not w.seaBase then
@@ -186,18 +309,27 @@ function Sea.begin(w, overlay)
         w.seaI = { x1 - x0, z1 - z0 }
         w.seaJ = { x2 - x0, z2 - z0 }
     end
-    sh:send("seaMask", w.seaImage)
+    local weather = still() and 0 or 1
+    for _, s in ipairs({ sh, Sea.cover }) do
+        s:send("base", w.seaBase)
+        s:send("alongI", w.seaI)
+        s:send("alongJ", w.seaJ)
+        s:send("air", air)
+        s:send("weather", weather)
+    end
+    sh:send("mask", w.maskImage)
     sh:send("size", { w.w, w.h })
-    sh:send("base", w.seaBase)
-    sh:send("alongI", w.seaI)
-    sh:send("alongJ", w.seaJ)
     sh:send("overlay", overlay)
     sh:send("overlaySize", { overlay:getWidth(), overlay:getHeight() })
     sh:send("time", time)
+    Sea.cover:send("cam", { camx, camy })
     love.graphics.setShader(sh)
     return true
 end
 
 Sea.time = function() return time end
+-- The wind's clock, stopped when the land is set still.
+Sea.air = function() return air end
+Sea.still = still
 
 return Sea

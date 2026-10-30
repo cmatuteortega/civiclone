@@ -17,6 +17,7 @@ local Anim = require "src.ui.anim"
 local Font = require "src.font"
 local View = require "src.ui.view"
 local Sea = require "src.ui.sea"
+local Smoke = require "src.ui.smoke"
 
 local floor, min = math.floor, math.min
 local IDX = T.IDX
@@ -168,7 +169,10 @@ local function things(me)
             else
                 pic = M.mine(cell.elev == "hills")
             end
-            list[#list + 1] = { z = cell.z - 1, draw = function() P.stamp(pic, cell.x, cell.top, cell.z) end }
+            list[#list + 1] = { z = cell.z - 1, draw = function()
+                P.stamp(pic, cell.x, cell.top, cell.z)
+                if me.visible[cell.id] then Smoke.improvement(cell) end
+            end }
         end
     end
     for _, c in ipairs(g.cities) do
@@ -177,6 +181,7 @@ local function things(me)
             list[#list + 1] = { z = cell.z, draw = function()
                 local pic = M.city(lookOf(c.owner), c.pop, c.capital, c.buildings)
                 P.stamp(pic, cell.x, cell.top, cell.z, c.flash and T.FLASH or nil)
+                if me.visible[cell.id] then Smoke.city(cell, c) end
             end }
         end
     end
@@ -314,7 +319,7 @@ function Board.draw()
     love.graphics.setCanvas(S.canvas)
     love.graphics.clear(T.RGB[IDX.o])
     love.graphics.setColor(1, 1, 1)
-    local moving = Sea.begin(w, S.overlayImage)
+    local moving = Sea.begin(w, S.overlayImage, floor(S.camx), floor(S.camy))
     love.graphics.draw(w.image, -floor(S.camx), -floor(S.camy))
     if moving then love.graphics.setShader(Sea.cover) end
     love.graphics.draw(S.overlayImage, 0, 0)

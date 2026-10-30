@@ -601,6 +601,29 @@ first, into one image the size of the canvas. Each pixel is kept only where
 it is nearer than the map there, so units go behind mountains and among
 trees. Banners and numbers are drawn flat on top.
 
+**The moving map** (`src/ui/sea.lua`): the map's picture is drawn through
+a shader that paints, each frame, every pixel that moves. It still picks
+each pixel from the 8 colours. Beside the picture, the world keeps a mask
+that records, per pixel, what is there (ocean, coast, a tree crown, a wheat
+sheaf, grass, plains or other land), how far the shore is or how high a
+crown stands, how much fog darkens it, and its colour.
+
+- **The sea:** a swell, rough and smooth patches, glints, sand in the
+  shallows, breakers and their wash on the shore.
+- **The wind** blows from the west, in gusts that roll east. Tree crowns
+  and wheat sheaves lean up to two pixels with a gust, by how high above the
+  ground each pixel stands, and sway a little even in a lull. The leaves
+  glint as a gust turns them, and the grass shows lighter streaks.
+- **Cloud shadows** drift east over everything: the land, the sea and what
+  stands on them. They darken half the pixels one step, and a quarter at
+  the edge.
+- **Smoke** (`src/ui/smoke.lua`) rises from city chimneys (one per two
+  citizens, up to three), from farmhouses and from mine huts, in puffs that
+  grow, drift east and break up. It shows only where you can see.
+
+**MOVING WATER** and **WIND AND CLOUDS** in the display settings turn each
+off.
+
 **Animation** (`src/ui/anim.lua`): the rules resolve instantly, and the
 screen plays them back:
 
