@@ -5,6 +5,7 @@
 local ffi = require "ffi"
 local S = require "src.ui.state"
 local Settings = require "src.settings"
+local T = require "src.tracer"
 
 local floor, ceil, max, min = math.floor, math.ceil, math.max, math.min
 
@@ -15,7 +16,7 @@ local View = {}
 function View.baseZoom()
     local w, h = love.graphics.getDimensions()
     local set = Settings.get("mapScale") or 0
-    if set > 0 then return max(1, min(set, floor(min(w, h) / 100))) end
+    if set > 0 then return max(1, min(set, floor(min(w, h) / 200))) end
     return max(1, floor(min(w, h) / S.SHORT + 0.5))
 end
 
@@ -54,7 +55,7 @@ end
 -- Keeps the camera over the map, with a little room past its edges.
 function View.clamp()
     if not S.world then return end
-    local m = 40
+    local m = 40 / T.UNIT
     local w, h = S.world.w, S.world.h
     if w + 2 * m <= S.cw then S.camx = (w - S.cw) / 2
     else S.camx = max(-m, min(w - S.cw + m, S.camx)) end

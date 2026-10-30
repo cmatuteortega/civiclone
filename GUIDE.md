@@ -550,9 +550,11 @@ panel so you can look at the map.
 
 ## How it is drawn
 
-- **Resolution:** everything renders into a canvas a few hundred pixels
-  across, scaled up by a whole number. The zoom is chosen from the window's
-  height, and the wheel steps it in and out.
+- **Resolution:** the map renders into a canvas about 480 pixels tall,
+  scaled up by a whole number, and is traced at two pixels to a unit of its
+  room. The zoom is chosen from the window's height (or set as map pixel
+  size), and the wheel steps it in and out. The HUD and the banners over
+  cities and units are drawn on a canvas of their own, at the interface size.
 - **Palette:** only the 8 colours of `src/palette.lua` are used, darkest to
   lightest: `#292418` `#524839` `#73654a` `#8b7d62` `#a48d6a` `#bda583`
   `#cdba94` `#e6ceac`.

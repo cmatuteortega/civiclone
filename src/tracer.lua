@@ -11,7 +11,8 @@
 -- and kept.
 --
 -- Room space: x east (screen right), z south (towards you and down the
--- screen), y up. One unit of the room is one pixel across.
+-- screen), y up. One unit of the room is two pixels across: the room was laid
+-- out a unit to the pixel, and is traced at twice that for the detail.
 --
 -- Every pixel is traced once at its centre and its colour is *chosen* off a
 -- ramp of palette keys, never blended. Then the two passes that make it read
@@ -33,7 +34,7 @@ local T = {}
 local ELEV = math.rad(40)
 local CE, SE = cos(ELEV), sin(ELEV)
 T.CE, T.SE = CE, SE
-local UNIT = 1
+local UNIT = 0.5
 T.UNIT = UNIT
 
 -- The camera's three axes in the room: screen right, screen up, towards you.

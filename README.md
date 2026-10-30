@@ -116,8 +116,10 @@ have an army, they march on the nearest city they know.
 
 ## How it is drawn
 
-Everything renders into a canvas a few hundred pixels across, scaled up by a
-whole number. No pixel is blended. Each is *chosen* off a ramp of palette keys
+The map renders into a canvas about five hundred pixels tall, scaled up by a
+whole number, and is traced at two pixels to a unit of its room for the detail
+in its models. The HUD, and the banners over cities and units, have a canvas of
+their own at the interface size. No pixel is blended. Each is *chosen* off a ramp of palette keys
 (glint, lit, middle, shadow) by its normal against the lamp. Two passes then
 make it read as drawn rather than rendered: creases where neighbouring normals
 of one material disagree, and ink round every silhouette and depth step.

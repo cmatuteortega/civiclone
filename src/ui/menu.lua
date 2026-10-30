@@ -108,7 +108,7 @@ local function zooms(minW, minH)
 end
 Menu.UI_MIN_W, Menu.UI_MIN_H = 300, 180
 local function uiScales() return zooms(Menu.UI_MIN_W, Menu.UI_MIN_H) end
-local function mapScales() return zooms(160, 100) end
+local function mapScales() return zooms(320, 200) end
 
 -- The window as the display settings say.
 function Menu.applyDisplay()

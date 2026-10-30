@@ -18,9 +18,9 @@ local S = {
 
 -- Board pixels the window's short edge should be, about: the zoom is the
 -- whole number that gives nearest this.
-S.SHORT = 250
+S.SHORT = 480
 -- The HUD's pixels, likewise; fewer, so bigger, on a phone.
-S.UI_SHORT = 250
+S.UI_SHORT = 360
 S.UI_SHORT_PHONE = 180
 
 return S

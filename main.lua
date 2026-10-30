@@ -278,6 +278,7 @@ function love.draw()
     elseif S.mode == "loading" then
         loading()
     else
+        Board.banners()
         Hud.draw(S.dt or 0)
     end
     -- The windows over all the rest, and the menus over them.

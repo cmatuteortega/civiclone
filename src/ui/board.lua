@@ -1,8 +1,9 @@
 -- The board drawn each frame: the map's picture (rebuilt when what the player
 -- has seen changes), then the overlay over it -- borders, furrows and the
 -- marks of what is selected on the ground first, then improvements, cities
--- and units standing up, furthest first -- then, flat on top of it all, the
--- banners over cities and units and the numbers of a fight.
+-- and units standing up, furthest first. The banners over cities and units
+-- and the numbers of a fight are drawn apart, onto the HUD's canvas, so they
+-- are the HUD's size rather than the map's.
 
 local ffi = require "ffi"
 local T = require "src.tracer"
@@ -14,6 +15,7 @@ local P = require "src.ui.pixels"
 local Draw = require "src.ui.draw"
 local Anim = require "src.ui.anim"
 local Font = require "src.font"
+local View = require "src.ui.view"
 
 local floor, min = math.floor, math.min
 local IDX = T.IDX
@@ -174,10 +176,9 @@ end
 
 --- flat on top -----------------------------------------------------------------
 
--- Canvas pixel of a room point.
+-- HUD pixel of a room point.
 local function screen(x, y, z)
-    local i, j = S.world:toImage(x, y, z)
-    return floor(i - floor(S.camx)), floor(j - floor(S.camy))
+    return View.toHud(S.world:toImage(x, y, z))
 end
 
 local function unitBanner(u)
@@ -234,8 +235,10 @@ local function cityBanner(c)
     if c.hp < g:maxHp(c) then Draw.bar(x, y - 3, w, c.hp / g:maxHp(c), "w", "o") end
 end
 
-local function overlays(me)
+-- Onto the HUD's canvas, before the HUD itself so its panels stay on top.
+function Board.banners()
     local g = S.game
+    local me = g.players[1]
     for _, u in ipairs(g.units) do
         if u.owner == 1 or me.visible[u.cell] then unitBanner(u) end
     end
@@ -285,8 +288,6 @@ function Board.draw()
     love.graphics.setColor(1, 1, 1)
     love.graphics.draw(w.image, -floor(S.camx), -floor(S.camy))
     love.graphics.draw(S.overlayImage, 0, 0)
-    overlays(me)
-    love.graphics.setColor(1, 1, 1)
 end
 
 return Board
