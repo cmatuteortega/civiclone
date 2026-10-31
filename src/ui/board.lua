@@ -24,6 +24,7 @@ local Fire = require "src.ui.fire"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
 local Rain = require "src.ui.rain"
+local SkyFx = require "src.ui.sky"
 local Audio = require "src.ui.audio"
 
 local floor, min = math.floor, math.min
@@ -404,7 +405,7 @@ local function idlePose(u, a, near)
     local t = Sea.air() + u.id * 1.37
     local k = u.kind
     if k == "wolf" then
-        if D.night(S.game.turn) then
+        if D.night(S.game.turn, S.game) then
             local f = t % 9
             return f > 7.2 and P_.howl or 0, f > 7.2 and f < 7.2 + S.dt * 1.5
         end
@@ -590,10 +591,12 @@ local function things(me)
         end
     end
     Wild.things(list, me, P.stamp)
+    SkyFx.things(me, list)
     table.sort(list, function(a, b) return a.z < b.z end)
     for _, t in ipairs(list) do t.draw() end
     Birds.draw()
     Rain.draw()
+    SkyFx.draw()
 end
 
 --- flat on top -----------------------------------------------------------------

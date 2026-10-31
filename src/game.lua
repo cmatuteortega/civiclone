@@ -251,6 +251,8 @@ function Game:describe(cell)
     if cell.flood then parts[#parts + 1] = "- FLOODED"
     elseif cell.silt then parts[#parts + 1] = "- SILT"
     elseif cell.drowned then parts[#parts + 1] = "- DROWNED LAND" end
+    if cell.glow then parts[#parts + 1] = "- FRESH CRATER"
+    elseif cell.crater then parts[#parts + 1] = "- CRATER" end
     if cell.fire then parts[#parts + 1] = "- BURNING"
     elseif cell.scorched then parts[#parts + 1] = "- SCORCHED"
     elseif cell.burnt then parts[#parts + 1] = "- BURNT" end
@@ -799,8 +801,13 @@ function Game:canBuild(city, kind, id)
     if not def then return false end
     if def.tech and not p.techs[def.tech] then return false end
     if kind == "building" and city.buildings[id] then return false end
-    -- What holds a cataclysm off, only against that one.
-    if def.ward and not Cat.is(self, def.ward) then return false end
+    -- What holds a cataclysm off, only against that one ("any": against
+    -- whichever it is, but not when there is none).
+    if def.ward == "any" then
+        if not self.cataclysm then return false end
+    elseif def.ward and not Cat.is(self, def.ward) then
+        return false
+    end
     -- Ships, harbours and lighthouses only by the water.
     if (def.sea or def.coastal) and not self:coastal(self.cells[city.cell]) then return false end
     return true
@@ -1241,8 +1248,8 @@ function Game:improvementsFor(u)
         and not D.TERRAIN[cell.terrain].noFarm and not cell.fire and not cell.flood then
         out[#out + 1] = "farm"
     end
-    if cell.improvement ~= "mine" and (cell.elev == "hills" or cell.resource == "stone" or cell.resource == "gems")
-        and p.techs.mining then
+    if cell.improvement ~= "mine" and (cell.elev == "hills" or cell.resource == "stone" or cell.resource == "gems"
+        or cell.resource == "iron") and p.techs.mining and not cell.glow then
         out[#out + 1] = "mine"
     end
     return out

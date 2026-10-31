@@ -116,10 +116,35 @@ local function silt(x, z)
     if v > 0.25 and g > 0.6 then return IDX.c end
 end
 
--- The prints of the land laid over a ground's own: ash, then silt, then the
--- rim of a river's bank.
+-- Where a stone has fallen (src/skyfall.lua): the pit at the middle
+-- blackened, and rays of pale rubble thrown out from it, a few long and
+-- most short, specks of it between. Nil where the ground shows through.
+local function blast(s, x, z)
+    local cell = s.cellRef
+    local dx, dz = x - cell.x, z - cell.z
+    local d = math.sqrt(dx * dx + dz * dz)
+    local g = grain(x, z, 71)
+    local pit = s.crater
+    if d < pit then return g > 0.25 and IDX.u or IDX.n end
+    if d < pit + 1.4 then return g > 0.45 and IDX.n or IDX.k end
+    local turn = (math.atan2(dz, dx) + math.pi) / (2 * math.pi) * 11
+    local k = floor(turn)
+    local long = pit + 2 + grain(k, cell.id, 73) * 9
+    if grain(k, cell.id, 72) > 0.3 and d < long and abs(turn - k - 0.5) < 0.2 * (1 - d / (long + 2)) then
+        return g > 0.2 and IDX.c or IDX.s
+    end
+    if g > 0.94 then return IDX.n end
+    if g < 0.03 then return IDX.c end
+end
+
+-- The prints of the land laid over a ground's own: a crater's blast, ash,
+-- then silt, then the rim of a river's bank.
 local function overland(s, x, z, ny)
     if ny <= 0.9 then return end
+    if s.crater then
+        local a = blast(s, x, z)
+        if a then return a end
+    end
     if s.ash then
         local a = ash(x, z)
         if a then return a end
@@ -188,6 +213,22 @@ MAT.pool = { id = 20, ramp = ramp("n", "u", "u", "o"), print = function(s, x, y,
 end }
 -- Trees the sea has drowned: dead wood, bleached.
 MAT.deadwood = { id = 8, ramp = ramp("c", "s", "t", "n") }
+-- A fallen stone (src/skyfall.lua), cooled: a dark lump, pitted, the odd
+-- glint of metal in it. Still hot, it glows: pale through a black crust.
+MAT.starstone = { id = 41, ramp = ramp("t", "n", "u", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
+    local g = grain(x * 2, y * 2 + z, 74)
+    if g > 0.93 then return IDX.s end
+    if g < 0.12 then return IDX.o end
+end }
+MAT.hotstone = { id = 42, ramp = ramp("w", "w", "c", "s"), print = function(s, x, y, z, nx, ny, nz, lev)
+    local v = sin(x * 1.7 + sin(z * 1.3) * 2) + sin(y * 2.1 - z * 0.9)
+    if v > 0.6 then return IDX.u end
+    if v > 0.2 then return IDX.k end
+end }
+-- Star iron: black and heavy, its broken faces bright.
+MAT.iron = { id = 43, ramp = ramp("c", "n", "u", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if grain(x * 3, y * 3 + z, 75) > 0.9 then return IDX.w end
+end }
 
 -- Cracks between the plates of baked mud: where room point (x, z) is
 -- nearly as near the second-nearest of a jittered grid of points as the
@@ -215,6 +256,10 @@ MAT.scorched = { id = 16, ramp = ramp("c", "s", "t", "k"), print = function(s, x
     if ny > 0.9 and s.pull then
         local r = rim(s, x, z)
         if r then return r end
+    end
+    if s.crater and ny > 0.9 then
+        local a = blast(s, x, z)
+        if a then return a end
     end
     if s.ash and ny > 0.9 then
         local a = ash(x, z)
@@ -435,9 +480,11 @@ function World:hexSolids(cell)
     local out = {}
     local ashen = (cell.burnt or cell.fire) and true or nil
     local silted = cell.silt and not cell.flood or nil
+    -- A crater's pit: wider the deeper it went.
+    local pit = cell.crater and not cell.city and min(5.5, 1.6 + (cell.sunk or 0) * 0.6) or nil
     local function add(s, mat)
         s.mat, s.cell, s.cellRef, s.world = mat, cell.id, cell, self
-        s.ash, s.silt = ashen, silted
+        s.ash, s.silt, s.crater = ashen, silted, pit
         out[#out + 1] = s
         return s
     end
@@ -643,6 +690,32 @@ function World:hexSolids(cell)
     end
 
     if cell.city then return out end
+    if pit then
+        -- The rim the stone threw up round where it fell: a ring of low
+        -- mounds of the ground's own earth, kept off a river's bank; and
+        -- the stone itself in the middle, or the star iron it was.
+        local deep = (cell.sunk or 0) >= 2
+        local n = deep and 11 or 8
+        local r = H.APOTHEM - (deep and 2.4 or 3)
+        local mound = cell.elev == "mountain" and MAT.rock or MOUND[soil]
+        for k = 0, n - 1 do
+            local a = (k + grain(cell.id, k, 76) * 0.4) / n * 2 * math.pi
+            local x, z = cell.x + math.cos(a) * r, cell.z + math.sin(a) * r * 0.95
+            if not nearRiver(cell, x, z, 1.6) then
+                local w = (deep and 2.6 or 2) * (0.8 + grain(cell.id, k, 77) * 0.4)
+                add(Sh.ell(x, top - 0.2, z, w, (deep and 1.7 or 1.1) * (0.8 + grain(k, cell.id, 78) * 0.4), w * 0.8), mound)
+            end
+        end
+        local ground = top + (cell.elev == "hills" and 1 or 0)
+        if cell.resource == "iron" then
+            for k, p in ipairs({ { 0, 0, 1.5, 2.6 }, { 1.7, 0.9, 1, 1.6 }, { -1.4, 1.1, 0.9, 1.3 } }) do
+                add(Sh.pyramid(5, cell.x + p[1], ground - 0.4, cell.z + p[2], p[3], p[4], 0, grain(cell.id, k, 79) * 3),
+                    cell.glow and MAT.hotstone or MAT.iron)
+            end
+        else
+            add(Sh.ell(cell.x, ground + 0.2, cell.z, 1.5, 1.1, 1.3), cell.glow and MAT.hotstone or MAT.starstone)
+        end
+    end
     if cell.resource == "wheat" then
         -- Two low plots of grain in rows, and between and round them a stand
         -- of it, clump by clump, inked only round its outside. All along

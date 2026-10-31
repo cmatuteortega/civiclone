@@ -491,7 +491,7 @@ end
 Menu.CATACLYSMS = {
     { id = "heat", name = "HEAT DEATH", about = { "THE SUN GROWS CRUEL: DROUGHT, WILDFIRES,", "THEN THE SCORCH. THE WORLD ENDS AT TURN 160" } },
     { id = "flood", name = "THE DELUGE", about = { "THE RAINS WILL NOT STOP: MARSHES, FLOODS,", "THEN THE RISING SEA. THE WORLD ENDS AT TURN 160" } },
-    { id = "sky", name = "SKY DEATH", soon = true, about = { "METEORS AND STRANGE THINGS IN THE SKY.", "NOT YET MADE" } },
+    { id = "sky", name = "SKYFALL", about = { "THE SKY FALLS: STONES SEEN COMING, CRATERS,", "THEN THE LONG NIGHT. THE WORLD ENDS AT TURN 160" } },
     { id = "demons", name = "DEMONS", soon = true, about = { "DEMONIC CREATURES COME UP OUT OF THE EARTH.", "NOT YET MADE" } },
     { id = "none", name = "NONE", about = { "NO CATACLYSM: THE GAME ENDS AT TURN 150", "AND THE HIGHEST SCORE WINS" } },
 }

@@ -161,6 +161,10 @@ end
 
 local function seen(id) return S.game.players[1].visible[id] end
 
+-- Effect `name` from hex `id`, after `delay` seconds: for what plays its own
+-- events back (src/ui/sky.lua's stones, heard as they land).
+function Audio.at(name, id, vol, delay, pitch) at(name, id, vol, delay, pitch) end
+
 -- Effect `name` from hex `id`, if the player can see it: for what the board
 -- sees happen (a wolf howling, a horse snorting).
 function Audio.call(name, id, vol)
@@ -204,7 +208,7 @@ function Audio.hear(game, e)
     elseif k == "flood" and e.cell then
         -- A river over its banks.
         if seen(e.cell) then at("splash", e.cell, 0.7, 0, 0.6) end
-    elseif k == "eliminated" or k == "heat" or k == "flood" then
+    elseif k == "eliminated" or k == "heat" or k == "flood" or k == "sky" then
         -- A civilization gone, or the cataclysm come a stage nearer.
         at("gong")
     elseif k == "embark" or k == "land" then

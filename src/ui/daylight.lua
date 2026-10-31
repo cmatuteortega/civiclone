@@ -33,6 +33,9 @@
 local T = require "src.tracer"
 local S = require "src.ui.state"
 local Settings = require "src.settings"
+local D = require "src.defs"
+local Cat = require "src.cataclysm"
+local Sky = require "src.skyfall"
 
 local sin, cos, sqrt, max, min, floor, pi = math.sin, math.cos, math.sqrt, math.max, math.min, math.floor, math.pi
 
@@ -47,10 +50,15 @@ Daylight.HOURS = require("src.defs").HOURS
 -- How long the light takes to go on to the next turn's hour, in seconds.
 local CHANGE = 2.4
 
--- The hour turn `turn` is played at, counting whole days.
-function Daylight.hourOf(turn)
+-- The hour turn `turn` is played at, counting whole days. In game `game`'s
+-- long night (src/skyfall.lua), the sun never rises: the turns of each day
+-- go round the night from dusk to before the dawn.
+function Daylight.hourOf(turn, game)
     local n = turn - 1
     local hours = Daylight.HOURS
+    if game and D.night(turn, game) and Cat.is(game, "sky") then
+        return floor(n / #hours) + 0.82 + 0.36 * (n % #hours) / (#hours - 1)
+    end
     return floor(n / #hours) + hours[n % #hours + 1]
 end
 
@@ -217,7 +225,7 @@ Daylight.force = nil
 function Daylight.update(dt)
     local g = S.game
     if not g then return end
-    local target = Daylight.force or Daylight.hourOf(g.turn)
+    local target = Daylight.force or Daylight.hourOf(g.turn, g)
     if g ~= game or S.plan then
         game, now, from, goal, since = g, target, target, target, CHANGE
     elseif target ~= goal then
@@ -255,6 +263,18 @@ function Daylight.lamps(w)
             local r = cell.feature == "forest" and 34 or 26
             list[#list + 1] = { floor(i), floor(j) - 4, r }
             sig[#sig + 1] = "f" .. cell.id
+        end
+    end
+    -- A crater still hot glows, and so does a stone coming, over where it
+    -- will fall.
+    if Cat.is(g, "sky") then
+        for _, cell in ipairs(g.cells) do
+            if me.explored[cell.id] and ((cell.glow and not cell.city) or Sky.marked(g, cell)) then
+                local i, j = w:toImage(cell.x, cell.top, cell.z)
+                local r = cell.glow and 24 or Sky.marked(g, cell) == "heart" and 30 or 18
+                list[#list + 1] = { floor(i), floor(j) - 4, r }
+                sig[#sig + 1] = "s" .. cell.id .. ":" .. r
+            end
         end
     end
     return list, table.concat(sig, ",")
@@ -324,10 +344,12 @@ function Daylight.apply(board, cover, cw)
     local lit = Daylight.light and on() and canvas ~= nil
     local a = Daylight.at(now)
     -- The storm of the deluge lights the lamps a little, and its lightning
-    -- lights everything for a moment (src/ui/rain.lua).
-    local storm, flash = S.storm or 0, S.flash or 0
-    local exposure = a.exposure + 2.2 * flash
-    local night = max(a.night, storm * 0.28) * (1 - flash)
+    -- lights everything for a moment (src/ui/rain.lua); the dust of the
+    -- sky's falling darkens the day and lights them more, and a stone
+    -- coming down flashes as the lightning does (src/ui/sky.lua).
+    local storm, flash, dust = S.storm or 0, S.flash or 0, S.dust or 0
+    local exposure = min(a.exposure, -2.3 * dust) + 2.2 * flash
+    local night = max(a.night, storm * 0.28, dust * 0.6) * (1 - flash)
     for _, sh in ipairs({ board, cover }) do
         send(sh, "lit", lit and 1 or 0)
         if lit then

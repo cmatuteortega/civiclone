@@ -41,11 +41,12 @@ begins:
 | --- | --- |
 | **Heat death** | The [heat death](#the-heat-death): drought, wildfires and the scorch, and the game ends at turn 160 |
 | **The deluge** | The [deluge](#the-deluge): the long rains, the floods and the rising sea, and the game ends at turn 160 |
-| **Sky death**, **Demons** | Shown greyed: not made yet |
-| **None** | No cataclysm, no cisterns and no levees: the game ends at turn 150 on score |
+| **Skyfall** | The [sky falls](#the-sky-falls): the starfall, the bombardment and the long night, and the game ends at turn 160 |
+| **Demons** | Shown greyed: not made yet |
+| **None** | No cataclysm, no cisterns, levees or shelters: the game ends at turn 150 on score |
 
 The choice is kept for the next game. `love . --cataclysm none` (or `heat`,
-or `flood`) overrides it.
+`flood` or `sky`) overrides it.
 
 Every game makes a new map from a seed: random by default, or chosen with
 `love . --seed 1234`. The same seed always makes the same map. While the map
@@ -212,6 +213,7 @@ moves to enter, and gives +6 defence.
 | Stone | 14% of unforested hills | +1 production |
 | Gems | 6% of desert | +3 gold |
 | Fish | 12% of coast | +1 food |
+| Star iron | Only in [the sky's falling](#the-sky-falls): 30% of craters | +2 production, +1 gold |
 
 ### Height
 
@@ -448,11 +450,13 @@ below 1) and the store empties.
 | Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
 | Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less | Masonry; only in the heat death |
 | Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less | Masonry; only in the deluge |
+| Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Mining; only when there is a cataclysm |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
 a round stone tank of water under a little roofed well-head, low banks of
-earth capped with stone all round the hex (the levee).
+earth capped with stone all round the hex (the levee), a low mound of turf
+ringed with stones with a stone doorway into it at the front (the shelter).
 A city on the water builds out over it on the side nearest the front of the
 screen: steps down the bank and a pier with a boat tied up; with a harbour a
 stone quay, a crane and goods; with a lighthouse a mole out to a striped tower
@@ -529,7 +533,7 @@ out, the builder is gone.
 | Improvement | Where | Bonus | Needs |
 | --- | --- | --- | --- |
 | Farm | Flat grassland or plains without forest | +1 food (+2 beside a river) | — |
-| Mine | Hills, or a hex with stone or gems | +2 production | Mining |
+| Mine | Hills, or a hex with stone, gems or star iron (not while its crater is hot) | +2 production | Mining |
 | Fishing boats | Fish, the builder rowed out onto it | +1 food | Sailing |
 
 Building a new improvement replaces the old one. A farm shows as furrows and
@@ -546,9 +550,9 @@ waits for the next choice.
 | Technology | Cost | Needs | Unlocks |
 | --- | --- | --- | --- |
 | Pottery | 25 | — | Granary |
-| Mining | 25 | — | Mines |
+| Mining | 25 | — | Mines, Shelter |
 | Archery | 35 | — | Archer |
-| Masonry | 40 | Mining | Walls, Cistern |
+| Masonry | 40 | Mining | Walls, Cistern, Levee |
 | Writing | 50 | Pottery | Library |
 | Bronze Working | 55 | Mining | Spearman |
 | Horseback Riding | 60 | Archery | Horseman |
@@ -772,7 +776,9 @@ grain are gone and its grassland is plains.
 **Baked earth** yields no food at all, and a land unit that ends a turn on
 it (off a river) loses 10 HP.
 
-**Cisterns** are the way to hold on: the AI builds them from the omen on.
+**Cisterns** are the way to hold on: the AI builds them from the omen on. A
+[shelter](#buildings) halves what the fire beside a city does to it, and
+spares its people 1 food of the thirst.
 In all-AI games the land is nearly all desert by the end and cities fall
 from their peak around turn 125 to a third of it, so the score at the end
 rewards whoever kept their people alive.
@@ -821,14 +827,66 @@ know Sailing; otherwise it goes to the nearest dry land, and if there is
 none it is lost. Hills stand out of it as islands. Ships sail where the
 fields were. A city's own hex and a levee's land are never taken.
 
-**Levees** are the way to hold on: the AI builds them from the omen on.
+**Levees** are the way to hold on: the AI builds them from the omen on. A
+[shelter](#buildings) halves what the flood and the surge do to a city with
+no levee, and spares its people 1 food of the fever.
+
+## The sky falls
+
+The world ends in stones and then in darkness. From turn 90 a comet hangs in
+the sky, and the game ends when turn 160 is played out. It is the one
+cataclysm that is seen coming hex by hex: the heat and the water creep over
+the land, and the sky strikes where it has said it will. The rules are in
+`src/skyfall.lua`, the numbers in `D.SKY` in `src/defs.lua`.
+
+| Turns | Stage | What happens |
+| --- | --- | --- |
+| 90 | **The omen** | Everyone is told the starfall comes in 10 turns. A comet is seen, its tail longer every turn, and shooting stars cross the night. On turn 99 the first stones are seen coming |
+| 100–119 | **The starfall** | 3 small stones fall a turn |
+| 120–139 | **The bombardment** | 6 stones a turn, half of them great ones. The dust starts to hide the sun, and every city loses 2 food a turn to the cold |
+| 140–160 | **The long night** | The sun never rises again: every turn is played in the dark, and the beasts that hunt by night always do. 4 stones a turn, 40% great. Every farm yields 1 food less, and every city loses 4 food a turn to the cold. On turn 144 everyone is told where **the heart of the comet** will fall, and on turn 150 it does |
+
+**Seen coming.** Every stone's hex is marked the turn before it falls:
+hatched and ringed on the ground, and the stone shown high over it as a
+spark with a thread of light down to where it will land. Your hexes it is
+falling on are in the news. It falls as the next turn begins, so what stands
+there can get out of the way. Stones fall anywhere, land 1.6 times as often
+as water.
+
+**A stone** that falls hurts each unit on its hex (35 HP a small one, 70 a
+great one; ships too) and a city there (20 and 50 HP, never below 1); a
+great one also takes a citizen from the city, and hurts the units (15 HP)
+and the cities (10 HP) beside it. It may set the forests beside it alight
+(half as often for a small one), and the fire burns and spreads as the heat
+death's wildfires do.
+
+**Craters.** Where a stone falls on land the hex sinks: flat land 1 lower (2
+for a great stone), hills flattened, mountains broken to hills (so they can
+be crossed). It never goes below its floor, nor below the water of a river
+beside it. The farm or mine on it is gone, its forest is flattened to
+stumps, its wheat is lost. A crater yields 1 food less, and nothing at all
+for 2 turns while it is still hot and glowing. 30% hold **star iron**. A
+city's own hex keeps its ground (the stone breaks on its roofs). Stones keep
+falling on the same hexes, and a hex can be struck many times.
+
+**The heart of the comet** falls on a land hex, more likely near cities, and
+the six round it, told 6 turns before; no other stone falls there meanwhile.
+What stands in the middle takes 100 HP, in the ring 60, two hexes out 25. The
+middle sinks 4, the ring 2. A city in the middle loses half its people and
+is left with 1 HP; one in the ring takes 80 HP and loses a citizen. The
+forests up to 3 hexes away may catch fire.
+
+**Shelters** are the way to hold on (Mining): the AI builds them from the
+omen on, and gets its units out from under the stones. A shelter is not
+only the sky's: against the heat or the deluge, the AI builds one once its
+cistern or levee is up.
 
 ## Winning and losing
 
 | Outcome | How |
 | --- | --- |
 | **Domination victory** | Every rival is destroyed, or you hold every capital |
-| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death) or the [deluge](#the-deluge), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
+| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), the [deluge](#the-deluge) or [the sky's falling](#the-sky-falls), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
 | **Defeat** | Your civilization is destroyed, or that last turn passes and a rival scores higher |
 
 **Elimination:** a civilization with no cities and no settler is destroyed,
@@ -1150,7 +1208,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
@@ -1162,6 +1220,7 @@ and picks up where it left off.
 | `love . --play --shot dev.png --skip 121 --open dev` | `--skip N`: the developer tools' skip, to turn N, before the picture; `--open dev` (or `newgame`) shows that window in it |
 | `love . --play --shot fire.png --turns 128 --select fire` | The camera over the most fire on the map, with the land round it shown. `--select scorch` for the most baked earth, `--select burnt` for the most burnt land; `--select cistern` gives your capital a cistern and looks at it |
 | `love . --play --cataclysm flood --shot flood.png --skip 130 --select flood --film 60` | The deluge: the camera over the most floodwater, in the storm, sixty pictures a few frames apart. `--select marsh`, `silt` or `drowned` for the most of each; `--select levee` gives your capital a levee |
+| `love . --play --cataclysm sky --shot fall.png --skip 124 --select mark --hour 12 --next --film 12` | The sky's falling: the camera over the most hexes stones are falling on, then the turn ended (`--next`) so they come down in the pictures; [shots/33-starfall.png](shots/33-starfall.png) was made so. `--select crater` or `glow` for the most craters (or hot ones), `heart` for the heart of the comet's hexes once it is told; `--select shelter` gives your capital a shelter; `--select skyfall` puts one of every crater and a stone of each size coming round your start |
 | `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
 | `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |

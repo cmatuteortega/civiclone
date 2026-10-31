@@ -37,6 +37,8 @@ local Daylight = require "src.ui.daylight"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
 local Rain = require "src.ui.rain"
+local SkyFx = require "src.ui.sky"
+local Sky = require "src.skyfall"
 
 local floor = math.floor
 
@@ -58,7 +60,7 @@ function love.quit() Audio.stop() end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
 -- bar fills, then the first turn. The world ends by the cataclysm chosen in
--- the new game window (or `--cataclysm heat|flood|none`), or by none.
+-- the new game window (or `--cataclysm heat|flood|sky|none`), or by none.
 function S.newGame(seed)
     seed = seed or S.seedArg or (os.time() % 100000)
     S.seedArg = nil
@@ -107,7 +109,7 @@ function love.load(args)
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
-        -- `--cataclysm heat|flood|none`: how the world ends, whatever the new game
+        -- `--cataclysm heat|flood|sky|none`: how the world ends, whatever the new game
         -- window last had.
         if a == "--cataclysm" and args[n + 1] then S.cataclysmArg = args[n + 1] end
         -- `--touch` lays out the screen as for a phone.
@@ -126,6 +128,9 @@ function love.load(args)
         -- `--film n`: n pictures a few frames apart instead of one, named
         -- file-001.png on, to see what moves.
         if a == "--film" and S.plan then S.plan.film = tonumber(args[n + 1]) or 24 end
+        -- `--next`: one more turn ended just before the picture is taken,
+        -- to see it played out (the sky's stones coming down).
+        if a == "--next" and S.plan then S.plan.next = true end
         -- `--hour h`: every turn played at h o'clock (0..24), to see the light.
         if a == "--hour" and tonumber(args[n + 1]) then Daylight.force = tonumber(args[n + 1]) / 24 end
         -- `--clock look`: the clock drawn so (arc, dial, strip, scene, off).
@@ -157,6 +162,7 @@ local function followPlan()
         end
         if plan.skip then O.skipTo(plan.skip) end
         Anim.events(S.game)
+        SkyFx.flush()
         S.anim, S.effects, S.wakes = {}, {}, {}
         for _, u in ipairs(S.game.units) do u.trail = { u.cell } end
         local cap = S.game:citiesOf(1)[1]
@@ -356,6 +362,47 @@ local function followPlan()
             S.selected = nil
             View.lookAt(from, true)
         end
+        -- `--select skyfall`: round the player's first unit, one of every
+        -- crater the sky's falling leaves (small, deep, still hot, with star
+        -- iron, on hills broken flat), a small and a great stone coming, all
+        -- of it shown.
+        if plan.select == "skyfall" then
+            local D = require "src.defs"
+            local g, p = S.game, S.game.players[1]
+            local from = g.cells[g:unitsOf(1)[1].cell]
+            local spots = g:within(from, 4)
+            table.sort(spots, function(x, y) return g:dist(x, from) < g:dist(y, from) end)
+            local used = {}
+            local function take(f)
+                for _, cell in ipairs(spots) do
+                    if not used[cell.id] and not cell.city and not g.mil[cell.id] and not g.civ[cell.id]
+                        and g:dist(cell, from) >= 1 and f(cell) then
+                        used[cell.id] = true
+                        for _, n in ipairs(g:neighbours(cell)) do used[n.id] = used[n.id] or false end
+                        return cell
+                    end
+                end
+            end
+            local function flat(cell) return not g:isWater(cell) and cell.elev == "flat" end
+            g.cataclysm.kind = "sky"
+            local small = take(flat)
+            if small then Sky.crater(g, small, D.SKY.sink.small); small.glow, small.resource = nil, nil end
+            local deep = take(flat)
+            if deep then for _ = 1, 2 do Sky.crater(g, deep, D.SKY.sink.big) end; deep.glow = nil end
+            local hot = take(flat)
+            if hot then Sky.crater(g, hot, D.SKY.sink.big); hot.resource = "iron" end
+            local hill = take(function(c) return c.elev == "hills" end)
+            if hill then Sky.crater(g, hill, D.SKY.sink.small); hill.glow = nil end
+            g.cataclysm.marks = {}
+            local m1 = take(flat)
+            if m1 then g.cataclysm.marks[m1.id] = "small" end
+            local m2 = take(function(c) return not g:isWater(c) end)
+            if m2 then g.cataclysm.marks[m2.id] = "big" end
+            for _, cell in ipairs(g:within(from, 6)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+            p.sightChanged = true
+            S.selected = nil
+            View.lookAt(from, true)
+        end
         local wildKind = plan.select and plan.select:match("^wild:?(%a*)$")
         if wildKind then
             local g, p = S.game, S.game.players[1]
@@ -379,16 +426,23 @@ local function followPlan()
         -- `--select fire`, `scorch`, `burnt`: the camera over the hex with the
         -- most of the heat death's burning (or baked, or burnt) land round
         -- it, that land shown; `flood`, `marsh`, `silt`, `drowned` the same
-        -- for the deluge's. `--select cistern` (or `levee`): the player's
-        -- capital given one, selected.
+        -- for the deluge's, `crater` and `glow` (fresh craters) for the sky's
+        -- falling, and `mark` the hexes stones are falling on next (`heart`
+        -- the heart of the comet's). `--select cistern` (or `levee`, or
+        -- `shelter`): the player's capital given one, selected.
         local heat = ({ fire = "fire", scorch = "scorched", burnt = "burnt", flood = "flood", silt = "silt",
-            drowned = "drowned", marsh = "marsh" })[plan.select or ""]
+            drowned = "drowned", marsh = "marsh", crater = "crater", glow = "glow", mark = "mark",
+            heart = "heart" })[plan.select or ""]
         if heat then
             local g, p = S.game, S.game.players[1]
             local best, bv = nil, 0
             for _, cell in ipairs(g.cells) do
                 local v = 0
                 for _, n in ipairs(g:within(cell, 2)) do
+                    local m = Sky.marked(g, n)
+                    if (heat == "mark" and m and m ~= "heart") or (heat == "heart" and m == "heart") then
+                        v = v + (g:dist(n, cell) == 0 and 3 or 2)
+                    end
                     if n[heat] or n.terrain == heat then v = v + (g:dist(n, cell) == 0 and 3 or 2) end
                     if heat == "fire" and n.feature == "forest" then v = v + 0.5 end
                 end
@@ -412,7 +466,7 @@ local function followPlan()
             S.selected = nil
             View.lookAt(g.cells[at], true)
         end
-        if plan.select == "cistern" or plan.select == "levee" then
+        if plan.select == "cistern" or plan.select == "levee" or plan.select == "shelter" then
             local cap = S.game:citiesOf(1)[1]
             if cap then
                 cap.buildings[plan.select] = true
@@ -452,6 +506,12 @@ local function followPlan()
         if what == "settings" then Menu.openSettings(tab ~= "" and tab or nil) end
         if what == "newgame" then Menu.openNewGame() end
         if what == "dev" then Menu.openDev() end
+    end
+    if plan.next and plan.frames == 26 then
+        local AI = require "src.ai"
+        AI.play(S.game, S.game.players[1])
+        S.game:endTurn(AI)
+        O.collectLog()
     end
     if plan.wader and plan.frames == 60 then
         S.game:moveTo(plan.wader.unit, plan.wader.to)
@@ -500,6 +560,7 @@ function love.update(dt)
     Wild.update(dt)
     Birds.update(dt)
     Rain.update(dt)
+    SkyFx.update(dt)
     Input.findHover()
     if not S.over then
         local result, why = S.game:outcome()

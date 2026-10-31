@@ -7,7 +7,8 @@
 --
 -- writes dir/cities-growth.ppm (each land, a row; each size, a column),
 -- dir/cities-sites.ppm (the same city in different places) and
--- dir/cities-levee.ppm (towns without and with a levee), at one pixel to
+-- dir/cities-levee.ppm and dir/cities-shelter.ppm (towns without and with a
+-- levee, and a shelter), at one pixel to
 -- the pixel; scale them up by a whole number to look at them.
 
 package.path = "./?.lua;" .. package.path
@@ -300,4 +301,23 @@ do
         text(s[1], (k - 0.5) * BW, BH + 2, true)
     end
     write("cities-levee")
+end
+
+-- The shelter (D.SHELTER), against any cataclysm: towns without and with
+-- one, on the grass, the plains and the desert.
+do
+    local SITES = {
+        { "GRASS", plain("grass"), nil, { pop = 4 } },
+        { "GRASS, SHELTER", plain("grass"), nil, { pop = 4, built = { shelter = true } } },
+        { "PLAINS, SHELTER", plain("plains"), nil, { pop = 7, look = "stripe", built = { shelter = true } } },
+        { "DESERT, SHELTER", plain("desert"), nil, { pop = 2, look = "dark", built = { shelter = true } } },
+    }
+    sheet(BW * #SITES, BH + 10)
+    for k, s in ipairs(SITES) do
+        local game, at = stretch(s[2], s[3])
+        local img, w, h, ci, cj = scene(game, at, s[4])
+        lay(img, w, h, ci, cj, (k - 1) * BW, 0, BW, BH)
+        text(s[1], (k - 0.5) * BW, BH + 2, true)
+    end
+    write("cities-shelter")
 end

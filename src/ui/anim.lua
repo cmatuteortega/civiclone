@@ -12,6 +12,7 @@ local S = require "src.ui.state"
 local Audio = require "src.ui.audio"
 local M = require "src.models"
 local World = require "src.world"
+local SkyFx = require "src.ui.sky"
 
 local max, min, floor = math.max, math.min, math.floor
 
@@ -100,9 +101,19 @@ end
 -- Takes what the game has put on its list since last time.
 function Anim.events(game)
     local changed, seen = {}, {}
+    -- Hexes a stone is coming down on: what it does to them waits for it
+    -- (src/ui/sky.lua), this many seconds.
+    local falling, delayed = {}, {}
     for _, e in ipairs(game.events) do
         Audio.hear(game, e)
-        if e.kind == "attack" then
+        if e.kind == "impact" then
+            local wait, reach = SkyFx.impact(game, e)
+            if wait > 0 then
+                for _, n in ipairs(game:within(game.cells[e.cell], reach)) do
+                    falling[n.id] = max(falling[n.id] or 0, wait)
+                end
+            end
+        elseif e.kind == "attack" then
             local from, to = game.cells[e.from], game.cells[e.to]
             if e.unit then
                 local a = Anim.of(e.unit)
@@ -117,7 +128,7 @@ function Anim.events(game)
         elseif e.kind == "hit" then
             local cell = game.cells[e.cell]
             S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.2, text = "-" .. e.amount,
-                x = cell.x, y = cell.top + 26, z = cell.z, delay = 0.15 }
+                x = cell.x, y = cell.top + 26, z = cell.z, delay = 0.15 + (falling[e.cell] or 0) }
             if e.unit then Anim.of(e.unit).flash = 0.3 end
             if cell.city then cell.city.flash = 0.3 end
         elseif e.kind == "death" then
@@ -127,8 +138,14 @@ function Anim.events(game)
                 x = a and a.x or cell.x, y = a and a.y or cell.top, z = a and a.z or cell.z, face = a and a.face or 1 }
             S.anim[e.unit.id] = nil
         elseif e.kind == "terrain" then
-            -- Built again once, below, however often it changed.
-            if not seen[e.cell] then
+            -- Built again once, below, however often it changed; once its
+            -- stone is down, if one is falling on it.
+            if falling[e.cell] then
+                if not delayed[e.cell] then
+                    delayed[e.cell] = true
+                    SkyFx.later(e.cell, falling[e.cell])
+                end
+            elseif not seen[e.cell] then
                 seen[e.cell] = true
                 changed[#changed + 1] = e.cell
             end

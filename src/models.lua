@@ -544,7 +544,7 @@ M.CITY_PLOTS = PLOTS
 
 -- What each building takes, of the plots: it stands in that plot instead of
 -- a house.
-local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6 }
+local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10 }
 
 -- A little hash, so the same city is laid out the same way every time.
 local function hash(a, b)
@@ -1016,7 +1016,7 @@ function M.city(look, pop, capital, built, shore, drop, site)
     drop = drop and floor(drop * 2 + 0.5) / 2 or 0
     local key = table.concat({ "c", look, #lay.houses, lay.tier, capital and 1 or 0, b.walls and 1 or 0,
         b.granary and 1 or 0, b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
-        b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, b.levee and 1 or 0, siteKey(site) }, ":")
+        b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, b.levee and 1 or 0, b.shelter and 1 or 0, siteKey(site) }, ":")
     return kept(key, function()
         local L = LOOK[look]
         local parts = {}
@@ -1093,6 +1093,24 @@ function M.city(look, pop, capital, built, shore, drop, site)
             parts[#parts + 1] = part(Sh.prism(12, x, 0, z, 1.9, 4.8), WATER, 51, function(ux, uy, uz)
                 if uy > 0.98 and ux < -0.15 and uz < -0.1 and ux + uz > -1.0 then return IDX.t end
             end)
+        end
+        if b.shelter then
+            -- The cellars the people hide in: a low mound of turf over them,
+            -- a ring of stones round its foot, and a way down into it at the
+            -- front, two posts and a lintel of stone, black within.
+            local x, z = at("shelter")
+            parts[#parts + 1] = part(Sh.ell(x, 0, z, 3, 2.3, 2.6), R2.soil, 80, function(ux, uy, uz)
+                if hash(floor(ux * 9), floor(uz * 9 + uy * 5)) > 0.8 then return IDX.k end
+            end)
+            for k = 0, 7 do
+                local a = k / 8 * 2 * math.pi + 0.3
+                parts[#parts + 1] = part(Sh.ell(x + cos(a) * 2.9, 0.2, z + sin(a) * 2.5, 0.6, 0.45, 0.5), R.stone, 81)
+            end
+            parts[#parts + 1] = part(Sh.box(x, 0, z + 2.2, 1.3, 0.8, 1.7), WATER, 82)
+            for _, side in ipairs({ -1, 1 }) do
+                parts[#parts + 1] = part(Sh.box(x + side * 0.9, 0, z + 2.5, 0.45, 0.45, 1.9), R.stone, 83)
+            end
+            parts[#parts + 1] = part(Sh.box(x, 1.9, z + 2.5, 2.4, 0.55, 0.5), R.stone, 84)
         end
         if b.levee then
             -- Banks of earth all round the hex, low and broad, faced with

@@ -1,9 +1,9 @@
 -- The cataclysm: what ends the world, and the game with it.
 --
 -- Each game has one, kept as game.cataclysm (nil with Game.new{ cataclysm =
--- false }): its `kind` one of Cat.KINDS. Two are built, the heat death here
--- and the deluge in src/flood.lua; the others (the sky falling, the demons)
--- are meant to go in KINDS beside them. Every kind has four stages on its
+-- false }): its `kind` one of Cat.KINDS. Three are built, the heat death
+-- here, the deluge in src/flood.lua and the sky's falling in
+-- src/skyfall.lua; the demons are meant to go in KINDS beside them. Every kind has four stages on its
 -- turns, an omen first, and the same last turn, D.LAST_TURN: what is here
 -- that is not the heat's (the stage, the top bar's label, the last turns'
 -- warnings, the dev window's list) asks the kind.
@@ -23,7 +23,9 @@
 --
 -- A river, the coast, hills and a city's cistern hold the heat off: the
 -- land dries slower there. A cistern's land is slower to catch fire, and
--- its people thirst less.
+-- its people thirst less. A shelter (D.SHELTER), against any cataclysm,
+-- halves the harm the fire beside a city does it, and its stores spare it
+-- a little of the thirst.
 --
 -- The cells keep what has happened to them: `fire` (turns it still burns),
 -- `burnt` (it has; `burntForest` if trees stood there), `scorched` (baked
@@ -144,15 +146,34 @@ function Cat.droughtFarm(game, cell)
     return cell.improvement == "farm" and Cat.past(game, "drought") and not game:onRiver(cell) and not cool(cell)
 end
 
+-- Has city `city` dug a shelter (D.SHELTER)?
+function Cat.sheltered(city)
+    return city.buildings ~= nil and city.buildings.shelter ~= nil
+end
+
+-- A blow of `amount` HP from the cataclysm on city `city`: halved, if it
+-- has a shelter, and never below 1 HP. Answers what it took.
+function Cat.harm(game, city, amount)
+    if Cat.sheltered(city) then amount = math.floor(amount * D.SHELTER.harm + 0.5) end
+    city.hp = max(1, city.hp - amount)
+    game:emit({ kind = "hit", cell = city.cell, amount = amount })
+    return amount
+end
+
 -- The food city `city` loses this turn to thirst (or, in the deluge, to
--- fever).
+-- fever; under the falling sky, to the cold). A shelter's stores spare it
+-- some.
 function Cat.thirst(game, city)
     local K = Cat.kindOf(game)
-    if K and K.thirst then return K.thirst(game, city) end
-    if not Cat.is(game, "heat") then return 0 end
-    local s = Cat.stage(game)
-    local t = s and D.HEAT.thirst[s] or 0
-    if t > 0 and city.buildings.cistern then t = max(0, t - D.HEAT.cisternThirst) end
+    local t = 0
+    if K and K.thirst then
+        t = K.thirst(game, city)
+    elseif Cat.is(game, "heat") then
+        local s = Cat.stage(game)
+        t = s and D.HEAT.thirst[s] or 0
+        if t > 0 and city.buildings.cistern then t = max(0, t - D.HEAT.cisternThirst) end
+    end
+    if t > 0 and Cat.sheltered(city) and not (K and K.ward == "shelter") then t = max(0, t - D.SHELTER.stores) end
     return t
 end
 
@@ -296,9 +317,7 @@ local function fires(game, stage)
         for _, u in ipairs(unitsOn(game, cell)) do hurt(game, u, H.fireDamage, "WAS LOST TO THE FIRE") end
         for _, n in ipairs(game:neighbours(cell)) do
             if n.city then
-                local c = n.city
-                c.hp = max(1, c.hp - H.cityBurn)
-                game:emit({ kind = "hit", cell = n.id, amount = H.cityBurn })
+                Cat.harm(game, n.city, H.cityBurn)
             elseif Cat.flammable(game, n) then
                 local chance = n.feature == "forest" and H.spreadForest or H.spreadField
                 if cool(n) then chance = chance * H.cisternFire end
@@ -308,7 +327,8 @@ local function fires(game, stage)
         cell.fire = cell.fire - 1
         if cell.fire <= 0 then burnOut(game, cell) end
     end
-    -- New fires, where it is hot: forests most.
+    -- New fires, where it is hot: forests most (none but the heat's own
+    -- stages start them).
     local n = H.ignite[stage] or 0
     if n > 0 then
         local scorch = stage == "scorch"
@@ -319,6 +339,10 @@ local function fires(game, stage)
         for _, cell in ipairs(starts) do Cat.ignite(game, cell) end
     end
 end
+
+-- The fires burning now spread and burn down, as the heat's do: what
+-- the sky's falling sets alight burns so too.
+Cat.fires = fires
 
 --- the turn -------------------------------------------------------------------------
 
@@ -353,7 +377,8 @@ end
 HEAT.tell, HEAT.play = TELL, heatTurn
 
 -- The cataclysm's part of a turn, played once every civilization and the
--- wild have, as the new turn begins.
+-- wild have, as the new turn begins. A kind that is `early` plays in its
+-- omen too (the sky marks where its first stones will fall).
 function Cat.turn(game)
     local c = game.cataclysm
     if not c then return end
@@ -365,7 +390,7 @@ function Cat.turn(game)
         game:tell(nil, K.tell[stage]())
         game:emit({ kind = K.event, stage = stage })
     end
-    if stage ~= "omen" then K.play(game, stage) end
+    if stage ~= "omen" or K.early then K.play(game, stage) end
     local left = D.LAST_TURN - game.turn + 1
     if left == 5 or left == 1 then
         game:tell(nil, left == 1 and "THIS IS THE LAST TURN OF THE WORLD" or "FIVE TURNS ARE LEFT TO THE WORLD")
@@ -373,5 +398,6 @@ function Cat.turn(game)
 end
 
 Cat.KINDS.flood = require "src.flood"
+Cat.KINDS.sky = require "src.skyfall"
 
 return Cat

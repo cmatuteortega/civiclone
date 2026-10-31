@@ -22,7 +22,8 @@
 -- held out, and here they are where the water comes. What holds it off is
 -- high ground, forest (its roots hold the banks), and a city's levee: its
 -- land goes to marsh and floods less, the sea can't take it, the water
--- beside the city does it no harm, and its people sicken less.
+-- beside the city does it no harm, and its people sicken less. A shelter
+-- (D.SHELTER) halves what the water does to a city with no levee.
 --
 -- The cells keep what has happened to them: `flood` (turns the water still
 -- lies), `silt` (it has lain there), `drowned` (the sea has taken it;
@@ -170,11 +171,7 @@ local function floods(game, stage)
         end
         for _, n in ipairs(game:neighbours(cell)) do
             if n.city then
-                local c = n.city
-                if not c.buildings.levee then
-                    c.hp = max(1, c.hp - FL.cityFlood)
-                    game:emit({ kind = "hit", cell = n.id, amount = FL.cityFlood })
-                end
+                if not n.city.buildings.levee then Cat.harm(game, n.city, FL.cityFlood) end
             elseif F.floodable(game, n) and n.top <= cell.top then
                 -- Down the river, or out over the low land beside it.
                 local chance = (game:riverBetween(cell, n) or (game:onRiver(cell) and game:onRiver(n)))
@@ -266,10 +263,7 @@ local function rise(game)
     -- The surge, on every city by the shore that has no levee.
     for _, c in ipairs(game.cities) do
         local cell = game.cells[c.cell]
-        if not c.buildings.levee and cell.elev == "flat" and game:coastal(cell) then
-            c.hp = max(1, c.hp - FL.surge)
-            game:emit({ kind = "hit", cell = cell.id, amount = FL.surge })
-        end
+        if not c.buildings.levee and cell.elev == "flat" and game:coastal(cell) then Cat.harm(game, c, FL.surge) end
     end
 end
 

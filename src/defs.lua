@@ -37,6 +37,9 @@ D.RESOURCE = {
     stone = { name = "STONE", food = 0, prod = 1, gold = 0 },
     gems = { name = "GEMS", food = 0, prod = 0, gold = 3 },
     fish = { name = "FISH", food = 1, prod = 0, gold = 0 },
+    -- Only the sky's falling leaves it (D.SKY): the iron of a fallen star,
+    -- black and heavy, in the crater it made.
+    iron = { name = "STAR IRON", food = 0, prod = 2, gold = 1 },
 }
 -- Rivers run along the edges between hexes (src/mapgen.lua). Crossing one
 -- takes all a unit's moves, unless a city's bridge carries it over; one
@@ -126,7 +129,9 @@ D.WILD = {
 -- a day, 0 midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset. Past 1 is the
 -- next day. The dark is before 0.24 and after 0.76.
 D.HOURS = { 0.55, 0.66, 0.73, 0.775, 1.0, 1.235, 1.31, 1.43 }
-function D.night(turn)
+function D.night(turn, game)
+    -- In the long night of the sky's falling (D.SKY) the sun never rises.
+    if game and game.cataclysm and game.cataclysm.kind == "sky" and turn >= D.SKY.dark then return true end
     local h = D.HOURS[(turn - 1) % #D.HOURS + 1] % 1
     return h < 0.24 or h > 0.76
 end
@@ -156,7 +161,18 @@ D.BUILDINGS = {
     -- can't take it, the city takes no harm from the water beside it, and
     -- its people sicken less.
     levee = { name = "LEVEE", short = "LEVEE", cost = 70, ward = "flood", tech = "masonry", order = 9 },
+    -- Against any cataclysm (D.SHELTER): cellars dug under the city, roofed
+    -- with turf, where its people hide and its grain is kept. Built only
+    -- when the world is ending, and the one ward the sky's falling has.
+    shelter = { name = "SHELTER", short = "SHELT.", cost = 60, ward = "any", tech = "mining", order = 10 },
 }
+
+-- The shelter, against whatever ends the world: a city with one takes only
+-- `harm` of the cataclysm's blows (a stone from the sky, a fire or a flood
+-- beside it, the surge), and its stores spare it `stores` food a turn of
+-- the thirst, the fever or the cold (`skyStores` of the cold, the sky's
+-- own ward). A stone that falls on it kills none of its people.
+D.SHELTER = { harm = 0.5, stores = 1, skyStores = 2 }
 
 -- The heat death: the cataclysm that ends the game (src/cataclysm.lua).
 -- Each stage begins on its turn and lasts until the next; the game ends
@@ -225,10 +241,50 @@ D.FLOOD = {
     surge = 10,
 }
 
+-- The sky falls: the third way the world can end (src/skyfall.lua), on the
+-- same turns as the others and to the same last turn. Every stone is seen
+-- coming: its hex is marked the turn before it falls.
+D.SKY = {
+    omen = 90,         -- the comet is seen
+    starfall = 100,    -- small stones fall
+    bombard = 120,     -- and big ones, and the dust starts to hide the sun
+    dark = 140,        -- the long night: the sun is never seen again
+    -- How many stones fall a turn, in each stage, and how many of them are
+    -- big (a part); how much likelier one is to fall on land than on water.
+    fall = { starfall = 3, bombard = 6, dark = 4 },
+    big = { starfall = 0, bombard = 0.5, dark = 0.4 },
+    land = 1.6,
+    -- What a stone does to a unit on its hex, and to a city there (`city`)
+    -- in HP; a big one hurts what is beside it too (`near`, `nearCity`) and
+    -- kills `pop` of a city's people.
+    hit = { small = 35, big = 70 }, city = { small = 20, big = 50 },
+    near = 15, nearCity = 10, pop = 1,
+    -- How far each crater sinks its hex (room units; hills are flattened and
+    -- mountains broken to hills first), never below `floor` nor below a
+    -- river along it. A crater yields `craterFood` less, nothing while it is
+    -- still hot (`glow` turns), and holds star iron one time in `iron`.
+    sink = { small = 1, big = 2 }, floor = 0.5,
+    craterFood = 1, glow = 2, iron = 0.3,
+    burn = 0.5,        -- the chance a stone sets a forest beside it alight
+    -- The cold, as the dust hides the sun: food every city loses a turn, in
+    -- each stage. In the long night every farm yields `darkFarm` less.
+    cold = { bombard = 2, dark = 4 },
+    darkFarm = 1,
+    -- The heart of the comet: told on `heartWarn`, it falls on `heart`, on a
+    -- hex and the six round it. The middle sinks `heartSink`, the ring
+    -- `ringSink`; what stands in the middle takes `heartHit`, in the ring
+    -- `ringHit`, two hexes out `shock`; a city in the middle loses `heartPop`
+    -- of its people and is left with 1 HP, one in the ring takes `ringCity`.
+    heartWarn = 144, heart = 150,
+    heartSink = 4, ringSink = 2,
+    heartHit = 100, ringHit = 60, shock = 25,
+    heartPop = 0.5, ringCity = 80,
+}
+
 -- Technologies, in the order the list shows them.
 D.TECHS = {
     { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY" },
-    { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES" },
+    { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES, SHELTER" },
     { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "ARCHER" },
     { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN, LEVEE" },
     { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY" },

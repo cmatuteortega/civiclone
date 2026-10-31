@@ -149,16 +149,34 @@ capped with stone round a city's hex, holds its land against it.
 ![The rising sea over the low shore, in the storm](shots/32-rising-sea.png)
 ![Towns without and with a levee, on grass, by a river and on the coast](shots/31-levee.png)
 
+Or the sky falls (`src/skyfall.lua`). A comet is seen, its tail longer
+every turn, and shooting stars cross the night. Then the stones come, and
+every one is seen coming: the turn before it falls its hex is hatched and
+ringed on the ground and the stone hangs high over it, a spark with a thread
+of light down to where it will land, so whoever stands there can get out of
+the way. It comes down in a streak, a flash and a ring of light, rubble
+thrown up, and leaves a crater: the hex sunk lower, a rim of earth round a
+blackened pit, rays of pale rubble, the stone glowing in the middle while it
+is hot, sometimes a lump of star iron. Hills are flattened and mountains
+broken. Then the great stones, and the dust hides the sun, until the long
+night: the sun never rises again, and the heart of the comet, told six
+turns ahead, falls on seven hexes at once. A shelter, cellars under a mound
+of turf, holds a city through it, and through the other cataclysms too.
+
+![Stones falling, one seen coming, and the craters they leave, under the comet](shots/33-starfall.png)
+![The long night: the land cratered, the heart of the comet's seven hexes marked](shots/34-long-night.png)
+![Towns without and with a shelter, on grass, plains and desert](shots/35-shelter.png)
+
 ## Running it
 
 ```
 love .
 ```
 
-Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|none` picks how the world ends, `--play` skips
+Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|none` picks how the world ends, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
-LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
+LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds
 

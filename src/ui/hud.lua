@@ -284,7 +284,7 @@ local function tooltip()
                 local d = u.def
                 local how = d.temper == "hostile" and "HOSTILE" or (d.temper == "neutral" and "FIGHTS IF HUNTED" or "SHY")
                 lines[#lines + 1] = d.name .. " - " .. how .. " - STR " .. (d.str + Beasts.nightBonus(g, u)) .. " " .. u.hp .. "HP"
-                if d.night then lines[#lines + 1] = D.night(g.turn) and "HUNTING BY NIGHT: +" .. d.night .. " STRENGTH"
+                if d.night then lines[#lines + 1] = D.night(g.turn, g) and "HUNTING BY NIGHT: +" .. d.night .. " STRENGTH"
                     or "STRONGER AT NIGHT" end
                 if d.across then lines[#lines + 1] = "STRIKES WHAT CROSSES ITS RIVER" end
                 if d.tame then

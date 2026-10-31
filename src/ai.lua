@@ -9,6 +9,7 @@
 local Mapgen = require "src.mapgen"
 local D = require "src.defs"
 local Cat = require "src.cataclysm"
+local Sky = require "src.skyfall"
 
 local max = math.max
 
@@ -107,6 +108,8 @@ local function chooseBuild(game, p, city)
     if ward and Cat.stage(game) and game:canBuild(city, "building", ward) then
         return "building", ward
     end
+    -- And a shelter against whatever it is, once its own ward is up.
+    if Cat.stage(game) and game:canBuild(city, "building", "shelter") then return "building", "shelter" end
     for _, id in ipairs({ "monument", "granary", "walls", "library", "harbour", "market", "lighthouse" }) do
         if game:canBuild(city, "building", id) then
             if id ~= "walls" or game.turn > 30 then return "building", id end
@@ -179,9 +182,9 @@ local function improve(game, u)
         if cell.workedBy and cell.owner == u.owner and not cell.improvement and not game.mil[cell.id]
             and not game.civ[cell.id] then
             local techs = game.players[u.owner].techs
-            local can = not wild(game, cell, 2) and ((cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert"
+            local can = not wild(game, cell, 2) and not Sky.marked(game, cell) and ((cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert"
                 and not D.TERRAIN[cell.terrain].noFarm and not cell.flood and not game:isWater(cell))
-                or (cell.elev == "hills" and techs.mining)
+                or ((cell.elev == "hills" or cell.resource == "iron") and techs.mining and not cell.glow)
                 or (cell.resource == "fish" and techs.sailing))
             if can then
                 local d = game:dist(here, cell)
@@ -347,6 +350,29 @@ local function soldier(game, p, u, attacking)
     if not march(game, u, frontier(game, p, u)) then u.fortified = true end
 end
 
+--- out of the way --------------------------------------------------------------------
+
+-- Unit u, on a hex a stone is falling on (src/skyfall.lua): a step to the
+-- nearest hex nothing is falling on, if it has the moves.
+local function dodge(game, u)
+    local here = game.cells[u.cell]
+    if u.dead or u.moves <= 0 or not Sky.marked(game, here) then return end
+    -- Under the heart, any step further from where it falls will do.
+    local heart = Sky.heart(game)
+    local far = heart and game:dist(heart, here)
+    local best, bd
+    for _, n in ipairs(game:neighbours(here)) do
+        local m = Sky.marked(game, n)
+        local ok = not m or (m == "heart" and far and game:dist(heart, n) > far)
+        if ok and game:canStand(u, n) and game:stepCost(u, here, n) then
+            -- One of our cities first, then any.
+            local d = (n.city and n.city.owner == u.owner) and 0 or 1 + game.rng:random()
+            if not bd or d < bd then best, bd = n, d end
+        end
+    end
+    if best then game:step(u, best.id) end
+end
+
 function AI.play(game, p)
     if not p.researching then
         local list = game:researchable(p)
@@ -369,9 +395,13 @@ function AI.play(game, p)
     for _, u in ipairs(units) do
         if not u.dead and u.moves > 0 then
             u.fortified = false
-            if u.kind == "settler" then settle(game, u)
-            elseif u.kind == "builder" then improve(game, u)
-            else soldier(game, p, u, attacking) end
+            dodge(game, u)
+            if not u.dead and u.moves > 0 then
+                if u.kind == "settler" then settle(game, u)
+                elseif u.kind == "builder" then improve(game, u)
+                else soldier(game, p, u, attacking) end
+            end
+            dodge(game, u)
         end
     end
 end

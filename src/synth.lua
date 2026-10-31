@@ -346,6 +346,23 @@ local DEFS = {
         { dur = 0.25, wave = "noise", hp = { 300 }, lp = { 4000, 900 }, a = 0.002, curve = 2 },
         { at = 0.05, dur = 3.2, wave = "noise", lp = { 260, 60 }, a = 0.08, curve = 1.2, trem = { 3.5, 0.6 } },
         { at = 0.1, dur = 2.6, f0 = 55, f1 = 38, a = 0.1, curve = 1.5, vol = 0.35 }),
+    -- A stone out of the sky: the roar of it coming, then the blow, the
+    -- ground thrown up and falling back; the heart of the comet's longer
+    -- and lower, the earth groaning after.
+    whoosh = sound({ vol = 0.3, gap = 0.1, poly = 4, wob = 0.08 },
+        { dur = 0.8, wave = "noise", hp = { 200, 900 }, lp = { 700, 5000 }, a = 0.6, curve = 0.6 },
+        { dur = 0.8, f0 = 300, f1 = 900, a = 0.6, curve = 0.8, vol = 0.12, vib = { 23, 0.02 } }),
+    impact = sound({ vol = 0.5, gap = 0.08, poly = 4, wob = 0.1 },
+        { dur = 0.06, wave = "noise", hp = { 500 }, lp = { 6000, 1500 }, a = 0.001, curve = 2 },
+        { dur = 0.7, f0 = 70, f1 = 32, bend = 0.6, a = 0.003, curve = 1.8, vol = 0.9 },
+        { at = 0.02, dur = 1.2, wave = "noise", lp = { 900, 120 }, a = 0.01, curve = 1.6, vol = 0.55 },
+        { at = 0.3, dur = 0.6, wave = "noise", hp = { 800 }, lp = { 3000, 1200 }, a = 0.05, curve = 1.5, vol = 0.12,
+            trem = { 18, 0.8 } }),
+    heartfall = sound({ vol = 0.6, gap = 2 },
+        { dur = 0.12, wave = "noise", hp = { 300 }, lp = { 5000, 800 }, a = 0.001, curve = 2 },
+        { dur = 2.4, f0 = 52, f1 = 24, bend = 0.5, a = 0.004, curve = 1.4 },
+        { at = 0.04, dur = 4, wave = "noise", lp = { 600, 50 }, a = 0.02, curve = 1.2, vol = 0.7, trem = { 2.5, 0.5 } },
+        { at = 0.6, dur = 3, f0 = 38, f1 = 30, a = 0.4, curve = 1.3, vol = 0.4, vib = { 1.5, 0.05 } }),
     gong = sound({ vol = 0.4, gap = 2 },
         { dur = 3.5, f0 = 98, fm = { 1.41, 2.2, true }, a = 0.005, curve = 1.6 },
         { dur = 2.5, f0 = 98 * 2.76, a = 0.005, curve = 2, vol = 0.3, vib = { 3, 0.004 } },
