@@ -82,6 +82,19 @@ over, and attacking across one strikes weaker.
 ![A river running, a heron and a warrior wading](shots/16-river.gif)
 ![A river at midnight](shots/17-river-night.png)
 
+And the cities grow. A city's model is built from its size and its land
+(`M.city` in `src/models.lua`): a hamlet of a longhouse and a few houses
+among gardens, then a village, a town with storeys added and a landmark, and
+a city three storeys high in the middle. On grassland it is timber and gabled
+with a bell tower and then a keep; on plains thatched huts and a windmill; on
+desert flat-roofed mud brick with awnings in its colours, palms and a dome;
+on hills stone terraces and a temple raised to an acropolis. By a river it
+turns a mill wheel. `luajit tools/cities.lua dir` draws the sheets below on
+stretches of map traced by the game's own `World`.
+
+![Cities growing, by land](shots/18-cities-growth.png)
+![Cities in different places](shots/19-cities-sites.png)
+
 ## Running it
 
 ```
@@ -256,6 +269,7 @@ in about two seconds while the title is up, so no frame waits on it.
 | `src/synth.lua`, `src/audiothread.lua` | Every sound and the music, synthesised |
 | `src/settings.lua` | The player's settings and key bindings, and where windows were left |
 | `src/ui/` | Camera, overlay, board, HUD, windows, menus, orders, input, animation, sound |
+| `tools/` | Sheets of models drawn outside the game: the sea's (`designs.lua`) and cities' (`cities.lua`) |
 
 ## Tests
 

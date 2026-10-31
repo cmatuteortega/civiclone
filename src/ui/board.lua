@@ -426,7 +426,8 @@ local function things(me)
         if me.explored[cell.id] then
             list[#list + 1] = { z = cell.z, draw = function()
                 local shore = Anim.shore(g, cell)
-                local pic = M.city(lookOf(c.owner), c.pop, c.capital, c.buildings, shore, shore and cell.top + 2)
+                local pic = M.city(lookOf(c.owner), c.pop, c.capital, c.buildings, shore, shore and cell.top + 2,
+                    M.citySite(cell))
                 P.stamp(pic, cell.x, cell.top, cell.z, c.flash and T.FLASH or nil)
                 if me.visible[cell.id] then Smoke.city(cell, c) end
             end }

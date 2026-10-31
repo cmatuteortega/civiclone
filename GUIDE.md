@@ -431,11 +431,37 @@ below 1) and the store empties.
 | Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
 
 Each can be built once per city. Built buildings appear on the city's model:
-an obelisk, a silo, a columned hall, market tents, a ring of walls with towers.
+an obelisk, a silo, a stone hall, market tents, a ring of walls with towers.
 A city on the water builds out over it on the side nearest the front of the
 screen: steps down the bank and a pier with a boat tied up; with a harbour a
 stone quay, a crane and goods; with a lighthouse a mole out to a striped tower
 whose lamp is lit at night. Its walls leave that side open.
+
+### How a city looks as it grows
+
+A city's model grows with its citizens, through four sizes:
+
+| Size | Citizens | Looks |
+| --- | --- | --- |
+| Hamlet | 1–2 | A longhouse, two or three houses, gardens and open ground |
+| Village | 3–5 | A hall, and houses filling the gardens round it |
+| Town | 6–9 | Every plot built on, the houses round the middle a storey taller, and the land's landmark |
+| City | 10+ | Three storeys in the middle and two at the edge, and the landmark grown into a monument |
+
+It gets a house for each citizen (twelve plots round the hall, back ones
+first), then builds upwards. And it is built the way its land builds:
+
+| Land | Houses | Gardens | Landmark: town, then city |
+| --- | --- | --- | --- |
+| Grassland | Timber, gabled, half-timbered upper storeys | A tree and a fenced bed | A timber bell tower, then a stone keep |
+| Plains | Round huts thatched to a cone, then long thatched houses | Beds and a haystack | A windmill |
+| Desert | Flat-roofed mud brick, stepped back storey by storey, an awning in the city's colours on top | Palms and a well | A dome on the hall and a slim tower, both bigger as it grows |
+| Hills | Stone, on terraces stepping up to the back | Bushes on a stone terrace | A temple of columns on a podium, then an acropolis with a keep |
+
+A city by a river turns a mill wheel in it, bridges it, and builds nothing in
+its channel (nor walls along it: the river is its moat). A capital's palace
+tower rises a storey with each size. Buildings take plots of their own, so a
+granary or a market stands where a house would have.
 
 ## Production and gold
 

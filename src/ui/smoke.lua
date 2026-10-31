@@ -13,7 +13,7 @@ local S = require "src.ui.state"
 local P = require "src.ui.pixels"
 local Sea = require "src.ui.sea"
 
-local floor, sin, min = math.floor, math.sin, math.min
+local floor, sin = math.floor, math.sin
 local IDX = T.IDX
 
 local Smoke = {}
@@ -75,15 +75,13 @@ local function chimney(x, y, z, seed, fits)
     end
 end
 
--- A city's chimneys: one on a house for every two citizens, three at most.
+-- A city's chimneys: one on a house for every two citizens, three at most,
+-- wherever its layout put those houses.
 function Smoke.city(cell, city)
     if Sea.still() then return end
     local s = M.CITY_SCALE
-    local houses = min(#M.CITY_SPOTS, 1 + city.pop)
-    for k = 1, min(houses, 1 + floor(city.pop / 2), 3) do
-        local spot = M.CITY_SPOTS[k]
-        local size = 0.9 + (k % 3) * 0.08
-        chimney(cell.x + (spot[1] + 0.8) * s, cell.top + 5.2 * size * s, cell.z + spot[2] * s, cell.id * 10 + k)
+    for k, c in ipairs(M.cityChimneys(city.pop, city.buildings, M.citySite(cell))) do
+        chimney(cell.x + c[1] * s, cell.top + c[2] * s, cell.z + c[3] * s, cell.id * 10 + k)
     end
 end
 

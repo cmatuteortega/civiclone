@@ -499,22 +499,296 @@ function M.ship(kind) return UNIT[kind] ~= nil and (kind == "galley" or kind == 
 
 --- cities -----------------------------------------------------------------------
 
--- Spots round a city's middle for houses, front ones last so they are the
--- ones you see first when it grows.
-local SPOTS = {
-    { -6, -4 }, { 6, -4 }, { -7, 2 }, { 7, 2 }, { 0, -7 }, { -4, 6 }, { 4, 6 }, { -9, -2 }, { 9, -2 },
-}
-M.CITY_SPOTS = SPOTS
+-- A city grows as it gains citizens, and is built the way the land it stands
+-- on builds:
+--
+--   tier 1, a hamlet (1-2 citizens): a hall, a couple of houses, gardens and
+--           open ground between them;
+--   tier 2, a village (3-5): the gardens filling with houses round the hall;
+--   tier 3, a town (6-9): every plot built on, the houses nearest the middle
+--           a storey taller, and the land's own landmark beside the hall;
+--   tier 4, a city (10 and up): houses three storeys high in the middle and
+--           two at the edge, and the landmark grown into a monument.
+--
+-- And by the land (`site`): on grassland timber houses with gabled roofs and
+-- trees in the gardens, half-timbered upper storeys, a bell tower and then a
+-- stone keep; on plains round huts thatched to a cone, then long thatched
+-- houses, haystacks and a windmill; on desert flat-roofed mud brick with
+-- awnings in the city's colours on the roofs, palms, and a dome; on hills
+-- stone houses on terraces stepping up to the back, and a temple on a podium
+-- that becomes an acropolis. A city by a river turns a mill wheel in it, and
+-- no house stands in the river's channel.
+M.CITY_TIERS = { 1, 3, 6, 10 }
+function M.cityTier(pop)
+    local t = 1
+    for k, p in ipairs(M.CITY_TIERS) do if pop >= p then t = k end end
+    return t
+end
 
-local function house(parts, x, z, look, id, size, turn)
-    size = size or 1
-    local w, d, ht = 4 * size, 3.4 * size, 2.6 * size
+-- The plots round the hall, in the order they are built on: an inner ring
+-- out along the middles of the hex's edges (way k, as rivers and the shore
+-- are told), the back ones first, then an outer ring into its corners, the
+-- front ones last so they are the ones you see first when it grows.
+local function ring(r, a) return { r * cos(math.rad(a)), r * sin(math.rad(a)) } end
+local PLOTS = {}
+for _, p in ipairs({
+    { 5.7, 240, 1, "in", 4 }, { 5.7, 300, 1, "in", 5 }, { 5.7, 180, 1, "in", 3 }, { 5.7, 0, 1, "in", 0 },
+    { 5.7, 120, 1, "in", 2 }, { 5.7, 60, 1, "in", 1 },
+    { 7.5, 270, 0.82, "out", 4, 5 }, { 7.5, 210, 0.82, "out", 3, 4 }, { 7.5, 330, 0.82, "out", 5, 0 },
+    { 7.5, 150, 0.82, "out", 2, 3 }, { 7.5, 30, 0.82, "out", 0, 1 }, { 7.5, 90, 0.82, "out", 1, 2 },
+}) do
+    local at = ring(p[1], p[2])
+    PLOTS[#PLOTS + 1] = { x = at[1], z = at[2], size = p[3], ring = p[4], edges = { p[5], p[6] } }
+end
+M.CITY_PLOTS = PLOTS
+
+-- What each building takes, of the plots: it stands in that plot instead of
+-- a house.
+local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12 }
+
+-- A little hash, so the same city is laid out the same way every time.
+local function hash(a, b)
+    local n = sin(a * 12.9898 + b * 78.233) * 43758.5453
+    return n - floor(n)
+end
+
+local function siteKey(site)
+    local rv = {}
+    for k = 0, 5 do rv[#rv + 1] = site.river and site.river[k] and floor(site.river[k] * 2 + 0.5) / 2 or "-" end
+    return table.concat({ site.biome or "grass", site.hills and "h" or "f", site.seed or 0, table.concat(rv, ",") }, ";")
+end
+
+-- The site of a city on map cell `cell`: its land, whether on hills, how far
+-- down (room units) the water of each river along it runs, and one of four
+-- layouts, by the hex.
+function M.citySite(cell)
+    local river
+    if cell.river then
+        for k = 0, 5 do
+            local e = cell.river[k]
+            if e then
+                river = river or {}
+                river[k] = cell.top - (e.level or cell.top - 2)
+            end
+        end
+    end
+    local biome = cell.terrain
+    if biome ~= "plains" and biome ~= "desert" then biome = "grass" end
+    return { biome = biome, hills = cell.elev == "hills", river = river, seed = cell.id % 4 }
+end
+
+-- How a city at `pop` on `site`, with buildings `built` and maybe a shore
+-- is laid out: its houses (x, z, size, storeys, how high its floor
+-- stands, turned or not) and what the empty plots hold.
+function M.cityLayout(pop, built, site)
+    site = site or {}
+    local b = built or {}
+    local tier = M.cityTier(pop)
+    local seed = site.seed or 0
+    local houses, empty = {}, {}
+    local want = math.min(#PLOTS, 1 + pop)
+    local taken = {}
+    for name, k in pairs(BUILT_PLOT) do if b[name] then taken[k] = name end end
+    -- The town's landmark takes a plot of its own on the plains: a windmill.
+    if site.biome == "plains" and not site.hills and tier >= 3 then taken[7] = taken[7] or "windmill" end
+    -- On hills the temple stands at the back of the hex, where two plots were.
+    if site.hills and tier >= 3 then taken[7], taken[1] = "temple", "temple" end
+    for k, p in ipairs(PLOTS) do
+        local wet = false
+        if site.river then
+            for _, e in ipairs(p.edges) do if site.river[e] then wet = true end end
+        end
+        local x = p.x + (hash(seed + k, 1) - 0.5) * 0.7
+        local z = p.z + (hash(seed + k, 2) - 0.5) * 0.7
+        -- On hills the ground is terraced, stepping up to the back.
+        local y = site.hills and math.max(0, math.min(3.6, floor((1.5 - z) / 2.6) * 1.2)) or 0
+        if wet or taken[k] then
+            if not wet then empty[#empty + 1] = { x = x, z = z, y = y, plot = k, what = taken[k] } end
+        elseif #houses < want then
+            local storeys = 1
+            if tier == 3 then storeys = p.ring == "in" and 2 or 1
+            elseif tier == 4 then storeys = p.ring == "in" and 3 or 2 end
+            -- One in three a storey lower, so the roofs are not one line.
+            if storeys > 1 and hash(seed + k, 3) < 0.33 then storeys = storeys - 1 end
+            houses[#houses + 1] = { x = x, z = z, y = y, plot = k, ring = p.ring,
+                size = p.size * (0.88 + hash(seed + k, 4) * 0.18), storeys = storeys,
+                turn = (k + seed) % 2 == 0 }
+        else
+            empty[#empty + 1] = { x = x, z = z, y = y, plot = k }
+        end
+    end
+    return { tier = tier, houses = houses, empty = empty }
+end
+
+-- Where its chimneys are (model units, from the city's middle on its
+-- ground): one on a house for every two citizens, three at most.
+local STOREY = 2.6
+function M.cityChimneys(pop, built, site)
+    local lay = M.cityLayout(pop, built, site)
+    local out = {}
+    for k = 1, math.min(#lay.houses, 1 + floor(pop / 2), 3) do
+        local h = lay.houses[k]
+        local top = h.y + STOREY * h.size * h.storeys + (site and site.biome == "desert" and 0.6 or 2.4 * h.size)
+        out[#out + 1] = { h.x + 0.8 * h.size, top, h.z }
+    end
+    return out
+end
+
+local R2 = {
+    mud = ramp("s", "t", "k", "n"),
+    slab = ramp("w", "c", "s", "t"),
+    leaf = ramp("t", "n", "u", "o"),
+    hedge = ramp("k", "n", "u", "o"),
+    soil = ramp("t", "k", "n", "u"),
+}
+
+-- A window or a door in the middle of a wall, lit at night; `floors` of them
+-- one over another.
+local function windows(floors, door)
+    return function(ux, uy, uz)
+        if math.abs(uz) > 0.98 or math.abs(ux) > 0.98 then
+            local across = math.abs(uz) > 0.98 and ux or uz
+            local f = uy * floors
+            local band = f - floor(f)
+            if floor(f) == 0 and door then
+                if math.abs(across) < 0.22 and band < 0.7 and band > 0.0 then return IDX.n, true end
+            elseif math.abs(math.abs(across) - 0.45) < 0.15 and band > 0.35 and band < 0.7 then
+                return IDX.n, true
+            end
+        end
+    end
+end
+
+-- Thatch: the roof's own colour a step darker in courses, a dark eave.
+local function thatched(L, courses)
+    return function(ux, uy, uz, lev)
+        if uy < 0.1 then return IDX.n end
+        if lev > 1 and floor(uy * courses) % 2 == 1 then return L.roof[math.min(4, lev + 1)] end
+    end
+end
+
+-- A house of `storeys` in the style of the land, its floor at y.
+local function house(parts, x, y, z, L, id, size, storeys, turn, biome)
     local h = turn and math.pi / 2 or 0
-    parts[#parts + 1] = part(Sh.box(x, 0, z, w, d, ht, h), R.wall, id, function(ux, uy, uz, lev)
-        -- A dark door or window in the middle of a wall, lit at night.
-        if math.abs(ux) < 0.25 and uy < 0.7 and uy > 0.15 and math.abs(uz) > 0.98 then return IDX.n, true end
-    end)
-    parts[#parts + 1] = part(Sh.roof(x, ht, z, w + 1, d + 1.2, 2.6 * size, h), look.roof, id + 1, banded(look))
+    local w, d = 4 * size, 3.4 * size
+    if turn then w, d = w * 0.92, d * 1.08 end
+    local ht = STOREY * size
+    if biome == "plains" and storeys == 1 then
+        -- A round hut, thatched to a cone, a dark band where the thatch ends.
+        parts[#parts + 1] = part(Sh.prism(8, x, y, z, 1.75 * size, ht * 0.95, 0, math.pi / 8), R.wall, id,
+            function(ux, uy, uz)
+                if uz > 0.7 and math.abs(ux) < 0.3 and uy < 0.75 then return IDX.u, true end
+            end)
+        parts[#parts + 1] = part(Sh.pyramid(8, x, y + ht * 0.9, z, 2.45 * size, 3.4 * size, 0, math.pi / 8), L.roof,
+            id + 1, thatched(L, 7))
+        return
+    end
+    if biome == "desert" then
+        -- Mud brick, the roof flat and pale; each storey up set back, leaving
+        -- a terrace; an awning in the city's colours on the top one.
+        local ww, dd, yy = w, d, y
+        for s = 1, storeys do
+            parts[#parts + 1] = part(Sh.box(x, yy, z, ww, dd, ht, h), R2.mud, id, windows(1, s == 1))
+            parts[#parts + 1] = part(Sh.box(x, yy + ht, z, ww + 0.3, dd + 0.3, 0.45, h), R2.slab, id + 1)
+            yy = yy + ht + 0.45
+            if s < storeys then ww, dd = ww * 0.72, dd * 0.75 end
+        end
+        local ax = x + (turn and 0 or -ww * 0.18)
+        local az = z + (turn and -dd * 0.18 or 0)
+        parts[#parts + 1] = part(Sh.roof(ax, yy + 1.1, az, ww * 0.62, dd * 0.7, 0.55, h), L.roof, id + 2, banded(L))
+        for _, s in ipairs({ -1, 1 }) do
+            local px = ax + (turn and 0 or s * ww * 0.28)
+            local pz = az + (turn and s * dd * 0.28 or 0)
+            parts[#parts + 1] = part(Sh.seg(px, yy, pz + dd * 0.3, px, yy + 1.2, pz + dd * 0.3, 0.16), R.wood, id + 3)
+        end
+        return
+    end
+    -- Gabled houses: timber on grassland and plains, stone on hills. Upper
+    -- storeys of timber are half-timbered and jut out a little.
+    local wall = biome == "hills" and R.stone or R.wall
+    local yy = y
+    for s = 1, storeys do
+        local jut = (s > 1 and biome ~= "hills") and 0.35 or 0
+        local print = windows(1, s == 1)
+        if s > 1 and biome ~= "hills" then
+            local win = print
+            print = function(ux, uy, uz, lev)
+                local k, lit = win(ux, uy, uz, lev)
+                if k then return k, lit end
+                if uy > 0.9 or uy < 0.08 or math.abs(ux) > 0.92 then return IDX.n end
+                if math.abs(math.abs(ux) - 0.75) < 0.06 then return IDX.n end
+            end
+        elseif biome == "grass" then
+            -- Timber posts at the corners and a sill beam.
+            local win = print
+            print = function(ux, uy, uz, lev)
+                local k, lit = win(ux, uy, uz, lev)
+                if k then return k, lit end
+                if math.abs(ux) > 0.9 or (math.abs(uz) > 0.9 and math.abs(ux) > 0.82) or uy < 0.08 then return IDX.n end
+            end
+        elseif biome == "hills" then
+            local win = print
+            print = function(ux, uy, uz, lev)
+                local k, lit = win(ux, uy, uz, lev)
+                if k then return k, lit end
+                if lev ~= 1 and floor(uy * 4) % 2 == 0 and floor((ux + uz + 2) * 4) % 3 == 0 then return IDX.k end
+            end
+        end
+        parts[#parts + 1] = part(Sh.box(x, yy, z, w + jut, d + jut, ht, h), wall, id, print)
+        yy = yy + ht
+    end
+    local roofHt = (biome == "plains" and 3.2 or 2.6) * size
+    parts[#parts + 1] = part(Sh.roof(x, yy, z, w + 1, d + 1.2, roofHt, h), L.roof, id + 1,
+        biome == "plains" and thatched(L, 6) or banded(L))
+end
+
+-- What stands on a plot no one has built on yet, by the land: a tree and a
+-- fenced garden, a haystack and a plot of beds, a palm by a well, a terraced
+-- garden of bushes.
+local function garden(parts, e, L, id, biome, k)
+    local x, y, z = e.x, e.y, e.z
+    if biome == "desert" then
+        -- A palm, leaning a little, its fronds drooping.
+        local lean = (k % 2 == 0) and 0.9 or -0.7
+        local tx, ty = x + lean * 0.7, y + 4.6
+        parts[#parts + 1] = part(Sh.seg(x, y, z, tx, ty, z, 0.4, 0.3), R.wood, id, function(ux)
+            if floor((ux + 1) * 6) % 2 == 0 then return IDX.n end
+        end)
+        for f = 0, 5 do
+            local a = f * math.pi / 3 + k
+            parts[#parts + 1] = part(Sh.seg(tx, ty + 0.3, z, tx + cos(a) * 2, ty - 0.8, z + sin(a) * 2, 0.45, 0.2),
+                R2.leaf, id + 1)
+        end
+        if k % 3 == 0 then
+            -- A well: a ring of stone.
+            parts[#parts + 1] = part(Sh.prism(8, x - 2, y, z + 1.4, 1.1, 1, 0, math.pi / 8), R.stone, id + 2,
+                function(ux, uy, uz, lev, nx, ny) if ny > 0.9 and ux * ux + uz * uz < 0.45 then return IDX.o end end)
+        end
+    elseif biome == "plains" then
+        -- Beds of a kitchen garden in rows, and a haystack.
+        for r = -1, 1 do
+            parts[#parts + 1] = part(Sh.box(x - 0.8, y, z + r * 1.2, 3.2, 0.8, 0.35), R2.soil, id)
+        end
+        parts[#parts + 1] = part(Sh.ell(x + 1.8, y + 0.3, z - 0.4, 1.2, 1.8, 1.2), R.straw, id + 1,
+            function(ux, uy) if floor((uy + 1) * 3) % 2 == 0 and uy > -0.3 then return IDX.t end end)
+    elseif biome == "hills" then
+        -- Bushes on a terrace of stone.
+        parts[#parts + 1] = part(Sh.box(x, y - 1.2, z, 3.6, 3, 1.2), R.stone, id, function(ux, uy)
+            if floor((ux + 1) * 5 + (uy > 0.5 and 0.5 or 0)) % 2 == 0 then return IDX.k end
+        end)
+        for f = 0, 2 do
+            parts[#parts + 1] = part(Sh.ell(x - 1.1 + f * 1.1, y + 0.6, z + (f % 2) * 0.6 - 0.3, 0.9, 0.9, 0.9),
+                R2.hedge, id + 1)
+        end
+    else
+        -- A tree, and a little fenced garden.
+        parts[#parts + 1] = part(Sh.seg(x + 1, y, z - 0.5, x + 1, y + 2.6, z - 0.5, 0.35), R.wood, id)
+        parts[#parts + 1] = part(Sh.ell(x + 1, y + 4, z - 0.5, 1.9, 2.1, 1.9), R2.leaf, id + 1)
+        parts[#parts + 1] = part(Sh.box(x - 1.2, y, z + 0.6, 2.6, 2.2, 0.3), R2.soil, id + 2, function(ux, uy, uz)
+            if floor((ux + 1) * 4) % 2 == 0 then return IDX.u end
+        end)
+        parts[#parts + 1] = part(Sh.box(x - 1.2, y, z + 1.7, 2.8, 0.15, 0.8), R.wood, id + 3)
+    end
 end
 
 -- What a city on the water builds out over it, in its own frame with +x
@@ -593,17 +867,153 @@ local function waterfront(parts, L, yw, b)
     for _, p in ipairs(q) do parts[#parts + 1] = p end
 end
 
--- The picture of a city: its houses (one more for each citizen, up to the
--- spots there are), its palace or hall, and whatever it has built. A city on
--- the water is told `shore`, the way (0..5) to the water it faces, and
--- `drop`, how far below its ground (in room units) the water's top is.
-function M.city(look, pop, capital, built, shore, drop)
+-- A water mill on the river along edge k: a mill house on the bank and its
+-- wheel in the channel, `drop` down to the water. In its own frame with +x
+-- out across the edge.
+local function mill(parts, drop, id, biome)
+    local q = {}
+    local bank = 8.36 - 2.5
+    local wall = biome == "hills" and R.stone or (biome == "desert" and R2.mud or R.wall)
+    q[#q + 1] = part(Sh.box(bank - 1.6, 0, -3.4, 3, 3.4, 3.2), wall, id, windows(1, false))
+    q[#q + 1] = part(Sh.roof(bank - 1.6, 3.2, -3.4, 3.8, 4.2, 1.8, math.pi / 2), R.wood, id + 1)
+    -- The wheel stands in the channel, its axle out from the bank.
+    local wy = -drop + 1.4
+    local wheel = Sh.prism(12, 0, -0.5, 0, 2.9, 0.9)
+    wheel.at = A.mul(A.move(bank + 0.6, wy, -3.4), A.rotZ(math.pi / 2), wheel.at)
+    q[#q + 1] = part(wheel, R.wood, id + 2, function(ux, uy, uz)
+        local r = ux * ux + uz * uz
+        -- Paddles round the rim, spokes to the hub, and light between.
+        if r > 0.6 then
+            if floor((math.atan2(uz, ux) / math.pi + 1) * 8) % 2 == 0 then return IDX.u end
+            return IDX.c
+        end
+        if r < 0.04 then return IDX.o end
+        if math.abs(ux) < 0.1 or math.abs(uz) < 0.1 or math.abs(ux - uz) < 0.13 or math.abs(ux + uz) < 0.13 then
+            return IDX.n
+        end
+        return IDX.s
+    end)
+    q[#q + 1] = part(Sh.seg(bank - 0.4, wy, -3.4, bank + 1.6, wy, -3.4, 0.3), R.dark, id + 3)
+    for _, p in ipairs(q) do parts[#parts + 1] = p end
+    return q
+end
+
+-- The hall in the middle, in the style of the land, and (a capital) the
+-- palace with its tower, which grows with the city.
+local function hall(parts, L, tier, capital, biome, hills)
+    local y = hills and 1.2 or 0
+    -- A longhouse in a hamlet, a hall in a village, a storey taller in a town.
+    local w, d = capital and 8 or (tier == 1 and 5 or 6), capital and 6 or (tier == 1 and 4 or 5)
+    local ht = (capital and 4.5 or (tier == 1 and 3 or 4)) + (tier >= 3 and 1.2 or 0)
+    if hills then
+        -- The hall stands on its own terrace.
+        parts[#parts + 1] = part(Sh.box(0, 0, 0, w + 1.6, d + 1.6, y), R.stone, 9, function(ux, uy)
+            if floor((ux + 1) * 6 + (uy > 0.5 and 0.5 or 0)) % 2 == 0 then return IDX.k end
+        end)
+    end
+    if biome == "desert" then
+        parts[#parts + 1] = part(Sh.box(0, y, 0, w, d, ht, 0), R2.mud, 1, windows(2, true))
+        parts[#parts + 1] = part(Sh.box(0, y + ht, 0, w + 0.4, d + 0.4, 0.5), R2.slab, 2)
+        -- A dome on a drum, in the city's colours, bigger as it grows.
+        local r = 2 + tier * 0.35
+        parts[#parts + 1] = part(Sh.prism(12, 0, y + ht + 0.5, 0, r, 1.2, 0, 0), R2.slab, 3)
+        parts[#parts + 1] = part(Sh.ell(0, y + ht + 1.7, 0, r, r * 1.05, r), L.roof, 4, banded(L))
+        if capital or tier >= 3 then
+            -- A slim tower beside it, taller with the city.
+            local th = 7 + tier * 2 + (capital and 2 or 0)
+            parts[#parts + 1] = part(Sh.prism(8, -w / 2 + 0.6, y, -d / 2 + 0.6, 1.1, th, 0, math.pi / 8), R2.mud, 5,
+                function(ux, uy, uz) if uy > 0.8 and uy < 0.88 and uz > 0.5 then return IDX.n, true end end)
+            parts[#parts + 1] = part(Sh.prism(8, -w / 2 + 0.6, y + th, -d / 2 + 0.6, 1.4, 0.4, 0, math.pi / 8), R2.slab, 6)
+            parts[#parts + 1] = part(Sh.ell(-w / 2 + 0.6, y + th + 0.5, -d / 2 + 0.6, 0.9, 1.3, 0.9), L.roof, 7)
+        end
+        return
+    end
+    local wall = (hills or capital) and R.stone or R.wall
+    parts[#parts + 1] = part(Sh.box(0, y, 0, w, d, ht), wall, 1, function(ux, uy, uz)
+        if uy > 0.2 and uy < 0.75 and math.abs(uz) > 0.98 and floor((ux + 1) * 3) % 2 == 1 then return IDX.k, true end
+    end)
+    parts[#parts + 1] = part(Sh.roof(0, y + ht, 0, w + 1, d + 1.2, 3.2), L.roof, 2, banded(L))
+    if capital then
+        -- The palace's tower at its back corner, a storey taller each tier.
+        local th = 7 + tier * 2
+        parts[#parts + 1] = part(Sh.prism(6, -w / 2 + 1, y, -d / 2 + 0.6, 1.6, th, 0, 0.5), R.stone, 3,
+            function(ux, uy, uz) if uy > 0.75 and uy < 0.85 and uz > 0.4 then return IDX.n, true end end)
+        parts[#parts + 1] = part(Sh.pyramid(6, -w / 2 + 1, y + th, -d / 2 + 0.6, 2.2, 3.6 + tier * 0.4, 0, 0.5), L.roof, 4)
+    elseif tier >= 3 and biome ~= "plains" and not (hills and tier == 3) then
+        -- The town's tower: a bell tower of timber on grassland, a stone
+        -- keep once it is a city; on hills the keep from the start.
+        local th = tier == 3 and 10 or 13
+        local stone = tier == 4 or hills
+        parts[#parts + 1] = part(Sh.box(-w / 2 + 0.4, y, -d / 2 + 0.4, 2.8, 2.8, th), stone and R.stone or R.wall, 3,
+            function(ux, uy, uz)
+                if uy > 0.78 and uy < 0.9 and math.abs(ux) < 0.4 and math.abs(uz) > 0.98 then return IDX.o end
+                if not stone and (math.abs(ux) > 0.9 or floor(uy * 4) ~= floor(uy * 4 + 0.08)) then return IDX.n end
+            end)
+        if stone then
+            for c = 0, 3 do
+                local cx, cz = (c % 2 == 0 and -1 or 1) * 1.15, (c < 2 and -1 or 1) * 1.15
+                parts[#parts + 1] = part(Sh.box(-w / 2 + 0.4 + cx, y + th, -d / 2 + 0.4 + cz, 0.7, 0.7, 0.7), R.stone, 4)
+            end
+        else
+            parts[#parts + 1] = part(Sh.pyramid(4, -w / 2 + 0.4, y + th, -d / 2 + 0.4, 2.4, 3.4, 0, math.pi / 4), L.roof, 4)
+        end
+    end
+end
+
+-- On hills, once a town, a temple on a podium at the back of the hex: rows
+-- of columns under a pediment; once a city it stands on an acropolis.
+local function temple(parts, L, tier)
+    local px, pz = 0, -6.6
+    local base = tier >= 4 and 3.6 or 2.4
+    parts[#parts + 1] = part(Sh.box(px, 0, pz, 8.4, 4.4, base), R.stone, 80, function(ux, uy, uz, lev)
+        if floor((ux + 1) * 7 + (floor(uy * 3) % 2) * 0.5) % 2 == 0 and lev ~= 1 then return IDX.k end
+    end)
+    parts[#parts + 1] = part(Sh.box(px, base, pz, 7.6, 3.6, 0.5), R.wall, 81)
+    for c = 0, 5 do
+        local cx = px - 3.2 + c * 1.28
+        parts[#parts + 1] = part(Sh.prism(8, cx, base + 0.5, pz + 1.3, 0.38, 3.4, 0, math.pi / 8), R.wall, 82)
+    end
+    parts[#parts + 1] = part(Sh.box(px, base + 0.5, pz - 0.6, 7, 2, 3.4), R.stone, 83)
+    parts[#parts + 1] = part(Sh.box(px, base + 3.9, pz, 8, 3.8, 0.5), R.wall, 84)
+    parts[#parts + 1] = part(Sh.roof(px, base + 4.4, pz, 8.2, 4, 1.3), L.roof, 85, banded(L))
+end
+
+-- A windmill: a tapering tower, a cap, four sails to the front.
+local function windmill(parts, x, y, z, L)
+    parts[#parts + 1] = part(Sh.frustum(8, 0.7, x, y, z, 1.9, 7.5, 0, math.pi / 8), R.wall, 86, function(ux, uy, uz)
+        if uz > 0.7 and math.abs(ux) < 0.3 and uy < 0.25 then return IDX.u, true end
+    end)
+    parts[#parts + 1] = part(Sh.pyramid(8, x, y + 7.5, z, 1.7, 2.2, 0, math.pi / 8), L.roof, 87)
+    local hx, hy, hz = x, y + 7.2, z + 1.7
+    for s = 0, 3 do
+        local a = math.pi / 4 + s * math.pi / 2
+        local ex, ey = hx + cos(a) * 5, hy + sin(a) * 5
+        parts[#parts + 1] = part(Sh.seg(hx, hy, hz, ex, ey, hz, 0.18), R.wood, 88)
+        local mx, my = hx + cos(a) * 3, hy + sin(a) * 3
+        local sail = Sh.box(0, -0.5, 0, 3.6, 0.15, 1.1)
+        sail.at = A.mul(A.move(mx - sin(a) * 0.55, my + cos(a) * 0.55, hz), A.rotZ(a), A.rotX(math.pi / 2), sail.at)
+        parts[#parts + 1] = part(sail, R.straw, 89 + s, function(ux)
+            if floor((ux + 1) * 4) % 2 == 0 then return IDX.t end
+        end)
+    end
+end
+
+-- The picture of a city: its houses (one more for each citizen, till every
+-- plot is built on, then taller), its hall or palace, its landmark, and
+-- whatever it has built, all in the way of its `site` ({ biome = "grass" |
+-- "plains" | "desert", hills, river = { [k] = how far down its water is },
+-- seed }). A city on the water is told `shore`, the way (0..5) to the water
+-- it faces, and `drop`, how far below its ground (in room units) the
+-- water's top is.
+function M.city(look, pop, capital, built, shore, drop, site)
     local b = built or {}
-    local houses = math.min(#SPOTS, 1 + pop)
+    site = site or {}
+    local biome = site.biome or "grass"
+    local lay = M.cityLayout(pop, b, site)
     drop = drop and floor(drop * 2 + 0.5) / 2 or 0
-    local key = table.concat({ "c", look, houses, capital and 1 or 0, b.walls and 1 or 0, b.granary and 1 or 0,
-        b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
-        b.harbour and 1 or 0, b.lighthouse and 1 or 0 }, ":")
+    local key = table.concat({ "c", look, #lay.houses, lay.tier, capital and 1 or 0, b.walls and 1 or 0,
+        b.granary and 1 or 0, b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
+        b.harbour and 1 or 0, b.lighthouse and 1 or 0, siteKey(site) }, ":")
     return kept(key, function()
         local L = LOOK[look]
         local parts = {}
@@ -613,40 +1023,67 @@ function M.city(look, pop, capital, built, shore, drop)
             place(front, math.rad(60 * shore))
             for _, p in ipairs(front) do parts[#parts + 1] = p end
         end
-        for k = 1, houses do
-            local s = SPOTS[k]
-            house(parts, s[1], s[2], L, 10 + k * 2, 0.9 + (k % 3) * 0.08, k % 2 == 0)
+        if site.river then
+            -- One mill, on the first river edge clear of the shore.
+            for k = 0, 5 do
+                local down = site.river[k]
+                if down and k ~= shore then
+                    place(mill(parts, down / M.CITY_SCALE, 90, biome), math.rad(60 * k))
+                    break
+                end
+            end
         end
-        if capital then
-            -- The palace: a hall, its roof, and a tower with a pointed top.
-            parts[#parts + 1] = part(Sh.box(0, 0, 0, 8, 6, 4.5), R.stone, 1, function(ux, uy, uz)
-                if uy > 0.2 and uy < 0.75 and math.abs(uz) > 0.98 and floor((ux + 1) * 3) % 2 == 1 then return IDX.k, true end
-            end)
-            parts[#parts + 1] = part(Sh.roof(0, 4.5, 0, 9, 7.2, 3.2), L.roof, 2, banded(L))
-            parts[#parts + 1] = part(Sh.prism(6, 3.5, 0, 1.5, 2, 10, 0, 0.5), R.stone, 3)
-            parts[#parts + 1] = part(Sh.pyramid(6, 3.5, 10, 1.5, 2.6, 4, 0, 0.5), L.roof, 4)
-        else
-            parts[#parts + 1] = part(Sh.box(0, 0, 0, 6, 5, 4), R.stone, 1)
-            parts[#parts + 1] = part(Sh.roof(0, 4, 0, 7, 6.2, 3), L.roof, 2, banded(L))
+        for k, h in ipairs(lay.houses) do
+            if site.hills and h.y > 0 then
+                -- The terrace it stands on.
+                parts[#parts + 1] = part(Sh.box(h.x, 0, h.z, 4.6 * h.size, 4 * h.size, h.y), R.stone, 9, function(ux, uy)
+                    if floor((ux + 1) * 5 + (uy > 0.5 and 0.5 or 0)) % 2 == 0 then return IDX.k end
+                end)
+            end
+            house(parts, h.x, h.y, h.z, L, 10 + k * 4, h.size, h.storeys, h.turn, site.hills and "hills" or biome)
+        end
+        -- Gardens on a few of the plots not built on yet: fewer as it grows.
+        local gardens = ({ 4, 3, 2, 1 })[lay.tier]
+        for k, e in ipairs(lay.empty) do
+            if e.what == "windmill" then
+                windmill(parts, e.x, e.y, e.z, L)
+            elseif not e.what and gardens > 0 and (e.plot + (site.seed or 0)) % 3 ~= 0 then
+                gardens = gardens - 1
+                garden(parts, e, L, 120 + k * 4, site.hills and "hills" or biome, e.plot + (site.seed or 0))
+            end
+        end
+        hall(parts, L, lay.tier, capital, biome, site.hills)
+        if site.hills and lay.tier >= 3 then
+            -- The temple takes the back plot's place.
+            temple(parts, L, lay.tier)
+        end
+        local function at(name)
+            local p = PLOTS[BUILT_PLOT[name]]
+            return p.x, p.z
         end
         if b.granary then
-            parts[#parts + 1] = part(Sh.prism(8, -4, 0, 4, 2, 4.5, 0, 0.4), R.straw, 30)
-            parts[#parts + 1] = part(Sh.pyramid(8, -4, 4.5, 4, 2.6, 2.6, 0, 0.4), L.roof, 31)
+            local x, z = at("granary")
+            parts[#parts + 1] = part(Sh.prism(8, x, 0, z, 2, 4.5, 0, 0.4), R.straw, 30)
+            parts[#parts + 1] = part(Sh.pyramid(8, x, 4.5, z, 2.6, 2.6, 0, 0.4), L.roof, 31)
         end
         if b.library then
-            parts[#parts + 1] = part(Sh.box(-3, 0, -12, 7, 4, 4), R.stone, 32, function(ux, uy, uz)
+            local x, z = at("library")
+            parts[#parts + 1] = part(Sh.box(x, 0, z, 4.6, 3.6, 4, math.pi / 2), R.stone, 32, function(ux, uy, uz)
                 if math.abs(uz) > 0.98 and floor((ux + 1) * 4) % 2 == 0 and uy < 0.85 then return IDX.k, true end
             end)
-            parts[#parts + 1] = part(Sh.roof(-3, 4, -12, 7.6, 4.8, 1.6), R.stone, 33)
+            parts[#parts + 1] = part(Sh.roof(x, 4, z, 5.2, 4.4, 1.6, math.pi / 2), R.stone, 33)
         end
         if b.market then
-            for k, x in ipairs({ 9, 13 }) do
-                parts[#parts + 1] = part(Sh.pyramid(4, x, 0, 6 + k, 2.2, 3.2, 0, math.pi / 4), L.roof, 34 + k, banded(L))
+            local x, z = at("market")
+            for k, dz in ipairs({ -1.4, 1.4 }) do
+                parts[#parts + 1] = part(Sh.pyramid(4, x - (k - 1.5) * 1.2, 0, z + dz, 1.8, 3, 0, math.pi / 4), L.roof,
+                    34 + k, banded(L))
             end
         end
         if b.monument then
-            parts[#parts + 1] = part(Sh.box(-2, 0, 10, 2.4, 2.4, 1), R.stone, 37)
-            parts[#parts + 1] = part(Sh.frustum(4, 0.45, -2, 1, 10, 0.9, 7, 0, math.pi / 4), R.stone, 38)
+            local x, z = at("monument")
+            parts[#parts + 1] = part(Sh.box(x, 0, z, 2.4, 2.4, 1), R.stone, 37)
+            parts[#parts + 1] = part(Sh.frustum(4, 0.45, x, 1, z, 0.9, 7, 0, math.pi / 4), R.stone, 38)
         end
         if b.walls then
             -- Walls round the hex just inside its edge, towers at the corners.
@@ -656,8 +1093,9 @@ function M.city(look, pop, capital, built, shore, drop)
                 local x0, z0, x1, z1 = r * cos(a0), r * sin(a0), r * cos(a1), r * sin(a1)
                 local mx, mz = (x0 + x1) / 2, (z0 + z1) / 2
                 local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
-                -- Not along the water's edge: the pier goes out there.
-                if k ~= shore then
+                -- Not along the water's edge, nor a river's: the pier goes
+                -- out there, and the river is its moat.
+                if k ~= shore and not (site.river and site.river[k]) then
                     parts[#parts + 1] = part(Sh.box(mx, 0, mz, len, 1.6, 3.2, -math.atan2(z1 - z0, x1 - x0)), R.stone, 40,
                         function(ux, uy) if uy > 0.8 and floor((ux + 1) * 6) % 2 == 0 then return IDX.k end end)
                 end
