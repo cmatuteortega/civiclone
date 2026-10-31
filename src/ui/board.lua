@@ -222,18 +222,99 @@ local function fish(cell, list)
     end
 end
 
+-- The wakes: from each mark the foam spreads out to either side as it ages,
+-- a V behind the boat, churned white close astern and thinning to a step of
+-- lightness, then to nothing, broken up the older it gets. Only on water
+-- the player sees; nothing when the water is set still.
+local function hash(a, b)
+    local v = math.sin(a * 12.9898 + b * 78.233) * 43758.5453
+    return v - floor(v)
+end
+local function wakes(me)
+    if Sea.still() or #S.wakes == 0 then return end
+    local g = S.game
+    for _, w in ipairs(S.wakes) do
+        local cell = g:cell(H.at(w.x, w.z))
+        if cell and g:isWater(cell) and me.visible[cell.id] then
+            local f = w.t / Anim.WAKE_LIFE
+            local px, pz = -w.dz, w.dx
+            local spread = (w.big and 1.6 or 1) + f * (w.big and 7 or 4.5)
+            local steps = f < 0.45 and 2 or 1
+            for _, side in ipairs({ -1, 1 }) do
+                for k = 0, 2 do
+                    if hash(w.seed + k, side) > f * f * 0.95 then
+                        local x = w.x + px * spread * side - w.dx * k * 0.5
+                        local z = w.z + pz * spread * side - w.dz * k * 0.5
+                        local i, j = S.world:toImage(x, -2, z)
+                        P.lift(steps, floor(i), floor(j))
+                    end
+                end
+            end
+            -- Churned water right astern, while it is new.
+            if f < 0.4 then
+                for k = 0, 3 do
+                    local r = hash(w.seed, k + 7) * 2 - 1
+                    local x, z = w.x + px * r * spread * 0.6, w.z + pz * r * spread * 0.6
+                    local i, j = S.world:toImage(x, -2, z)
+                    P.lift(2, floor(i), floor(j))
+                end
+            end
+        end
+    end
+end
+
+-- Fishing boats at work: the two fishers haul the net in turns, its floats
+-- bob, and every so often a fish comes up out of it, flapping, and is swung
+-- into the first boat, the water ringing where it left.
+local HAUL = 0.45 -- seconds to a step of the haul
+local CATCH, SWING = 9, 0.9
+local function fishing(cell, me, list)
+    local look = lookOf(cell.owner or 1)
+    local seen = me.visible[cell.id] and not Sea.still()
+    local phase = seen and floor(Sea.time() / HAUL + cell.id) % 4 or 0
+    local pic = M.fishingBoats(look, seen and roll(cell.id) or 0, phase)
+    list[#list + 1] = { z = cell.z - 1, draw = function() P.stamp(pic, cell.x, cell.top, cell.z) end }
+    if not seen then return end
+    local period = CATCH + (cell.id % 5) * 1.3
+    local t = (Sea.time() + cell.id * 2.1) % period
+    local s = M.UNIT_SCALE
+    -- From the middle of the net to the first boat.
+    local x0, z0 = cell.x + 0.2 * s, cell.z + 2.4 * s
+    local x1, z1 = cell.x - 5.2 * s, cell.z - 1.2 * s
+    if t < SWING then
+        local f = t / SWING
+        local x = x0 + (x1 - x0) * f
+        local z = z0 + (z1 - z0) * f
+        local y = cell.top + math.sin(f * math.pi) * 6 + f * 1.5
+        local bend = floor(t * 12) % 2 == 0 and -1 or 1
+        local face = x1 < x0 and -1 or 1
+        list[#list + 1] = { z = z + 0.5, draw = function() P.stamp(M.fish(bend, face), x, y, z) end }
+    end
+    if t < SWING + 1.2 then
+        -- The ring where it came up.
+        local r = 0.8 + t * 3
+        local n = floor(r * 5) + 6
+        for k = 0, n - 1 do
+            local a = k * 2 * math.pi / n
+            local i, j = S.world:toImage(x0 + math.cos(a) * r, cell.top, z0 + math.sin(a) * r * 0.8)
+            P.lift(1, floor(i), floor(j))
+        end
+    end
+end
+
 local function things(me)
     local g = S.game
+    wakes(me)
     local list = {}
     for _, cell in ipairs(g.cells) do
-        if cell.improvement and me.explored[cell.id] then
+        if cell.improvement == "boats" and me.explored[cell.id] then
+            fishing(cell, me, list)
+        elseif cell.improvement and me.explored[cell.id] then
             local pic
             if cell.improvement == "farm" then
                 local layout = M.farmLayout(cell.id)
                 furrows(cell, layout, me.visible[cell.id])
                 pic = M.farm(layout, farmOpen(cell))
-            elseif cell.improvement == "boats" then
-                pic = M.fishingBoats(lookOf(cell.owner or 1), me.visible[cell.id] and roll(cell.id) or 0)
             else
                 pic = M.mine(cell.elev == "hills")
             end

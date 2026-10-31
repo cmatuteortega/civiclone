@@ -692,6 +692,17 @@ crown stands, how much fog darkens it, and its colour.
   them now and then and sits to watch. Sheep don't run from anyone.
 - **Fish**: over each fish hex you can see, one leaps now and then and rings
   spread where it fell.
+- **Wakes**: anything under way on the water leaves foam off its stern, a
+  mark every 1.2 room units it goes, each kept 1.4 seconds. From each mark the
+  foam spreads out to either side as it ages, a V behind the boat (wider
+  behind a ship), churned two steps lighter close astern, then one step,
+  breaking up until it is gone. It is laid as a lift on the moving sea, so
+  the water keeps moving under it.
+- **Fishing boats** haul their net: each fisher reaches out over the side,
+  lifts, pulls it in and lifts again, a step every 0.45 seconds, the second
+  half a haul behind the first, and the floats along the net bob with it.
+  Every 9 to 14 seconds a fish comes up out of the net flapping and is swung
+  into the first boat, and a ring spreads where it came up.
 - **Boats**: ships, boats and fishing boats heel a little to one side and
   the other on the swell, each in its own time. Their hulls go on down under
   the water's top, and the board keeps a pixel only where it is nearer than

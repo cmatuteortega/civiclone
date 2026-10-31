@@ -62,7 +62,7 @@ function S.newGame(seed)
     S.seedArg = nil
     S.game = Game.new({ seed = seed })
     S.world = World.new(S.game)
-    S.anim, S.effects, S.msgs = {}, {}, {}
+    S.anim, S.effects, S.msgs, S.wakes = {}, {}, {}, {}
     S.selected, S.panel, S.over, S.hover = nil, nil, nil, nil
     S.pause, S.ask = false, nil
     O.resetLog()
@@ -131,7 +131,7 @@ local function followPlan()
             O.endTurn()
         end
         Anim.events(S.game)
-        S.anim, S.effects = {}, {}
+        S.anim, S.effects, S.wakes = {}, {}, {}
         for _, u in ipairs(S.game.units) do u.trail = { u.cell } end
         local cap = S.game:citiesOf(1)[1]
         if plan.select == "city" and cap then O.select(cap, true)
@@ -186,6 +186,17 @@ local function followPlan()
                                 n.resource, n.improvement, n.owner, fished = "fish", "boats", 1, true
                             elseif d >= 2 and #kinds > 0 then
                                 g:addUnit(table.remove(kinds, 1), 1, n.id)
+                            end
+                        end
+                    end
+                    -- And the galley under way, to see its wake.
+                    for _, u in ipairs(g:unitsOf(1)) do
+                        if u.kind == "galley" then
+                            for _, n in ipairs(g:within(g.cells[u.cell], 3)) do
+                                if g:dist(n, g.cells[u.cell]) == 3 and g:canStand(u, n) and g:path(u, n.id) then
+                                    g:moveTo(u, n.id)
+                                    break
+                                end
                             end
                         end
                     end

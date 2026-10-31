@@ -909,21 +909,31 @@ end
 -- Fishing boats over the fish: two small open boats, each with a fisher in
 -- the civilization's cloth, hauling a net strung between them on a line of
 -- floats; a stake of a fish trap off to one side. `roll` heels them on the
--- swell (-1, 0, 1), the two by turns.
-function M.fishingBoats(look, roll)
-    roll = roll or 0
-    return kept(table.concat({ "boats", look, roll }, ":"), function()
+-- swell (-1, 0, 1), the two by turns. `phase` (0..3) is the step of the
+-- haul: the first fisher reaching out over the side (0), lifting (1),
+-- pulling it in (2), lifting (3), the second half a haul behind; the floats
+-- bob along the line with it.
+local HAUL = {
+    [0] = { lean = -0.5, hands = { 1.4, 4.4, 3.4, 1.8, 4.6, 2.4 } },
+    [1] = { lean = -0.3, hands = { 1.1, 5.6, 2.9, 1.5, 5.6, 1.9 } },
+    [2] = { lean = -0.05, hands = { 0.6, 6.8, 1.7, 1.0, 6.6, 0.9 } },
+}
+HAUL[3] = HAUL[1]
+function M.fishingBoats(look, roll, phase)
+    roll, phase = roll or 0, phase or 0
+    return kept(table.concat({ "boats", look, roll, phase }, ":"), function()
         local L = LOOK[look]
         local parts = {}
-        local function boat(x, z, h, r, id)
+        local function boat(x, z, h, r, id, step)
             local q = {}
             q[#q + 1] = hull(6.4, 2.6, -0.8, 0.9, R.hull, id, planked(L))
             q[#q + 1] = part(Sh.box(0, 0.6, 0, 4.6, 1.8, 0.2), R.wood, id + 1)
-            -- The fisher, leaning out to the net.
+            -- The fisher, at this step of the haul.
+            local haul = HAUL[step]
             local f = {}
             person(f, L, 0, { hat = "wide",
-                hands = function() return 1.0, 6.2, 2.6, 1.4, 6.2, 1.4 end })
-            local m = A.mul(A.move(0.4, 0.2, 0), A.rotX(-0.25), A.scale(0.62, 0.62, 0.62))
+                hands = function() return unpack(haul.hands) end })
+            local m = A.mul(A.move(0.4, 0.2, 0), A.rotX(haul.lean), A.scale(0.62, 0.62, 0.62))
             for _, p in ipairs(f) do
                 p.at = A.mul(m, p.at or A.id())
                 p.id = p.id + id + 2
@@ -935,14 +945,18 @@ function M.fishingBoats(look, roll)
                 parts[#parts + 1] = p
             end
         end
-        boat(-5.5, -1.5, math.rad(80), roll, 10)
-        boat(5, 2.5, math.rad(-100), -roll, 30)
-        -- The net's floats, in a bow between the two.
+        boat(-5.5, -1.5, math.rad(80), roll, 10, phase)
+        boat(5, 2.5, math.rad(-100), -roll, 30, (phase + 2) % 4)
+        -- The net's floats, in a bow between the two, a swell running along
+        -- them with the haul; the near ends drawn up a little when hauled.
         for k = 0, 8 do
             local f = k / 8
             local x = -4.4 + f * 8.6
             local z = -0.2 + f * 2.6 + math.sin(f * math.pi) * 3.2
-            parts[#parts + 1] = part(Sh.ell(x, 0.15, z, 0.45, 0.35, 0.45), R.straw, 50)
+            local y = 0.15 + 0.3 * math.sin(phase * math.pi / 2 + k * 1.1)
+            if k == 0 and phase == 2 then y = y + 0.5 end
+            if k == 8 and phase == 0 then y = y + 0.5 end
+            parts[#parts + 1] = part(Sh.ell(x, y, z, 0.45, 0.35, 0.45), R.straw, 50)
         end
         -- A fish trap: stakes in a ring, a little off.
         for k = 0, 4 do

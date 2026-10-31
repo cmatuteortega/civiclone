@@ -10,6 +10,7 @@ local S = {
     panels = {},        -- the HUD's panels this frame: clicks on them stop there
     anim = {},          -- per unit id: where it is drawn and how it moves
     effects = {},       -- floating numbers, flashes, the dying
+    wakes = {},         -- foam left on the water behind boats under way
     grid = true,
     touch = false,      -- a touch screen: the HUD adds buttons for what keys do
     phone = false,      -- a phone or tablet: the HUD is drawn bigger, for fingers

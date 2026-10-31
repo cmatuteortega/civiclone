@@ -186,9 +186,11 @@ row("embarked", "EMBARKED - LAND UNITS ROWED OVER THE WATER", {
     { label = "SPEARMAN", kind = "spearman", look = "stripe", face = 3, pose = 1 },
 }, function(it) return M.unit(it.kind, it.look, it.face, it.pose or 0, 0, true) end)
 
-row("fishing", "FISHING BOATS - ON FISH, SAILING", {
-    { label = "AURELIA", look = "light" }, { label = "UMBRA", look = "dark" }, { label = "VARRO", look = "stripe", roll = 1 },
-}, function(it) return M.fishingBoats(it.look, it.roll or 0) end)
+row("fishing", "FISHING BOATS - ON FISH, SAILING. THE HAUL, STEP BY STEP", {
+    { label = "REACH", look = "light", phase = 0 }, { label = "LIFT", look = "light", phase = 1 },
+    { label = "PULL", look = "light", phase = 2 }, { label = "UMBRA", look = "dark", phase = 1, roll = -1 },
+    { label = "VARRO", look = "stripe", roll = 1 },
+}, function(it) return M.fishingBoats(it.look, it.roll or 0, it.phase or 0) end)
 
 -- Cities on the water: the city on a hex of land with land behind it and
 -- the sea in front, which is the way (shore 1, south-east) it builds out.

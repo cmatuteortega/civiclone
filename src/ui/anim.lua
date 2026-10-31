@@ -18,6 +18,14 @@ local Anim = {}
 
 local SPEED = 7 -- hexes a second
 
+-- The wake: a mark dropped on the water every WAKE_EVERY room units a boat
+-- goes, from its stern, each kept WAKE_LIFE seconds. Boats go fast (seven
+-- hexes a second), so by the way gone rather than the time.
+local WAKE_EVERY, WAKE_LIFE = 1.2, 1.4
+Anim.WAKE_LIFE = WAKE_LIFE
+-- How far behind its middle a boat's stern is, in room units.
+local function sternOf(u) return u.def.sea and 9 * M.UNIT_SCALE or 5.5 * M.UNIT_SCALE end
+
 -- The way (0..5) a city on the water builds out to it: the water nearest
 -- the front of the screen, where its pier is seen. Nil inland.
 local SHORE = { 1, 2, 0, 3, 5, 4 }
@@ -129,6 +137,25 @@ function Anim.update(game, dt)
                 -- Up or down the terraces halfway across.
                 a.y = (d < H.W * 0.5) and ty or a.y
             end
+            -- Under way on the water: foam off the stern.
+            local over = game:cell(H.at(a.x, a.z))
+            if d > 0 and over and game:isWater(over) then
+                local went = math.min(d, step)
+                a.wake = (a.wake or 0) + went
+                local ux, uz = dx / d, dz / d
+                local back = sternOf(u)
+                -- Laid back along the way just gone, the newest last; the
+                -- older ones a little aged already.
+                local n = 0
+                while a.wake >= WAKE_EVERY do
+                    a.wake = a.wake - WAKE_EVERY
+                    local behind = a.wake + n * WAKE_EVERY
+                    n = n + 1
+                    S.wakes[#S.wakes + 1] = { x = a.x - ux * (back + behind), z = a.z - uz * (back + behind),
+                        dx = ux, dz = uz, t = behind / (SPEED * H.W), seed = (u.id * 977 + #S.wakes) % 1000,
+                        big = u.def.sea }
+                end
+            end
             a.walk = a.walk + dt * 8
             a.pose = floor(a.walk) % 2 + 1
         else
@@ -156,6 +183,11 @@ function Anim.update(game, dt)
             c.flash = c.flash - dt
             if c.flash <= 0 then c.flash = nil end
         end
+    end
+    for k = #S.wakes, 1, -1 do
+        local w = S.wakes[k]
+        w.t = w.t + dt
+        if w.t >= WAKE_LIFE then table.remove(S.wakes, k) end
     end
     for k = #S.effects, 1, -1 do
         local e = S.effects[k]

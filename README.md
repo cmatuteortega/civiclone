@@ -63,6 +63,7 @@ and the fish leap.
 ![The sea's models](shots/09-sea-designs.png)
 ![A port](shots/11-port-close.png)
 ![The same port at midnight, its lighthouse lit](shots/12-port-night.png)
+![A galley under way, its wake behind it](shots/13-wake.png)
 
 ## Running it
 
