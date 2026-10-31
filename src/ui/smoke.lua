@@ -85,6 +85,59 @@ function Smoke.city(cell, city)
     end
 end
 
+-- A wildfire's smoke (src/ui/fire.lua): a thick column from room point
+-- (x, y, z), billowing as it climbs and carried off by the wind. Its puffs
+-- are drawn as one cloud: an ink line round all of them first, then each
+-- filled, dark beneath and paler on top, so it reads over the char and over
+-- the sand alike. High up it thins to holes and loses its line.
+local BLAZE = { puffs = 7, life = 7, rise = 50, drift = 30 }
+function Smoke.fire(x, y, z, seed, size)
+    if Sea.still() then return end
+    local si, sj, d = S.world:toImage(x, y, z)
+    if not P.onScreen(floor(si), floor(sj), (BLAZE.rise + BLAZE.drift) * size) then return end
+    local t = Sea.air()
+    local phase = grain(seed, 3, 4)
+    local puffs = {}
+    for n = 0, BLAZE.puffs - 1 do
+        local f = t / BLAZE.life + n / BLAZE.puffs + phase
+        local age, cycle = f % 1, floor(f)
+        local r = (1.5 + age ^ 0.8 * 7.5) * size * (0.85 + grain(seed, cycle, n) * 0.3)
+        local ci = si + age ^ 1.5 * BLAZE.drift * size + sin(t * 1.1 + n * 2.3 + seed) * 1.6 * age
+        local cj = sj - age * BLAZE.rise * size
+        puffs[#puffs + 1] = { ci = ci, cj = cj, r = r, age = age, cycle = cycle, n = n }
+    end
+    -- Oldest first, so the young puffs at the root are on top.
+    table.sort(puffs, function(a, b) return a.age > b.age end)
+    local function disc(p, grow, f)
+        local r = p.r + grow
+        local reach = floor(r + 1)
+        for dj = -reach, reach do
+            for di = -reach, reach do
+                if di * di + dj * dj <= r * r + 0.3 then
+                    local i, j = floor(p.ci + di), floor(p.cj + dj)
+                    if P.visible(i, j, d + 6) then f(i, j, di, dj) end
+                end
+            end
+        end
+    end
+    for _, p in ipairs(puffs) do
+        if p.age < 0.5 then disc(p, 1, function(i, j) P.put(IDX.o, i, j) end) end
+    end
+    for _, p in ipairs(puffs) do
+        local holes = (p.age - 0.4) * 1.5
+        disc(p, 0, function(i, j, di, dj)
+            if grain(di, dj, p.cycle * 7 + p.n + seed) < holes then return end
+            local k = IDX.k
+            local r = p.r
+            if dj > r * 0.4 then k = IDX.n end                     -- the underside
+            local hx, hy = di + r * 0.35, dj + r * 0.4               -- lit from the upper left
+            if hx * hx + hy * hy < r * r * 0.18 then k = IDX.t end
+            if p.age < 0.12 then k = IDX.u end                     -- black at the root
+            P.put(k, i, j)
+        end)
+    end
+end
+
 -- A farmhouse's fire is low: two small puffs, then nothing for a while.
 local FARM = { puffs = 2, gap = 1.1, every = 15, size = 0.6 }
 

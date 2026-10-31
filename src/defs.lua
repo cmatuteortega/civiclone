@@ -5,7 +5,9 @@
 local D = {}
 
 D.COLS, D.ROWS = 34, 22
-D.LAST_TURN = 150
+-- The game ends as the cataclysm does (src/cataclysm.lua, D.HEAT): when
+-- this turn is played out, the highest score wins.
+D.LAST_TURN = 160
 
 -- Each land hex is a base (grass, plains, desert) at an elevation (flat,
 -- hills, mountains), and maybe has a forest on it. Water is coast or ocean.
@@ -140,6 +142,42 @@ D.BUILDINGS = {
     harbour = { name = "HARBOUR", short = "HARB.", cost = 90, seaFood = 1, coastal = true, tech = "shipbuilding", order = 6 },
     lighthouse = { name = "LIGHTHOUSE", short = "LIGHT.", cost = 80, seaGold = 1, sight = 4, coastal = true, tech = "cartography",
         order = 7 },
+    -- Against the heat (D.HEAT): the land the city owns dries slower, its
+    -- farms keep their food through the drought, fire spreads onto its
+    -- hexes less, and its people thirst less.
+    cistern = { name = "CISTERN", short = "CIST.", cost = 70, cool = true, tech = "masonry", order = 8 },
+}
+
+-- The heat death: the cataclysm that ends the game (src/cataclysm.lua).
+-- Each stage begins on its turn and lasts until the next; the game ends
+-- with turn D.LAST_TURN.
+D.HEAT = {
+    omen = 90,         -- the warning
+    drought = 100,     -- the land dries: grass to plains to desert
+    fires = 120,       -- forests and fields catch fire
+    scorch = 140,      -- desert bakes hard and burns whoever stands on it
+    -- How many hexes dry a step each turn, in each stage, and how many
+    -- hexes of desert bake hard in the scorch.
+    dry = { drought = 4, fires = 6, scorch = 8 },
+    bake = 6,
+    -- How much likelier a hex is to dry than another: beside the desert
+    -- already, and the hexes that hold out (a river, the coast, hills, a
+    -- cistern's city).
+    near = 6, river = 0.25, coast = 0.5, hills = 0.5, cistern = 0.25,
+    droughtFarm = 1,   -- food a farm off a river loses from the drought on
+    -- Thirst: food every city loses a turn, in each stage; a cistern spares
+    -- it `cisternThirst` of that.
+    thirst = { fires = 2, scorch = 4 },
+    cisternThirst = 2,
+    -- Fires: how many start a turn somewhere hot, how long one burns, the
+    -- chance it spreads to each forest, and each field or meadow, beside it.
+    ignite = { fires = 2, scorch = 4 },
+    burn = 3,
+    spreadForest = 0.4, spreadField = 0.08,
+    cisternFire = 0.5, -- the chance of spreading onto a cistern's land, times this
+    fireDamage = 25,   -- to a unit in a burning hex, each turn
+    cityBurn = 20,     -- to a city, for each burning hex beside it
+    scorchDamage = 10, -- to a unit on baked earth (off a river), each turn
 }
 
 -- Technologies, in the order the list shows them.
@@ -147,7 +185,7 @@ D.TECHS = {
     { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY" },
     { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES" },
     { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "ARCHER" },
-    { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS" },
+    { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN" },
     { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY" },
     { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, gives = "SPEARMAN" },
     { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, gives = "HORSEMAN" },

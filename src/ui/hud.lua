@@ -8,6 +8,7 @@
 -- (src/ui/windows.lua): the player can drag them where they like.
 
 local D = require "src.defs"
+local Cat = require "src.cataclysm"
 local Beasts = require "src.beasts"
 local H = require "src.hex"
 local T = require "src.tracer"
@@ -69,6 +70,14 @@ local function topBar()
     local w = Font.width(label) + 6
     button(label, x, 1, w, 9, function() S.panel = S.panel == "research" and nil or "research" end,
         { strong = not p.researching and #g:researchable(p) > 0 })
+    -- The cataclysm, once foretold: its stage and the turns left to the
+    -- world, ink on pale, after the research.
+    local doom = Cat.label(g)
+    if doom then
+        local dx = x + w + 8
+        rect("w", dx, 1, Font.width(doom) + 6, 9)
+        text("o", doom, dx + 3, 3)
+    end
     -- The menu, at the far right.
     button("MENU", S.vw - 25, 1, 24, 9, Menu.openPause)
     local right = "TURN " .. g.turn .. "  " .. D.year(g.turn)

@@ -21,10 +21,11 @@ that is the file to edit to tune the game.
 15. [Sight and fog of war](#sight-and-fog-of-war)
 16. [The rival civilizations](#the-rival-civilizations)
 17. [The wild](#the-wild)
-18. [Winning and losing](#winning-and-losing)
-19. [How it is drawn](#how-it-is-drawn)
-20. [How it sounds](#how-it-sounds)
-21. [Developer notes](#developer-notes)
+18. [The heat death](#the-heat-death)
+19. [Winning and losing](#winning-and-losing)
+20. [How it is drawn](#how-it-is-drawn)
+21. [How it sounds](#how-it-sounds)
+22. [Developer notes](#developer-notes)
 
 ---
 
@@ -432,9 +433,11 @@ below 1) and the store empties.
 | Walls | 80 | +10 strength, +100 HP, the city shoots | Masonry |
 | Harbour | 90 | +1 food on each worked water hex | Shipbuilding; a city on the water |
 | Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
+| Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less | Masonry |
 
 Each can be built once per city. Built buildings appear on the city's model:
-an obelisk, a silo, a stone hall, market tents, a ring of walls with towers.
+an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
+a round stone tank of water under a little roofed well-head.
 A city on the water builds out over it on the side nearest the front of the
 screen: steps down the bank and a pier with a boat tied up; with a harbour a
 stone quay, a crane and goods; with a lighthouse a mole out to a striped tower
@@ -530,7 +533,7 @@ waits for the next choice.
 | Pottery | 25 | — | Granary |
 | Mining | 25 | — | Mines |
 | Archery | 35 | — | Archer |
-| Masonry | 40 | Mining | Walls |
+| Masonry | 40 | Mining | Walls, Cistern |
 | Writing | 50 | Pottery | Library |
 | Bronze Working | 55 | Mining | Spearman |
 | Horseback Riding | 60 | Archery | Horseman |
@@ -725,13 +728,47 @@ ink banner, the rest khaki. The tooltip shows what it is, its temper and
 strength, and what to know about it (stronger at night, strikes across its
 river, how to tame it). Over a lair it says how to clear it.
 
+## The heat death
+
+The world ends in fire. From turn 90 the sun grows cruel, and the game ends
+when turn 160 is played out. The rules are in `src/cataclysm.lua`, the
+numbers in `D.HEAT` in `src/defs.lua`.
+
+| Turns | Stage | What happens |
+| --- | --- | --- |
+| 90 | **The omen** | Everyone is told the drought comes in 10 turns. The top bar shows the stage and the turns left to the world from now on |
+| 100–119 | **The great drought** | 4 hexes a turn dry a step: grassland to plains, plains to desert. A farm whose land turns to desert is lost, and so is wheat. Farms off a river yield 1 food less |
+| 120–139 | **The wildfires** | 6 hexes a turn dry, 2 fires a turn start where it is hot, and every city loses 2 food a turn to thirst |
+| 140–160 | **The scorch** | 8 hexes a turn dry, 6 desert hexes bake hard, 4 fires a turn start anywhere, and every city loses 4 food a turn |
+
+**Where it dries.** A hex next to desert (or burnt land) is 6 times as likely
+to dry as one that isn't. A river (×¼), the coast (×½), hills (×½) and land
+owned by a city with a cistern (×¼) hold out. Forests don't dry: they burn.
+Mountains and water never change.
+
+**Fire.** A forest, a farm, wheat or grassland can catch; a city and bare
+desert can't, and nothing burns twice. A hex burns for 3 turns: it yields
+nothing, a unit in it loses 25 HP each turn, and each city next to it 20 HP
+(never below 1). Each turn a fire may spread to the hexes around it: a
+forest 40% of the time, anything else that can burn 8% (half that onto a
+cistern's land). Burnt out, its trees are stumps and snags, its farm and
+grain are gone and its grassland is plains.
+
+**Baked earth** yields no food at all, and a land unit that ends a turn on
+it (off a river) loses 10 HP.
+
+**Cisterns** are the way to hold on: the AI builds them from the omen on.
+In all-AI games the land is nearly all desert by the end and cities fall
+from their peak around turn 125 to a third of it, so the score at the end
+rewards whoever kept their people alive.
+
 ## Winning and losing
 
 | Outcome | How |
 | --- | --- |
 | **Domination victory** | Every rival is destroyed, or you hold every capital |
-| **Score victory** | Turn 150 passes and your score is at least as high as every rival's |
-| **Defeat** | Your civilization is destroyed, or turn 150 passes and a rival scores higher |
+| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), passes and your score is at least as high as every rival's |
+| **Defeat** | Your civilization is destroyed, or turn 160 passes and a rival scores higher |
 
 **Elimination:** a civilization with no cities and no settler is destroyed,
 and any units it has left are removed. Before its first city, it has until
@@ -1043,7 +1080,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, and every sound rendering (never silent, never clipping, the music's layers one length) |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
@@ -1052,6 +1089,7 @@ and picks up where it left off.
 | `love . --play --shot port.png --turns 80 --select harbour --hour 11` | The player's city on the water (one founded on the nearest shore if there is none) given a harbour and a lighthouse, with a galley, a quadrireme, a warrior in a boat and fishing boats round it. `--select port` looks at the best city on the water you know, `--select fleet` at one of your ships |
 | `love . --play --shot river.png --select river --hour 10` | The camera over the hex with the most river by it (a waterfall if there is one), with the land round it shown. `--select ford` adds a warrior who wades across it a moment later; `--select bridge` founds a city of yours where the most river runs by in open country near home, so its bridges show |
 | `love . --play --shot river.png --select ford --film 48` | `--film N`: N pictures three frames apart instead of one (`river-001.png` on), to see what moves; [shots/16-river.gif](shots/16-river.gif) was made so |
+| `love . --play --shot fire.png --turns 128 --select fire` | The camera over the most fire on the map, with the land round it shown. `--select scorch` for the most baked earth, `--select burnt` for the most burnt land; `--select cistern` gives your capital a cistern and looks at it |
 | `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
 | `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |

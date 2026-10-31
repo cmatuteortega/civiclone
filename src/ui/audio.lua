@@ -200,7 +200,8 @@ function Audio.hear(game, e)
         if e.city.owner == 1 then at("taken", e.cell)
         elseif e.from == 1 then at("fallen", e.cell)
         elseif seen(e.cell) then at("taken", e.cell, 0.4, 0, 0.9) end
-    elseif k == "eliminated" then
+    elseif k == "eliminated" or k == "heat" then
+        -- A civilization gone, or the cataclysm come a stage nearer.
         at("gong")
     elseif k == "embark" or k == "land" then
         if seen(e.cell) then at("splash", e.cell, e.unit.owner == 1 and 1 or 0.6) end

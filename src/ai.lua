@@ -101,6 +101,10 @@ local function chooseBuild(game, p, city)
             if ships < shipsWanted(game, p) then return "unit", ship end
         end
     end
+    -- Against the heat, once it has been foretold.
+    if game.cataclysm and game.turn >= D.HEAT.omen and game:canBuild(city, "building", "cistern") then
+        return "building", "cistern"
+    end
     for _, id in ipairs({ "monument", "granary", "walls", "library", "harbour", "market", "lighthouse" }) do
         if game:canBuild(city, "building", id) then
             if id ~= "walls" or game.turn > 30 then return "building", id end

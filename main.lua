@@ -80,6 +80,17 @@ local function startPlay()
     O.nextUnit()
 end
 
+-- A picture taken unattended (--shot) that fails says why and quits,
+-- rather than wait on the error screen for someone to close it.
+local showError = love.errorhandler
+function love.errorhandler(msg)
+    if S.plan then
+        print(debug.traceback("Error: " .. tostring(msg), 3))
+        return nil
+    end
+    return showError(msg)
+end
+
 function love.load(args)
     love.graphics.setDefaultFilter("nearest", "nearest")
     -- The title-bar / taskbar icon: the same city as the builds' (assets/icon/).
@@ -353,6 +364,48 @@ local function followPlan()
                 p.sightChanged = true
                 S.selected = nil
                 View.lookAt(best, true)
+            end
+        end
+        -- `--select fire`, `scorch`, `burnt`: the camera over the hex with the
+        -- most of the heat death's burning (or baked, or burnt) land round
+        -- it, that land shown. `--select cistern`: the player's capital
+        -- given a cistern, selected.
+        local heat = ({ fire = "fire", scorch = "scorched", burnt = "burnt" })[plan.select or ""]
+        if heat then
+            local g, p = S.game, S.game.players[1]
+            local best, bv = nil, 0
+            for _, cell in ipairs(g.cells) do
+                local v = 0
+                for _, n in ipairs(g:within(cell, 2)) do
+                    if n[heat] then v = v + (g:dist(n, cell) == 0 and 3 or 2) end
+                    if heat == "fire" and n.feature == "forest" then v = v + 0.5 end
+                end
+                if v > bv then best, bv = cell, v end
+            end
+            if best then
+                for _, cell in ipairs(g:within(best, 5)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+                p.sightChanged = true
+                S.selected = nil
+                View.lookAt(best, true)
+                print("looking at hex " .. best.id .. " on turn " .. g.turn)
+            end
+        end
+        -- `--select cell:N`: the camera over hex N, the land round it shown,
+        -- to watch one place over several pictures.
+        local at = plan.select and tonumber(plan.select:match("^cell:(%d+)$"))
+        if at and S.game.cells[at] then
+            local g, p = S.game, S.game.players[1]
+            for _, cell in ipairs(g:within(g.cells[at], 5)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+            p.sightChanged = true
+            S.selected = nil
+            View.lookAt(g.cells[at], true)
+        end
+        if plan.select == "cistern" then
+            local cap = S.game:citiesOf(1)[1]
+            if cap then
+                cap.buildings.cistern = true
+                S.selected = nil
+                View.lookAt(S.game.cells[cap.cell], true)
             end
         end
         -- `--select coast`: the camera over the explored shore nearest the

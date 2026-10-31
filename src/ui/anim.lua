@@ -99,6 +99,7 @@ end
 
 -- Takes what the game has put on its list since last time.
 function Anim.events(game)
+    local changed, seen = {}, {}
     for _, e in ipairs(game.events) do
         Audio.hear(game, e)
         if e.kind == "attack" then
@@ -126,7 +127,11 @@ function Anim.events(game)
                 x = a and a.x or cell.x, y = a and a.y or cell.top, z = a and a.z or cell.z, face = a and a.face or 1 }
             S.anim[e.unit.id] = nil
         elseif e.kind == "terrain" then
-            S.world:refresh(e.cell)
+            -- Built again once, below, however often it changed.
+            if not seen[e.cell] then
+                seen[e.cell] = true
+                changed[#changed + 1] = e.cell
+            end
         elseif (e.kind == "loot" or e.kind == "cleared") and e.text then
             -- What it brought, rising after the blow.
             local cell = game.cells[e.cell]
@@ -146,6 +151,7 @@ function Anim.events(game)
         if e.kind ~= "attack" and e.kind ~= "hit" then S.bordersDirty = true end
     end
     for k = #game.events, 1, -1 do game.events[k] = nil end
+    if S.world then S.world:refreshAll(changed) end
 end
 
 function Anim.update(game, dt)

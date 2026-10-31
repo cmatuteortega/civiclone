@@ -15,6 +15,7 @@ local D = require "src.defs"
 local Rng = require "src.rng"
 local Mapgen = require "src.mapgen"
 local Beasts = require "src.beasts"
+local Cat = require "src.cataclysm"
 
 local floor, ceil, max, min, exp = math.floor, math.ceil, math.max, math.min, math.exp
 
@@ -58,6 +59,8 @@ function Game.new(opts)
     end
     self.players[Game.WILD] = Beasts.player()
     if opts.wild ~= false then Beasts.populate(self) end
+    -- What ends the world (src/cataclysm.lua).
+    if opts.cataclysm ~= false then self.cataclysm = Cat.new(opts.cataclysm) end
     for _, p in ipairs(self.players) do self:look(p) end
     self.current = 1
     self:beginTurn(self.players[1])
@@ -206,7 +209,7 @@ end
 function Game:yield(cell)
     local t, e = D.TERRAIN[cell.terrain], D.ELEV[cell.elev]
     local f, p, g = t.food + e.food, t.prod + e.prod, t.gold
-    if cell.elev == "mountain" then return 0, 0, 0 end
+    if cell.elev == "mountain" or cell.fire then return 0, 0, 0 end
     if cell.feature then
         local ft = D.FEATURE[cell.feature]
         f, p = f + ft.food, p + ft.prod
@@ -223,6 +226,8 @@ function Game:yield(cell)
         g = g + D.RIVER.gold
         if cell.improvement == "farm" then f = f + D.RIVER.farmFood end
     end
+    if Cat.droughtFarm(self, cell) then f = f - D.HEAT.droughtFarm end
+    if cell.scorched then f = 0 end
     if cell.city then f, p = max(f, 2), max(p, 1) end
     return f, p, g
 end
@@ -240,6 +245,9 @@ function Game:describe(cell)
     if cell.resource then parts[#parts + 1] = D.RESOURCE[cell.resource].name end
     if cell.improvement then parts[#parts + 1] = D.IMPROVEMENT[cell.improvement].name end
     if self:onRiver(cell) then parts[#parts + 1] = "RIVER" end
+    if cell.fire then parts[#parts + 1] = "- BURNING"
+    elseif cell.scorched then parts[#parts + 1] = "- SCORCHED"
+    elseif cell.burnt then parts[#parts + 1] = "- BURNT" end
     if cell.lair then parts[#parts + 1] = "- " .. cell.lair.def.name end
     return table.concat(parts, " ")
 end
@@ -774,6 +782,7 @@ function Game:cityYield(city)
         f, p, g = f + (def.food or 0), p + (def.prod or 0), g + (def.gold or 0)
         sci, cul = sci + (def.science or 0), cul + (def.culture or 0)
     end
+    f = f - Cat.thirst(self, city)
     return f, p, g, sci, cul
 end
 
@@ -1145,7 +1154,7 @@ function Game:outcome()
         local mine, best = self:score(me), 0
         for k = 2, #self.players do best = max(best, self:score(self.players[k])) end
         if mine >= best then return "won", "SCORE VICTORY" end
-        return "lost", "TIME HAS RUN OUT"
+        return "lost", self.cataclysm and "THE WORLD HAS BURNED" or "TIME HAS RUN OUT"
     end
 end
 
@@ -1166,6 +1175,7 @@ function Game:endTurn(ai)
     self:wildTurn()
     self.current = 1
     self.turn = self.turn + 1
+    Cat.turn(self)
     for _, p in ipairs(self.players) do self:checkAlive(p) end
     self:beginTurn(me)
     self:look(me)
@@ -1216,7 +1226,8 @@ function Game:improvementsFor(u)
         if cell.resource == "fish" and cell.improvement ~= "boats" and p.techs.sailing then out[1] = "boats" end
         return out
     end
-    if cell.improvement ~= "farm" and cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert" then
+    if cell.improvement ~= "farm" and cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert"
+        and not cell.fire then
         out[#out + 1] = "farm"
     end
     if cell.improvement ~= "mine" and (cell.elev == "hills" or cell.resource == "stone" or cell.resource == "gems")

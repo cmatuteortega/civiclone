@@ -111,6 +111,27 @@ too. Mountain goats on the hills and foxes in the forests are scenery only.
 ![The wild: wolves at their den, a bear's cave, boar, aurochs, horses, a crocodile, a sea serpent](shots/20-wild.png)
 ![Wolves howling at dusk by their den](shots/21-wild-night.gif)
 
+And the world ends in fire (`src/cataclysm.lua`). At turn 90 an omen
+warns that the sun is growing cruel, and from then on the top bar counts
+down to the end of the world at turn 160. The great drought dries the land a
+few hexes a turn outward from the deserts, grassland to plains to sand, and
+the farms on it turn to dust. Then the wildfires: forests and fields catch
+light and the fire spreads from hex to hex, flames licking up through
+charring trees, sparks going up and a black column of smoke carried off on
+the wind, the ground glowing where it has passed and lighting the night like
+a town. What it leaves is ash, stumps and leaning snags. Last the scorch: the
+desert bakes hard into cracked plates of clay that feed no one and burn
+whoever stands on them, and the cities thirst. A cistern, a round tank of
+water under a roofed well-head, holds a city's land against it.
+
+![Wildfires in the forest round a town](shots/22-wildfire.png)
+![The same fires at midnight, lighting the land round them](shots/23-wildfire-night.png)
+![The fire moving through the forest, turn by turn](shots/27-fire-spreading.png)
+![Flames, sparks and smoke, moving](shots/26-fire.gif)
+![What the fire leaves: ash, stumps and snags](shots/28-burnt.png)
+![The scorch: baked earth cracked into plates, beside the sand and the ash](shots/24-scorch.png)
+![Towns without and with a cistern, on grassland, plains and desert](shots/25-cistern.png)
+
 ## Running it
 
 ```
@@ -119,7 +140,7 @@ love .
 
 Optional flags: `--seed N` plays the map made from seed N, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds

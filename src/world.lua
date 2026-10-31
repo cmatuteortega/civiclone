@@ -90,8 +90,25 @@ local function rim(s, x, z)
     end
 end
 
+-- Where fire has passed (src/cataclysm.lua): the ground blackened in
+-- blotches, flecked with pale ash. Nil where it shows through.
+local function ash(x, z)
+    local v = sin(x * 0.42 + sin(z * 0.31) * 2.1) + sin(z * 0.5 - x * 0.23 + 1.7)
+    local g = grain(x, z, 81)
+    if v > 0.9 then return g > 0.94 and IDX.s or IDX.u end
+    if v > 0.1 then
+        if g > 0.96 then return IDX.c end
+        return g > 0.35 and IDX.n or IDX.k
+    end
+    if g > 0.85 then return IDX.n end
+end
+
 MAT.grass = { id = 1, ramp = ramp("s", "k", "n", "u"), print = function(s, x, y, z, nx, ny, nz, lev)
     if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    if s.ash and ny > 0.9 then
+        local a = ash(x, z)
+        if a then return a end
+    end
     if ny > 0.9 and s.pull then
         local r = rim(s, x, z)
         if r then return r end
@@ -103,6 +120,10 @@ MAT.grass = { id = 1, ramp = ramp("s", "k", "n", "u"), print = function(s, x, y,
 end }
 MAT.plains = { id = 2, ramp = ramp("c", "t", "k", "n"), print = function(s, x, y, z, nx, ny, nz, lev)
     if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    if s.ash and ny > 0.9 then
+        local a = ash(x, z)
+        if a then return a end
+    end
     if ny > 0.9 and s.pull then
         local r = rim(s, x, z)
         if r then return r end
@@ -115,6 +136,10 @@ MAT.plains = { id = 2, ramp = ramp("c", "t", "k", "n"), print = function(s, x, y
 end }
 MAT.desert = { id = 3, ramp = ramp("w", "c", "s", "t"), print = function(s, x, y, z, nx, ny, nz, lev)
     if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    if s.ash and ny > 0.9 then
+        local a = ash(x, z)
+        if a then return a end
+    end
     if ny > 0.9 and s.pull then
         local r = rim(s, x, z)
         if r then return r end
@@ -123,6 +148,53 @@ MAT.desert = { id = 3, ramp = ramp("w", "c", "s", "t"), print = function(s, x, y
     local d = sin(x * 0.35 + sin(z * 0.25) * 2.2 + z * 0.1)
     if ny > 0.9 and abs(d - 0.75) < 0.12 then return IDX.s end
     if grain(x, z, 5) > 0.96 then return IDX.t end
+end }
+
+-- Cracks between the plates of baked mud: where room point (x, z) is
+-- nearly as near the second-nearest of a jittered grid of points as the
+-- nearest. Answers how near (0 on the crack).
+local CRACK = 3.2
+local function crack(x, z)
+    local gx, gz = floor(x / CRACK), floor(z / CRACK)
+    local d1, d2 = 1e9, 1e9
+    for a = -1, 1 do
+        for b = -1, 1 do
+            local cx, cz = gx + a, gz + b
+            local px = (cx + 0.15 + grain(cx, cz, 91) * 0.7) * CRACK
+            local pz = (cz + 0.15 + grain(cz, cx, 92) * 0.7) * CRACK
+            local d = math.sqrt((x - px) ^ 2 + (z - pz) ^ 2)
+            if d < d1 then d1, d2 = d, d1 elseif d < d2 then d2 = d end
+        end
+    end
+    return d2 - d1
+end
+
+-- Baked earth, the scorch's (src/cataclysm.lua): a darker clay than the
+-- sand, split into plates by dark cracks, their lips caught light.
+MAT.scorched = { id = 16, ramp = ramp("c", "s", "t", "k"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    if ny > 0.9 and s.pull then
+        local r = rim(s, x, z)
+        if r then return r end
+    end
+    if s.ash and ny > 0.9 then
+        local a = ash(x, z)
+        if a and a ~= IDX.k then return a end
+    end
+    if ny > 0.9 then
+        local c = crack(x, z)
+        if c < 0.38 then return IDX.n end
+        if c < 0.7 then return IDX.w end
+        if grain(x, z, 93) > 0.95 then return IDX.k end
+    end
+end }
+-- What fire leaves of a tree, and a tree still burning: charcoal, its
+-- grain picked out in glowing (lit) seams.
+MAT.char = { id = 17, ramp = ramp("n", "u", "o", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if grain(floor(x * 2), floor(y * 1.5), 94) > 0.9 then return IDX.k end
+end }
+MAT.charTree = { id = 18, ramp = ramp("k", "n", "u", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if grain(x * 2, y * 2 + z, 7) > 0.8 then return IDX.o end
 end }
 
 -- Water: the sea's top, by what kind of water the hex is. Ripples, glints,
@@ -223,7 +295,7 @@ end }
 -- Hills are their ground's own stuff, but a material of their own, so no
 -- crease rings them where they meet the flat.
 local MOUND = {}
-for _, k in ipairs({ "grass", "plains", "desert" }) do
+for _, k in ipairs({ "grass", "plains", "desert", "scorched" }) do
     MOUND[k] = { id = MAT[k].id + 20, ramp = MAT[k].ramp, print = MAT[k].print }
 end
 
@@ -318,14 +390,17 @@ end
 -- The solids of one hex.
 function World:hexSolids(cell)
     local out = {}
+    local ashen = (cell.burnt or cell.fire) and true or nil
     local function add(s, mat)
         s.mat, s.cell, s.cellRef, s.world = mat, cell.id, cell, self
+        s.ash = ashen
         out[#out + 1] = s
         return s
     end
     local t = D.TERRAIN[cell.terrain]
     local top = cell.top
-    local base = cell.elev == "mountain" and MAT.rock or MAT[cell.terrain]
+    local soil = cell.scorched and "scorched" or cell.terrain
+    local base = cell.elev == "mountain" and MAT.rock or MAT[soil]
     local river = not t.water and cell.river
     local pull
     if river then
@@ -345,7 +420,7 @@ function World:hexSolids(cell)
         -- One broad mound in the middle, a unit stands on it, and a smaller
         -- one off to a side. A city levels them.
         local mound = river and 0.74 or 1
-        add(Sh.ell(cell.x, top - 0.8, cell.z, 9.5 * mound, 4, 7.5 * mound), MOUND[cell.terrain])
+        add(Sh.ell(cell.x, top - 0.8, cell.z, 9.5 * mound, 4, 7.5 * mound), MOUND[soil])
         local a = grain(cell.id, 7, 21) * math.pi * 2
         if river then
             -- Off towards an edge no river runs along.
@@ -355,7 +430,7 @@ function World:hexSolids(cell)
                 if not river[k] and not river[(k + 1) % 6] and not river[(k + 5) % 6] then a = math.rad(60 * k) break end
             end
         end
-        add(Sh.ell(cell.x + math.cos(a) * 7, top - 0.5, cell.z + math.sin(a) * 5, 4.5, 2.6, 3.5), MOUND[cell.terrain])
+        add(Sh.ell(cell.x + math.cos(a) * 7, top - 0.5, cell.z + math.sin(a) * 5, 4.5, 2.6, 3.5), MOUND[soil])
     elseif cell.elev == "mountain" then
         -- A ring of five to seven points round (cx, cz), each pushed in or out.
         local function ring(cx, cz, r, seed)
@@ -386,18 +461,43 @@ function World:hexSolids(cell)
     end
 
     if cell.feature == "forest" and not cell.city then
+        -- Burning, the crowns go to charcoal.
+        local crown, trunk = cell.fire and MAT.charTree or MAT.tree, cell.fire and MAT.char or MAT.trunk
         local pts = scatter(cell, cell.elev == "hills" and 4 or 5, 3.5, 40)
         for n, p in ipairs(pts) do
             local x, z = p[1], p[2]
             local g = top + (cell.elev == "hills" and 1 or 0)
             local tall = 0.85 + grain(x, z, 41) * 0.35
-            add(Sh.seg(x, g - 0.5, z, x, g + 3 * tall, z, 0.9), MAT.trunk)
+            add(Sh.seg(x, g - 0.5, z, x, g + 3 * tall, z, 0.9), trunk)
             if cell.elev == "hills" or (cell.terrain == "plains" and n % 2 == 0) then
                 -- A pine: two tiers of needles.
-                add(Sh.pyramid(6, x, g + 2 * tall, z, 4 * tall, 6 * tall, 0, 0.3), MAT.tree)
-                add(Sh.pyramid(6, x, g + 5 * tall, z, 3 * tall, 5 * tall, 0, 0.8), MAT.tree)
+                add(Sh.pyramid(6, x, g + 2 * tall, z, 4 * tall, 6 * tall, 0, 0.3), crown)
+                add(Sh.pyramid(6, x, g + 5 * tall, z, 3 * tall, 5 * tall, 0, 0.8), crown)
             else
-                add(Sh.ell(x, g + 5.5 * tall, z, 3.8 * tall, 3.6 * tall, 3.8 * tall), MAT.tree)
+                add(Sh.ell(x, g + 5.5 * tall, z, 3.8 * tall, 3.6 * tall, 3.8 * tall), crown)
+            end
+        end
+    elseif cell.burntForest and not cell.city then
+        -- What the fire left of a forest: stumps where the trees stood, a
+        -- bare snag or two still standing, a trunk fallen.
+        local pts = scatter(cell, cell.elev == "hills" and 4 or 5, 3.5, 40)
+        for n, p in ipairs(pts) do
+            local x, z = p[1], p[2]
+            local g = top + (cell.elev == "hills" and 1 or 0)
+            local tall = 0.85 + grain(x, z, 41) * 0.35
+            if n % 3 == 1 then
+                -- A snag, leaning, with a broken limb.
+                local lx, lz = (grain(x, z, 95) - 0.5) * 1.6, (grain(z, x, 96) - 0.5) * 1.2
+                add(Sh.seg(x, g - 0.5, z, x + lx, g + 5.5 * tall, z + lz, 0.6), MAT.char)
+                add(Sh.seg(x + lx * 0.5, g + 3 * tall, z + lz * 0.5, x + lx * 0.5 + 1.6, g + 4.2 * tall, z + lz * 0.5, 0.35),
+                    MAT.char)
+            elseif n % 3 == 2 then
+                -- Fallen, along the ground.
+                local a = grain(x, z, 97) * math.pi
+                local dx, dz = math.cos(a) * 2.6 * tall, math.sin(a) * 2.6 * tall
+                add(Sh.seg(x - dx, g + 0.5, z - dz, x + dx, g + 0.6, z + dz, 0.55), MAT.char)
+            else
+                add(Sh.seg(x, g - 0.5, z, x, g + 1.1 * tall, z, 0.85), MAT.char)
             end
         end
     end
@@ -649,7 +749,8 @@ function World:trace(i0, j0, i1, j1, yield)
                     kind = LAND.grass
                 elseif ny > 0.9 and (m.id == MAT.plains.id or m.id == MAT.plains.id + 20) then
                     kind = LAND.plains
-                elseif ny > 0.9 and (m.id == MAT.desert.id or m.id == MAT.desert.id + 20) then
+                elseif ny > 0.9 and (m.id == MAT.desert.id or m.id == MAT.desert.id + 20
+                    or m.id == MAT.scorched.id or m.id == MAT.scorched.id + 20) then
                     kind = LAND.desert
                 end
                 b.kind[n], b.sway[n] = kind, sway
@@ -781,26 +882,38 @@ end
 -- One hex has changed (a city cleared its forest): build its solids again
 -- and trace its corner of the picture again.
 function World:refresh(cellId)
-    local i0, i1, j0, j1 = math.huge, -math.huge, math.huge, -math.huge
-    local function grow(s)
-        local a, b, c, d = self:boxOf(s)
-        i0, i1, j0, j1 = min(i0, a), max(i1, b), min(j0, c), max(j1, d)
-    end
-    for _, s in ipairs(self.byCell[cellId] or {}) do
-        s.dead = true
-        grow(s)
+    self:refreshAll({ cellId })
+end
+
+-- Builds every hex in the list again and traces each one's corner of the
+-- picture, then hands the images over once: what a turn of the cataclysm
+-- changes, all together.
+function World:refreshAll(ids)
+    if #ids == 0 then return end
+    local boxes = {}
+    for _, cellId in ipairs(ids) do
+        local i0, i1, j0, j1 = math.huge, -math.huge, math.huge, -math.huge
+        local function grow(s)
+            local a, b, c, d = self:boxOf(s)
+            i0, i1, j0, j1 = min(i0, a), max(i1, b), min(j0, c), max(j1, d)
+        end
+        for _, s in ipairs(self.byCell[cellId] or {}) do
+            s.dead = true
+            grow(s)
+        end
+        self:addCell(self.cells[cellId])
+        for _, s in ipairs(self.byCell[cellId]) do grow(s) end
+        boxes[#boxes + 1] = { max(0, i0 - 1), max(0, j0 - 1), min(self.w - 1, i1 + 1), min(self.h - 1, j1 + 1) }
     end
     -- Dead solids stay in the bins (skipped) but leave the list.
     local keep = {}
     for _, s in ipairs(self.solids) do if not s.dead then keep[#keep + 1] = s end end
     self.solids = keep
-    self:addCell(self.cells[cellId])
-    for _, s in ipairs(self.byCell[cellId]) do grow(s) end
-    i0, j0 = max(0, i0 - 1), max(0, j0 - 1)
-    i1, j1 = min(self.w - 1, i1 + 1), min(self.h - 1, j1 + 1)
-    self:trace(i0, j0, i1, j1)
-    T.finish(self.buf, 1.2, i0 - 1, j0 - 1, i1 + 1, j1 + 1)
-    self:shape(max(0, i0 - 1), max(0, j0 - 1), min(self.w - 1, i1 + 1), min(self.h - 1, j1 + 1))
+    for _, b in ipairs(boxes) do self:trace(b[1], b[2], b[3], b[4]) end
+    for _, b in ipairs(boxes) do T.finish(self.buf, 1.2, b[1] - 1, b[2] - 1, b[3] + 1, b[4] + 1) end
+    for _, b in ipairs(boxes) do
+        self:shape(max(0, b[1] - 1), max(0, b[2] - 1), min(self.w - 1, b[3] + 1), min(self.h - 1, b[4] + 1))
+    end
     self.shapeImage:replacePixels(self.shapeData)
     self.nearImage:replacePixels(self.nearData)
     self.dirty = true

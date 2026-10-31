@@ -20,6 +20,7 @@ local Sea = require "src.ui.sea"
 local World = require "src.world"
 local Daylight = require "src.ui.daylight"
 local Smoke = require "src.ui.smoke"
+local Fire = require "src.ui.fire"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
 local Audio = require "src.ui.audio"
@@ -531,6 +532,9 @@ local function things(me)
     end
     for _, cell in ipairs(g.cells) do
         if cell.resource == "fish" and cell.improvement ~= "boats" and me.visible[cell.id] then fish(cell, list) end
+        -- The wildfires; one the player has seen and can't see now still
+        -- shows its smoke on the map.
+        if cell.fire and me.explored[cell.id] then Fire.things(cell, list) end
     end
     riverFish(me, list)
     for _, e in ipairs(S.effects) do

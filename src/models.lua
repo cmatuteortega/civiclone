@@ -544,7 +544,7 @@ M.CITY_PLOTS = PLOTS
 
 -- What each building takes, of the plots: it stands in that plot instead of
 -- a house.
-local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12 }
+local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6 }
 
 -- A little hash, so the same city is laid out the same way every time.
 local function hash(a, b)
@@ -633,6 +633,9 @@ function M.cityChimneys(pop, built, site)
     end
     return out
 end
+
+-- Still water, in a cistern: dark, the sky's light on it at the back.
+local WATER = ramp("k", "n", "u", "o")
 
 local R2 = {
     mud = ramp("s", "t", "k", "n"),
@@ -1013,7 +1016,7 @@ function M.city(look, pop, capital, built, shore, drop, site)
     drop = drop and floor(drop * 2 + 0.5) / 2 or 0
     local key = table.concat({ "c", look, #lay.houses, lay.tier, capital and 1 or 0, b.walls and 1 or 0,
         b.granary and 1 or 0, b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
-        b.harbour and 1 or 0, b.lighthouse and 1 or 0, siteKey(site) }, ":")
+        b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, siteKey(site) }, ":")
     return kept(key, function()
         local L = LOOK[look]
         local parts = {}
@@ -1079,6 +1082,17 @@ function M.city(look, pop, capital, built, shore, drop, site)
                 parts[#parts + 1] = part(Sh.pyramid(4, x - (k - 1.5) * 1.2, 0, z + dz, 1.8, 3, 0, math.pi / 4), L.roof,
                     34 + k, banded(L))
             end
+        end
+        if b.cistern then
+            -- A round stone tower of a tank, standing over the walls, brimming
+            -- with dark water: the city's store against the heat.
+            local x, z = at("cistern")
+            parts[#parts + 1] = part(Sh.prism(12, x, 0, z, 2.6, 4.6), R.stone, 50, function(ux, uy)
+                if floor(uy * 5) % 2 == 1 and uy < 0.9 then return IDX.t end
+            end)
+            parts[#parts + 1] = part(Sh.prism(12, x, 0, z, 1.9, 4.8), WATER, 51, function(ux, uy, uz)
+                if uy > 0.98 and ux < -0.15 and uz < -0.1 and ux + uz > -1.0 then return IDX.t end
+            end)
         end
         if b.monument then
             local x, z = at("monument")

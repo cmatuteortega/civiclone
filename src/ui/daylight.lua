@@ -248,6 +248,15 @@ function Daylight.lamps(w)
             sig[#sig + 1] = c.cell .. ":" .. r
         end
     end
+    -- A wildfire lights the night round it as a town does.
+    for _, cell in ipairs(g.cells) do
+        if cell.fire and me.explored[cell.id] then
+            local i, j = w:toImage(cell.x, cell.top, cell.z)
+            local r = cell.feature == "forest" and 34 or 26
+            list[#list + 1] = { floor(i), floor(j) - 4, r }
+            sig[#sig + 1] = "f" .. cell.id
+        end
+    end
     return list, table.concat(sig, ",")
 end
 
