@@ -33,6 +33,7 @@ local D = require "src.defs"
 local Synth = require "src.synth"
 local S = require "src.ui.state"
 local Settings = require "src.settings"
+local Rain = require "src.ui.rain"
 
 local floor, min, max, sqrt = math.floor, math.min, math.max, math.sqrt
 
@@ -200,7 +201,10 @@ function Audio.hear(game, e)
         if e.city.owner == 1 then at("taken", e.cell)
         elseif e.from == 1 then at("fallen", e.cell)
         elseif seen(e.cell) then at("taken", e.cell, 0.4, 0, 0.9) end
-    elseif k == "eliminated" or k == "heat" then
+    elseif k == "flood" and e.cell then
+        -- A river over its banks.
+        if seen(e.cell) then at("splash", e.cell, 0.7, 0, 0.6) end
+    elseif k == "eliminated" or k == "heat" or k == "flood" then
         -- A civilization gone, or the cataclysm come a stage nearer.
         at("gong")
     elseif k == "embark" or k == "land" then
@@ -261,7 +265,8 @@ local function survey()
         sea = 0.5 * water ^ 0.6,
         leaves = 0.4 * forest ^ 0.7,
         heights = 0.4 * high ^ 0.8,
-        birds = 0.32 * min(1, (open + forest) * 1.6),
+        birds = 0.32 * min(1, (open + forest) * 1.6) * (1 - Rain.level() * 0.8),
+        rain = 0.5 * Rain.level(),
     }
 end
 
@@ -343,6 +348,8 @@ function Audio.update(dt)
             end
             threat = now
         end
+        local loud = Rain.thunder()
+        if loud then Audio.play("thunder", 0, loud, 0.85 + 0.3 * math.random()) end
     else
         later, news, threat = {}, {}, false
         land = { wind = 0.2, birds = 0.14, sea = 0.12 }

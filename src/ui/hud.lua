@@ -339,7 +339,7 @@ end
 
 --- the minimap ---------------------------------------------------------------------
 
-local MINI = { ocean = "u", coast = "n", grass = "k", plains = "t", desert = "c" }
+local MINI = { ocean = "u", coast = "n", grass = "k", plains = "t", desert = "c", marsh = "n" }
 
 local function minimap()
     local g = S.game

@@ -68,7 +68,7 @@ end
 local MAT = {}
 
 -- The kinds of land the moving picture knows (after 1 ocean and 2 coast).
-local LAND = { crown = 3, sheaf = 4, grass = 5, plains = 6, other = 7, desert = 8, river = 9 }
+local LAND = { crown = 3, sheaf = 4, grass = 5, plains = 6, other = 7, desert = 8, river = 9, flood = 10, pool = 11 }
 World.LAND = LAND
 
 -- The pale rim of sand and dried mud along a river's bank, broken here and
@@ -103,16 +103,38 @@ local function ash(x, z)
     if g > 0.85 then return IDX.n end
 end
 
-MAT.grass = { id = 1, ramp = ramp("s", "k", "n", "u"), print = function(s, x, y, z, nx, ny, nz, lev)
-    if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
-    if s.ash and ny > 0.9 then
+-- Where a flood has lain (src/flood.lua): pale silt in bands, as the water
+-- left it going down, with dark tide lines between. Nil where it shows
+-- through.
+local function silt(x, z)
+    local v = sin(x * 0.21 + z * 0.13 + sin(z * 0.17 - x * 0.05) * 2.6)
+    local g = grain(x, z, 87)
+    if v > 0.55 then
+        if abs(v - 0.62) < 0.05 then return IDX.t end
+        return g > 0.12 and IDX.s or IDX.t
+    end
+    if v > 0.25 and g > 0.6 then return IDX.c end
+end
+
+-- The prints of the land laid over a ground's own: ash, then silt, then the
+-- rim of a river's bank.
+local function overland(s, x, z, ny)
+    if ny <= 0.9 then return end
+    if s.ash then
         local a = ash(x, z)
         if a then return a end
     end
-    if ny > 0.9 and s.pull then
-        local r = rim(s, x, z)
-        if r then return r end
+    if s.silt then
+        local a = silt(x, z)
+        if a then return a end
     end
+    if s.pull then return rim(s, x, z) end
+end
+
+MAT.grass = { id = 1, ramp = ramp("s", "k", "n", "u"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    local o = overland(s, x, z, ny)
+    if o then return o end
     local g = grain(x, z, 1)
     if g > 0.93 then return IDX.n end           -- tufts
     if g < 0.04 then return IDX.t end           -- flowers
@@ -120,14 +142,8 @@ MAT.grass = { id = 1, ramp = ramp("s", "k", "n", "u"), print = function(s, x, y,
 end }
 MAT.plains = { id = 2, ramp = ramp("c", "t", "k", "n"), print = function(s, x, y, z, nx, ny, nz, lev)
     if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
-    if s.ash and ny > 0.9 then
-        local a = ash(x, z)
-        if a then return a end
-    end
-    if ny > 0.9 and s.pull then
-        local r = rim(s, x, z)
-        if r then return r end
-    end
+    local o = overland(s, x, z, ny)
+    if o then return o end
     local g = grain(x, z, 3)
     if g > 0.94 then return IDX.k end
     if g < 0.03 then return IDX.s end
@@ -136,19 +152,42 @@ MAT.plains = { id = 2, ramp = ramp("c", "t", "k", "n"), print = function(s, x, y
 end }
 MAT.desert = { id = 3, ramp = ramp("w", "c", "s", "t"), print = function(s, x, y, z, nx, ny, nz, lev)
     if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
-    if s.ash and ny > 0.9 then
-        local a = ash(x, z)
-        if a then return a end
-    end
-    if ny > 0.9 and s.pull then
-        local r = rim(s, x, z)
-        if r then return r end
-    end
+    local o = overland(s, x, z, ny)
+    if o then return o end
     -- Dunes: ripples running across.
     local d = sin(x * 0.35 + sin(z * 0.25) * 2.2 + z * 0.1)
     if ny > 0.9 and abs(d - 0.75) < 0.12 then return IDX.s end
     if grain(x, z, 5) > 0.96 then return IDX.t end
 end }
+
+-- Marsh, the long rains' (src/flood.lua): sodden ground darker than the
+-- grass, tussocks of sedge pale on it and black mud between.
+MAT.marsh = { id = 14, ramp = ramp("t", "k", "n", "u"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    local o = overland(s, x, z, ny)
+    if o then return o end
+    local g = grain(x, z, 61)
+    if g > 0.9 then return IDX.s end
+    if g < 0.07 then return IDX.u end
+    if ny > 0.9 and floor(x * 0.9 - z * 0.4) % 5 == 0 and grain(floor(x / 2), floor(z), 62) > 0.55 then return IDX.c end
+end }
+-- Floodwater, lying on the land: brown and thick, eddies in it. The board's
+-- shader sets it moving (src/ui/sea.lua); this is how it lies still.
+MAT.flood = { id = 19, ramp = ramp("t", "k", "n", "u"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 then return grain(x * 2, y * 2, 63) > 0.6 and IDX.c or IDX.t end
+    local e = sin(x * 0.12 + sin(z * 0.3) * 1.8) + 0.5 * sin(z * 0.9 - x * 0.05)
+    if abs(e - 0.9) < 0.1 then return IDX.t end
+    if abs(e + 0.6) < 0.08 then return IDX.u end
+    if grain(x, z, 64) > 0.99 then return IDX.c end
+    return IDX.n
+end }
+-- A marsh's standing pools: still, dark, a glint at the back.
+MAT.pool = { id = 20, ramp = ramp("n", "u", "u", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny > 0.8 and nz < -0.1 and nx < 0 and grain(x * 2, z * 2, 65) > 0.6 then return IDX.k end
+    return ny > 0.6 and IDX.u or IDX.o
+end }
+-- Trees the sea has drowned: dead wood, bleached.
+MAT.deadwood = { id = 8, ramp = ramp("c", "s", "t", "n") }
 
 -- Cracks between the plates of baked mud: where room point (x, z) is
 -- nearly as near the second-nearest of a jittered grid of points as the
@@ -180,6 +219,10 @@ MAT.scorched = { id = 16, ramp = ramp("c", "s", "t", "k"), print = function(s, x
     if s.ash and ny > 0.9 then
         local a = ash(x, z)
         if a and a ~= IDX.k then return a end
+    end
+    if s.silt and ny > 0.9 then
+        local a = silt(x, z)
+        if a then return a end
     end
     if ny > 0.9 then
         local c = crack(x, z)
@@ -295,7 +338,7 @@ end }
 -- Hills are their ground's own stuff, but a material of their own, so no
 -- crease rings them where they meet the flat.
 local MOUND = {}
-for _, k in ipairs({ "grass", "plains", "desert", "scorched" }) do
+for _, k in ipairs({ "grass", "plains", "desert", "scorched", "marsh" }) do
     MOUND[k] = { id = MAT[k].id + 20, ramp = MAT[k].ramp, print = MAT[k].print }
 end
 
@@ -391,9 +434,10 @@ end
 function World:hexSolids(cell)
     local out = {}
     local ashen = (cell.burnt or cell.fire) and true or nil
+    local silted = cell.silt and not cell.flood or nil
     local function add(s, mat)
         s.mat, s.cell, s.cellRef, s.world = mat, cell.id, cell, self
-        s.ash = ashen
+        s.ash, s.silt = ashen, silted
         out[#out + 1] = s
         return s
     end
@@ -409,7 +453,24 @@ function World:hexSolids(cell)
     end
     local ground = add(hexPrism(cell.x, cell.z, top, pull), base)
     ground.pull = pull
-    if t.water then return out end
+    if t.water then
+        if cell.drownedForest then
+            -- What the sea left of a forest: dead trunks standing out of the
+            -- water, bleached, some broken off, one leaning.
+            for n, p in ipairs(scatter(cell, 5, 3.5, 40)) do
+                local x, z = p[1], p[2]
+                local tall = 0.85 + grain(x, z, 41) * 0.35
+                local h = (n % 3 == 0) and 2.2 or 5.5
+                local lx = n % 4 == 1 and 1.6 or (grain(x, z, 95) - 0.5) * 0.6
+                add(Sh.seg(x, top - 1, z, x + lx, top + h * tall, z, n % 3 == 0 and 0.75 or 0.55), MAT.deadwood)
+                if h > 3 and n % 2 == 0 then
+                    add(Sh.seg(x + lx * 0.6, top + 3.4 * tall, z, x + lx * 0.6 + 1.5, top + 4.6 * tall, z - 0.3, 0.3),
+                        MAT.deadwood)
+                end
+            end
+        end
+        return out
+    end
     if river then
         for k = 0, 5 do
             if river[k] then add(riverStrip(cell, k, river[k]), MAT.river) end
@@ -458,6 +519,31 @@ function World:hexSolids(cell)
             local second = add(Sh.peak(ring(sx, sz, H.R * (wide - 0.37), 32), top, { sx - side * 1.5, top + h2, sz }), MAT.rock)
             second.snow = top + h2 * 0.7
         end
+    end
+
+    if cell.terrain == "marsh" and not cell.city then
+        -- Pools standing in the marsh, and clumps of reeds among them.
+        for n, p in ipairs(scatter(cell, 7, 3, 66)) do
+            local x, z = p[1], p[2]
+            if n % 3 ~= 0 then
+                local r = 2 + grain(x, z, 67) * 1.6
+                add(Sh.ell(x, top - 0.3, z, r * 1.3, 0.5, r), MAT.pool).join = "pools"
+            else
+                for m = 0, 2 do
+                    local h = 1.8 + grain(x + m, z, 55) * 1.4
+                    local tuft = add(Sh.ell(x + (m - 1) * 1.4, top + h * 0.35, z + (m % 2) * 0.8, 1.1, h, 0.8), MAT.reed)
+                    tuft.heads, tuft.join = top + h * 1.05, "reeds"
+                end
+            end
+        end
+    end
+    if cell.flood then
+        -- The water lying over it all, up to the trees' knees, the sheaves'
+        -- ears and a farm's walls, into the river.
+        local slab = hexPrism(cell.x, cell.z, top + 0.8, { [0] = 0.05, 0.05, 0.05, 0.05, 0.05, 0.05 })
+        slab.planes[#slab.planes] = { 0, -1, 0, -(top - 0.3) }
+        slab.box[3] = top - 0.3
+        add(slab, MAT.flood)
     end
 
     if cell.feature == "forest" and not cell.city then
@@ -646,6 +732,12 @@ function World:addCell(cell)
         if self.bins then self:binOne(s) end
     end
     self.byCell[cell.id] = list
+    -- Land gone under the sea, or come out of it: how far every shore is
+    -- from the land is found again.
+    local water = D.TERRAIN[cell.terrain].water or false
+    self.waterOf = self.waterOf or {}
+    if self.waterOf[cell.id] ~= nil and self.waterOf[cell.id] ~= water then self.landNear = nil end
+    self.waterOf[cell.id] = water
 end
 
 -- The screen box of a solid, in pixels of the picture.
@@ -740,12 +832,18 @@ function World:trace(i0, j0, i1, j1, yield)
                     if ny < 0.6 then sub = best.falls and 1 or -1
                     elseif best.foot and (x - best.foot[1]) ^ 2 + (z - best.foot[2]) ^ 2 < best.churn then sub = 2 end
                     if sub >= 0 then kind, sway = LAND.river, turn * 4 + sub end
+                elseif m == MAT.pool and ny > 0.8 then
+                    kind = LAND.pool
+                elseif m == MAT.flood and ny > 0.8 then
+                    -- A flood: how far the dry land is, in quarter units.
+                    kind = LAND.flood
+                    sway = max(1, min(255, floor(self:dryDistance(best.cellRef, x, z) * 4 + 0.5)))
                 elseif m == MAT.tree or m.id == MAT.wheat.id or m == MAT.reed then
                     local cell = best.cellRef
                     local ground = cell.top + ((m == MAT.tree and cell.elev == "hills") and 1 or 0)
                     kind = m == MAT.tree and LAND.crown or LAND.sheaf
                     sway = max(0, min(255, floor((y - ground) * 16)))
-                elseif ny > 0.9 and (m.id == MAT.grass.id or m.id == MAT.grass.id + 20) then
+                elseif ny > 0.9 and (m.id == MAT.grass.id or m.id == MAT.grass.id + 20 or m == MAT.marsh) then
                     kind = LAND.grass
                 elseif ny > 0.9 and (m.id == MAT.plains.id or m.id == MAT.plains.id + 20) then
                     kind = LAND.plains
@@ -879,6 +977,20 @@ function World:shoreDistance(cell, x, z)
     return max(0, d)
 end
 
+-- How far room point (x, z) on flooded hex `cell` is from the dry land
+-- beyond its edges (not another flood's, nor the water), up to 63.
+function World:dryDistance(cell, x, z)
+    local d = 63
+    for k = 0, 5 do
+        local n = self:cellAt(H.step(cell.c, cell.r, k))
+        if n and not n.flood and not D.TERRAIN[n.terrain].water then
+            local a = math.rad(60 * k)
+            d = min(d, H.APOTHEM - ((x - cell.x) * math.cos(a) + (z - cell.z) * math.sin(a)))
+        end
+    end
+    return max(0, d)
+end
+
 -- One hex has changed (a city cleared its forest): build its solids again
 -- and trace its corner of the picture again.
 function World:refresh(cellId)
@@ -956,7 +1068,9 @@ function World:build(explored, visible, grid)
                 -- Water, but not where the ink has drawn the map's edge over it.
                 if sea[n] ~= 0 then what = key[n] == raw[n] and sea[n] or 0 else what = kind[n] end
                 -- The river moves only where neither ink nor a crease is on it.
-                if what == LAND.river and key[n] ~= raw[n] then what = LAND.other end
+                if (what == LAND.river or what == LAND.flood or what == LAND.pool) and key[n] ~= raw[n] then
+                    what = LAND.other
+                end
             end
             local rgb = RGB8[k]
             local p = n * 4

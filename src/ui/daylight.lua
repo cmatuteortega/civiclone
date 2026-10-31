@@ -323,12 +323,17 @@ end
 function Daylight.apply(board, cover, cw)
     local lit = Daylight.light and on() and canvas ~= nil
     local a = Daylight.at(now)
+    -- The storm of the deluge lights the lamps a little, and its lightning
+    -- lights everything for a moment (src/ui/rain.lua).
+    local storm, flash = S.storm or 0, S.flash or 0
+    local exposure = a.exposure + 2.2 * flash
+    local night = max(a.night, storm * 0.28) * (1 - flash)
     for _, sh in ipairs({ board, cover }) do
         send(sh, "lit", lit and 1 or 0)
         if lit then
             send(sh, "light", canvas)
-            send(sh, "exposure", a.exposure)
-            send(sh, "night", a.night)
+            send(sh, "exposure", exposure)
+            send(sh, "night", night)
         end
     end
     if lit then send(board, "moonX", floor(cw * 0.62)) end

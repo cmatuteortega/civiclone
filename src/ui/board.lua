@@ -23,6 +23,7 @@ local Smoke = require "src.ui.smoke"
 local Fire = require "src.ui.fire"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
+local Rain = require "src.ui.rain"
 local Audio = require "src.ui.audio"
 
 local floor, min = math.floor, math.min
@@ -592,6 +593,7 @@ local function things(me)
     table.sort(list, function(a, b) return a.z < b.z end)
     for _, t in ipairs(list) do t.draw() end
     Birds.draw()
+    Rain.draw()
 end
 
 --- flat on top -----------------------------------------------------------------

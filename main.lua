@@ -36,6 +36,7 @@ local Sea = require "src.ui.sea"
 local Daylight = require "src.ui.daylight"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
+local Rain = require "src.ui.rain"
 
 local floor = math.floor
 
@@ -57,7 +58,7 @@ function love.quit() Audio.stop() end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
 -- bar fills, then the first turn. The world ends by the cataclysm chosen in
--- the new game window (or `--cataclysm heat|none`), or by none.
+-- the new game window (or `--cataclysm heat|flood|none`), or by none.
 function S.newGame(seed)
     seed = seed or S.seedArg or (os.time() % 100000)
     S.seedArg = nil
@@ -106,7 +107,7 @@ function love.load(args)
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
-        -- `--cataclysm heat|none`: how the world ends, whatever the new game
+        -- `--cataclysm heat|flood|none`: how the world ends, whatever the new game
         -- window last had.
         if a == "--cataclysm" and args[n + 1] then S.cataclysmArg = args[n + 1] end
         -- `--touch` lays out the screen as for a phone.
@@ -377,16 +378,18 @@ local function followPlan()
         end
         -- `--select fire`, `scorch`, `burnt`: the camera over the hex with the
         -- most of the heat death's burning (or baked, or burnt) land round
-        -- it, that land shown. `--select cistern`: the player's capital
-        -- given a cistern, selected.
-        local heat = ({ fire = "fire", scorch = "scorched", burnt = "burnt" })[plan.select or ""]
+        -- it, that land shown; `flood`, `marsh`, `silt`, `drowned` the same
+        -- for the deluge's. `--select cistern` (or `levee`): the player's
+        -- capital given one, selected.
+        local heat = ({ fire = "fire", scorch = "scorched", burnt = "burnt", flood = "flood", silt = "silt",
+            drowned = "drowned", marsh = "marsh" })[plan.select or ""]
         if heat then
             local g, p = S.game, S.game.players[1]
             local best, bv = nil, 0
             for _, cell in ipairs(g.cells) do
                 local v = 0
                 for _, n in ipairs(g:within(cell, 2)) do
-                    if n[heat] then v = v + (g:dist(n, cell) == 0 and 3 or 2) end
+                    if n[heat] or n.terrain == heat then v = v + (g:dist(n, cell) == 0 and 3 or 2) end
                     if heat == "fire" and n.feature == "forest" then v = v + 0.5 end
                 end
                 if v > bv then best, bv = cell, v end
@@ -409,10 +412,10 @@ local function followPlan()
             S.selected = nil
             View.lookAt(g.cells[at], true)
         end
-        if plan.select == "cistern" then
+        if plan.select == "cistern" or plan.select == "levee" then
             local cap = S.game:citiesOf(1)[1]
             if cap then
-                cap.buildings.cistern = true
+                cap.buildings[plan.select] = true
                 S.selected = nil
                 View.lookAt(S.game.cells[cap.cell], true)
             end
@@ -496,6 +499,7 @@ function love.update(dt)
     Daylight.update(dt)
     Wild.update(dt)
     Birds.update(dt)
+    Rain.update(dt)
     Input.findHover()
     if not S.over then
         local result, why = S.game:outcome()

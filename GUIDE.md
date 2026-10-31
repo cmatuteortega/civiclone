@@ -21,7 +21,7 @@ that is the file to edit to tune the game.
 15. [Sight and fog of war](#sight-and-fog-of-war)
 16. [The rival civilizations](#the-rival-civilizations)
 17. [The wild](#the-wild)
-18. [The heat death](#the-heat-death)
+18. [The heat death](#the-heat-death) · [The deluge](#the-deluge)
 19. [Winning and losing](#winning-and-losing)
 20. [How it is drawn](#how-it-is-drawn)
 21. [How it sounds](#how-it-sounds)
@@ -40,11 +40,12 @@ begins:
 | Cataclysm | What it means |
 | --- | --- |
 | **Heat death** | The [heat death](#the-heat-death): drought, wildfires and the scorch, and the game ends at turn 160 |
+| **The deluge** | The [deluge](#the-deluge): the long rains, the floods and the rising sea, and the game ends at turn 160 |
 | **Sky death**, **Demons** | Shown greyed: not made yet |
-| **None** | No cataclysm and no cisterns: the game ends at turn 150 on score |
+| **None** | No cataclysm, no cisterns and no levees: the game ends at turn 150 on score |
 
-The choice is kept for the next game. `love . --cataclysm none` (or `heat`)
-overrides it.
+The choice is kept for the next game. `love . --cataclysm none` (or `heat`,
+or `flood`) overrides it.
 
 Every game makes a new map from a seed: random by default, or chosen with
 `love . --seed 1234`. The same seed always makes the same map. While the map
@@ -445,11 +446,13 @@ below 1) and the store empties.
 | Walls | 80 | +10 strength, +100 HP, the city shoots | Masonry |
 | Harbour | 90 | +1 food on each worked water hex | Shipbuilding; a city on the water |
 | Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
-| Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less | Masonry |
+| Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less | Masonry; only in the heat death |
+| Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less | Masonry; only in the deluge |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
-a round stone tank of water under a little roofed well-head.
+a round stone tank of water under a little roofed well-head, low banks of
+earth capped with stone all round the hex (the levee).
 A city on the water builds out over it on the side nearest the front of the
 screen: steps down the bank and a pier with a boat tied up; with a harbour a
 stone quay, a crane and goods; with a lighthouse a mole out to a striped tower
@@ -781,12 +784,51 @@ drought, the wildfires, the scorch or the last turn. The computer plays your
 side for the turns skipped, in silence; the news keeps the last of what
 happened.
 
+## The deluge
+
+The world ends in water. From turn 90 the rains will not stop, and the game
+ends when turn 160 is played out. It is the heat death the other way about:
+there the rivers and the coast held out, and here they are where the water
+comes. The rules are in `src/flood.lua`, the numbers in `D.FLOOD` in
+`src/defs.lua`.
+
+| Turns | Stage | What happens |
+| --- | --- | --- |
+| 90 | **The omen** | Everyone is told the long rains come in 10 turns. Rain starts to fall |
+| 100–119 | **The long rains** | 4 hexes a turn grow a step wetter: desert to plains, plains to grassland, and flat grassland beside water (a river, the sea, a marsh, a flood) to **marsh**. Every farm yields 1 food more. A farm whose land goes to marsh is sunk, and so is wheat |
+| 120–139 | **The floods** | 5 hexes a turn grow wetter, 2 floods a turn burst out of the rivers, and every city loses 2 food a turn to fever. Storms: lightning and thunder |
+| 140–160 | **The rising sea** | 6 hexes a turn grow wetter, 3 floods a turn, the sea takes 3 hexes of the shore a turn, every city loses 4 food a turn, and the surge takes 10 HP a turn from every city on flat ground by the sea that has no levee |
+
+**Marsh** yields 1 food, costs a move more to walk into, and can't be
+farmed. It is only made on flat land.
+
+**Floods.** A flood starts on flat land on a river, the big rivers more
+often (by their size, squared). It lies for 3 turns: it yields nothing, a
+unit in it loses 20 HP each turn, and each city next to it with no levee
+15 HP (never below 1). Each turn it may run on to the flat land beside it
+no higher than itself: 35% of the time down the river, 8% over other land.
+A forest takes it half as often (its roots hold the banks), land a flood has
+lain on before 30% as often, a levee's land a quarter as often. As it goes
+down the water takes a farm or a mine with it, but leaves **silt**: +1 food
+for good, and a desert under it turns to plains. Hills and cities' own hexes
+never flood.
+
+**The sea** rises over flat land beside the water, the lowest first (the
+n-th lowest is 0.85^n as likely as the lowest; marsh twice that). What it
+takes is coast for good: its forest left as dead trunks in the water,
+everything else on it gone but fish. A land unit there rows, if its people
+know Sailing; otherwise it goes to the nearest dry land, and if there is
+none it is lost. Hills stand out of it as islands. Ships sail where the
+fields were. A city's own hex and a levee's land are never taken.
+
+**Levees** are the way to hold on: the AI builds them from the omen on.
+
 ## Winning and losing
 
 | Outcome | How |
 | --- | --- |
 | **Domination victory** | Every rival is destroyed, or you hold every capital |
-| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
+| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death) or the [deluge](#the-deluge), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
 | **Defeat** | Your civilization is destroyed, or that last turn passes and a rival scores higher |
 
 **Elimination:** a civilization with no cities and no settler is destroyed,
@@ -908,6 +950,15 @@ crown stands, how much fog darkens it, and its colour.
 - **Heat** shimmers over the desert. Its rows of sand waver a pixel either
   way, and faint bands of glare rise through it, stronger in patches that
   drift.
+- **The deluge** (`src/ui/rain.lua`): rain in streaks slanting with the
+  wind, heavier stage by stage, splashing a pixel either side where it
+  lands, and opening rings on the sea, the rivers, the floods and the marsh
+  pools. The storm lays more of the map under cloud and dims the day; from
+  the floods on, lightning forks down now and then, lights the whole map for
+  a moment, and its thunder follows as far off as it was. Floodwater is brown
+  and eddies as it runs east; marsh is dark sodden ground with still pools
+  and reeds; silt lies in pale bands with tide lines; drowned forests stand
+  dead and bleached in the shallows.
 - **Birds** (`src/ui/birds.lua`): every 14 to 36 seconds a flock of 3 to 7
   crosses the screen in a loose V, mostly with the wind. The birds flap and
   glide. Over every seventh coast hex you can see, a gull circles. Birds
@@ -1099,7 +1150,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
@@ -1110,6 +1161,7 @@ and picks up where it left off.
 | `love . --play --shot river.png --select ford --film 48` | `--film N`: N pictures three frames apart instead of one (`river-001.png` on), to see what moves; [shots/16-river.gif](shots/16-river.gif) was made so |
 | `love . --play --shot dev.png --skip 121 --open dev` | `--skip N`: the developer tools' skip, to turn N, before the picture; `--open dev` (or `newgame`) shows that window in it |
 | `love . --play --shot fire.png --turns 128 --select fire` | The camera over the most fire on the map, with the land round it shown. `--select scorch` for the most baked earth, `--select burnt` for the most burnt land; `--select cistern` gives your capital a cistern and looks at it |
+| `love . --play --cataclysm flood --shot flood.png --skip 130 --select flood --film 60` | The deluge: the camera over the most floodwater, in the storm, sixty pictures a few frames apart. `--select marsh`, `silt` or `drowned` for the most of each; `--select levee` gives your capital a levee |
 | `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
 | `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |

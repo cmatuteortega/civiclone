@@ -47,6 +47,7 @@
 local T = require "src.tracer"
 local D = require "src.defs"
 local Settings = require "src.settings"
+local S = require "src.ui.state"
 
 local Sea = {}
 
@@ -64,6 +65,7 @@ uniform Image light;     // src/ui/daylight.lua's: r steps down (16ths, from 128
 uniform float lit;       // 1 while the days go round, 0 for the map as the tracer left it
 uniform float exposure;  // steps the night takes off the lightest keys: 0 by day
 uniform float night;     // 0 by day, 1 in the dark
+uniform float storm;     // 0 fair, 1 the deluge's worst: more cloud, and rain on the water
 
 const float O = 1.0, U = 2.0, N = 3.0, K = 4.0, TAN = 5.0, S = 6.0, C = 7.0, W = 8.0;
 
@@ -106,7 +108,7 @@ float cloud(vec2 p, vec2 w, float t) {
     if (weather < 0.5) return 0.0;
     vec2 q = w * 0.0042 - vec2(t * 0.012, t * 0.003);
     float c = noise(q) * 0.7 + noise(q * 2.3 + 5.2) * 0.3;
-    float edge = 0.66 + 0.04 * sin(t * 0.013);
+    float edge = 0.66 + 0.04 * sin(t * 0.013) - 0.08 * storm;
     float d = bayer4(p);
     if (c > edge + 0.03) return d < 0.5 ? 1.0 : 0.0;
     if (c > edge) return d < 0.25 ? 1.0 : 0.0;
@@ -146,13 +148,30 @@ float dusk(float k, vec2 p) {
 ]]
 
 local SOURCE = COMMON .. [[
-uniform Image mask;      // r what (1 ocean, 2 coast, 3.. land, 9 river), g land's distance x4 or height x16 or a river's way x4, b steps darker, a key
+uniform Image mask;      // r what (1 ocean, 2 coast, 3.. land, 9 river, 10 flood, 11 pool), g land's distance x4 or height x16 or a river's way x4, b steps darker, a key
 uniform Image overlay;   // the board's overlay: alpha 1..3 marks steps lighter
 uniform vec2 overlaySize;
 uniform float time;      // the sea's clock
 uniform float moonX;     // the canvas's column under the moon
 
-const float CROWN = 3.0, SHEAF = 4.0, GRASS = 5.0, PLAINS = 6.0, DESERT = 8.0, RIVER = 9.0;
+const float CROWN = 3.0, SHEAF = 4.0, GRASS = 5.0, PLAINS = 6.0, DESERT = 8.0, RIVER = 9.0, FLOOD = 10.0, POOL = 11.0;
+
+// Rain on water: rings, a pixel wide, that open where each drop falls and
+// are gone in a moment. 1 on a ring's light side, -1 its dark, 0 none.
+float drops(vec2 p, float t) {
+    if (storm < 0.05) return 0.0;
+    vec2 cellp = floor(p / 7.0);
+    float phase = t * 2.5 + hash(cellp, 3.0) * 7.0;
+    float slot = floor(phase);
+    if (hash(cellp, slot) > storm * 0.55) return 0.0;
+    vec2 c = cellp * 7.0 + 1.5 + 4.0 * vec2(hash(cellp, slot + 1.0), hash(cellp, slot + 2.0));
+    float age = fract(phase);
+    vec2 d = (p + 0.5 - c) * vec2(1.0, 2.0);
+    float r = length(d);
+    float rad = 0.4 + age * 3.2;
+    if (abs(r - rad) < 0.55) return d.y < 0.0 ? 2.0 : -1.0;
+    return 0.0;
+}
 
 float what(vec4 m) { return floor(m.r * 255.0 + 0.5); }
 float keyOf(vec4 m) { return floor(m.a * 255.0 + 0.5); }
@@ -229,6 +248,8 @@ vec3 sea(vec4 m, vec2 p, vec2 w, vec2 sc) {
         if (d < wash && lace2 > 0.2 + 0.5 * d / wash) k = d < 0.6 || age < 0.2 ? W : C;
     }
 
+    k += drops(p, t);
+
     // The overlay's marks: steps lighter.
     vec4 o = Texel(overlay, sc / overlaySize);
     if (o.a > 0.0 && o.a < 0.5) k += floor(o.a * 255.0 + 0.5);
@@ -278,6 +299,7 @@ vec3 river(vec4 m, vec2 p, vec2 w, vec2 sc) {
             else if (lace > 0.42 && bayer4(p) < 0.5) k = S;
         }
     }
+    k += drops(p, t);
     // The sun takes the water down where it is turned from it, never up:
     // lit by it, a river would go the land's colour and be lost in it.
     k = min(daylight(k, p), k);
@@ -288,6 +310,41 @@ vec3 river(vec4 m, vec2 p, vec2 w, vec2 sc) {
         float path = exp(-off * off);
         if (hash(vec2(floor(p.x / 2.0), p.y), floor(t * 5.0)) > 1.0 - 0.3 * path * night) k = path > 0.6 ? W : S;
     }
+    k = clamp(k - dark - cloud(p, w, air), 1.0, 8.0);
+    return key(k);
+}
+
+// Water lying on the land (src/flood.lua). A flood (g how far the dry land
+// is, x4): brown and running east, its streaks drawn out along the way it
+// goes and turning, a lip of foam and scum where it laps the dry land, and
+// the shallows lighter along it. A marsh's pool: still and dark. Rain rings
+// on both.
+vec3 flood(vec4 m, vec2 p, vec2 w, vec2 sc, bool pool) {
+    float dark = floor(m.b * 255.0 + 0.5);
+    float t = time;
+    float k;
+    if (pool) {
+        k = U;
+        if (hash(p, floor(t * 1.5 + hash(p) * 9.0)) > 0.996) k = TAN;
+    } else {
+        float d = m.g * 255.0 / 4.0 + 0.3 * sin(t * 1.3 + w.x * 0.2 + w.y * 0.1);
+        k = N;
+        vec2 q = vec2(w.x * 0.05 - t * 0.6, w.y * 0.35 + 1.5 * noise(w * 0.04 + vec2(t * 0.05, 0.0)));
+        float s = noise(q);
+        float s2 = noise(q * vec2(2.2, 1.7) + vec2(-t * 0.4, 9.0));
+        if (s > 0.66) k = K;
+        else if (s < 0.25 && bayer4(p) < 0.5) k = U;
+        if (s2 > 0.8 && bayer4(p + vec2(floor(t * 4.0), 0.0)) < 0.5) k = TAN;
+        // The shallows along the dry land, and the scum on its lip.
+        if (d < 3.0 && bayer4(p) < (3.0 - d) / 5.0) k = max(k, K);
+        float lace = noise(w * vec2(0.9, 1.4) + vec2(-t * 0.5, t * 0.2));
+        if (d < 1.0 && lace > 0.3) k = d < 0.5 ? C : S;
+        if (hash(p, floor(t * 3.0 + hash(p) * 9.0)) > 0.997) k = S;
+    }
+    k += drops(p, t);
+    k = min(daylight(k, p), k);
+    vec4 o = Texel(overlay, sc / overlaySize);
+    if (o.a > 0.0 && o.a < 0.5) k += floor(o.a * 255.0 + 0.5);
     k = clamp(k - dark - cloud(p, w, air), 1.0, 8.0);
     return key(k);
 }
@@ -362,7 +419,8 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
         return vec4(key(dusk(keyOf(m), p)), 1.0) * color;
     }
     vec2 w = room(p + 0.5);
-    vec3 c = kind < 2.5 ? sea(m, p, w, sc) : (kind == RIVER ? river(m, p, w, sc) : land(m, p, w));
+    vec3 c = kind < 2.5 ? sea(m, p, w, sc) : (kind == RIVER ? river(m, p, w, sc)
+        : (kind == FLOOD || kind == POOL ? flood(m, p, w, sc, kind == POOL) : land(m, p, w)));
     return vec4(c, 1.0) * color;
 }
 ]]
@@ -464,6 +522,7 @@ function Sea.begin(w, overlay, camx, camy)
         s:send("alongJ", w.seaJ)
         s:send("air", air)
         s:send("weather", weather)
+        if s:hasUniform("storm") then s:send("storm", S.storm or 0) end
     end
     sh:send("mask", w.maskImage)
     for _, s in ipairs({ sh, Sea.cover }) do

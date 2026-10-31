@@ -20,6 +20,9 @@ D.TERRAIN = {
     grass = { name = "GRASSLAND", food = 2, prod = 0, gold = 0, top = 4 },
     plains = { name = "PLAINS", food = 1, prod = 1, gold = 0, top = 4 },
     desert = { name = "DESERT", food = 0, prod = 0, gold = 0, top = 4 },
+    -- Only the long rains make it (D.FLOOD): sodden lowland, reeds and
+    -- standing pools, heavy going and no good for a farm.
+    marsh = { name = "MARSH", food = 1, prod = 0, gold = 0, top = 4, move = 1, noFarm = true },
 }
 D.ELEV = {
     flat = { name = "", food = 0, prod = 0, move = 1, defense = 0, rise = 0 },
@@ -147,7 +150,12 @@ D.BUILDINGS = {
     -- Against the heat (D.HEAT): the land the city owns dries slower, its
     -- farms keep their food through the drought, fire spreads onto its
     -- hexes less, and its people thirst less.
-    cistern = { name = "CISTERN", short = "CIST.", cost = 70, cool = true, tech = "masonry", order = 8 },
+    cistern = { name = "CISTERN", short = "CIST.", cost = 70, ward = "heat", tech = "masonry", order = 8 },
+    -- Against the deluge (D.FLOOD): banks of earth faced with stone round
+    -- the city's land. Its land floods and sours to marsh less, the sea
+    -- can't take it, the city takes no harm from the water beside it, and
+    -- its people sicken less.
+    levee = { name = "LEVEE", short = "LEVEE", cost = 70, ward = "flood", tech = "masonry", order = 9 },
 }
 
 -- The heat death: the cataclysm that ends the game (src/cataclysm.lua).
@@ -182,12 +190,47 @@ D.HEAT = {
     scorchDamage = 10, -- to a unit on baked earth (off a river), each turn
 }
 
+-- The deluge: the other way the world can end (src/flood.lua), on the same
+-- turns as the heat death and to the same last turn.
+D.FLOOD = {
+    omen = 90,         -- the warning
+    rains = 100,       -- the land grows wet: desert to plains to grass, and lowland to marsh
+    floods = 120,      -- the rivers burst their banks
+    sea = 140,         -- the sea rises over the low coasts
+    -- How many hexes grow a step wetter each turn, in each stage.
+    wet = { rains = 4, floods = 5, sea = 6 },
+    -- How much likelier a hex is to go to marsh beside water already (a
+    -- river, the sea, the marsh), and on a levee's land.
+    near = 6, levee = 0.25,
+    rainFarm = 1,      -- food a farm gains from the rains on
+    -- Floods: how many start a turn on the rivers, how long one lies, the
+    -- chance it spreads to a river hex beside it no higher, and to other
+    -- low land; a forest (roots), silt (flooded before) and a levee's land
+    -- take it less.
+    burst = { floods = 2, sea = 3 },
+    last = 3,
+    spreadRiver = 0.35, spreadLand = 0.08,
+    forest = 0.5, silted = 0.3, leveeFlood = 0.25,
+    floodDamage = 20,  -- to a unit in a flooded hex, each turn
+    cityFlood = 15,    -- to a city with no levee, for each flooded hex beside it
+    siltFood = 1,      -- what the flood leaves: this much more food, for good
+    -- Fever: food every city loses a turn, in each stage; a levee spares it
+    -- `leveeFever` of that.
+    fever = { floods = 2, sea = 4 },
+    leveeFever = 2,
+    -- The sea: how many hexes of low land it takes each turn, lowest first
+    -- (the n-th lowest is `low`^n as likely as the lowest), and what it does
+    -- to a city with no levee on the shore.
+    rise = 3, low = 0.85,
+    surge = 10,
+}
+
 -- Technologies, in the order the list shows them.
 D.TECHS = {
     { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY" },
     { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES" },
     { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "ARCHER" },
-    { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN" },
+    { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN, LEVEE" },
     { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY" },
     { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, gives = "SPEARMAN" },
     { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, gives = "HORSEMAN" },

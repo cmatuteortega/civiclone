@@ -8,6 +8,7 @@
 
 local Mapgen = require "src.mapgen"
 local D = require "src.defs"
+local Cat = require "src.cataclysm"
 
 local max = math.max
 
@@ -101,9 +102,10 @@ local function chooseBuild(game, p, city)
             if ships < shipsWanted(game, p) then return "unit", ship end
         end
     end
-    -- Against the heat, once it has been foretold.
-    if game.cataclysm and game.turn >= D.HEAT.omen and game:canBuild(city, "building", "cistern") then
-        return "building", "cistern"
+    -- Against the cataclysm, once it has been foretold.
+    local ward = Cat.ward(game)
+    if ward and Cat.stage(game) and game:canBuild(city, "building", ward) then
+        return "building", ward
     end
     for _, id in ipairs({ "monument", "granary", "walls", "library", "harbour", "market", "lighthouse" }) do
         if game:canBuild(city, "building", id) then
@@ -177,7 +179,8 @@ local function improve(game, u)
         if cell.workedBy and cell.owner == u.owner and not cell.improvement and not game.mil[cell.id]
             and not game.civ[cell.id] then
             local techs = game.players[u.owner].techs
-            local can = not wild(game, cell, 2) and ((cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert" and not game:isWater(cell))
+            local can = not wild(game, cell, 2) and ((cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert"
+                and not D.TERRAIN[cell.terrain].noFarm and not cell.flood and not game:isWater(cell))
                 or (cell.elev == "hills" and techs.mining)
                 or (cell.resource == "fish" and techs.sailing))
             if can then

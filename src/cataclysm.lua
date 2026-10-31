@@ -1,9 +1,12 @@
 -- The cataclysm: what ends the world, and the game with it.
 --
 -- Each game has one, kept as game.cataclysm (nil with Game.new{ cataclysm =
--- false }). Only the heat death is built: the others (the sky falling, the
--- demons) are meant to go in KINDS beside it, with the same stages and the
--- same last turn.
+-- false }): its `kind` one of Cat.KINDS. Two are built, the heat death here
+-- and the deluge in src/flood.lua; the others (the sky falling, the demons)
+-- are meant to go in KINDS beside them. Every kind has four stages on its
+-- turns, an omen first, and the same last turn, D.LAST_TURN: what is here
+-- that is not the heat's (the stage, the top bar's label, the last turns'
+-- warnings, the dev window's list) asks the kind.
 --
 -- The heat death, by D.HEAT's turns:
 --
@@ -33,32 +36,87 @@ local D = require "src.defs"
 local max = math.max
 
 local Cat = {}
+-- The deluge (src/flood.lua) takes this module's helpers as it loads.
+package.loaded["src.cataclysm"] = Cat
 
+-- What each kind is: its stages in order, their names, the word the top
+-- bar shows for each, its numbers (whose fields are the stages' turns),
+-- and the event emitted as each stage begins. The heat's are also kept as
+-- Cat.STAGES and Cat.NAMES.
 Cat.STAGES = { "omen", "drought", "fires", "scorch" }
 Cat.NAMES = { omen = "THE OMEN", drought = "THE GREAT DROUGHT", fires = "THE WILDFIRES", scorch = "THE SCORCH" }
-local RANK = { omen = 1, drought = 2, fires = 3, scorch = 4 }
+local HEAT = {
+    stages = Cat.STAGES, names = Cat.NAMES,
+    words = { omen = "OMEN", drought = "DROUGHT", fires = "WILDFIRES", scorch = "SCORCH" },
+    turns = D.HEAT, event = "heat", ward = "cistern", ended = "THE WORLD HAS BURNED",
+}
+Cat.KINDS = { heat = HEAT }
 
 function Cat.new(kind)
     return { kind = kind or "heat" }
 end
 
--- The stage turn `turn` is in, or nil before the omen.
-function Cat.stageAt(turn)
-    local H, at = D.HEAT, nil
-    for _, s in ipairs(Cat.STAGES) do if turn >= H[s] then at = s end end
+-- The kind of game's cataclysm (its table in KINDS), or nil.
+function Cat.kindOf(game)
+    return game.cataclysm and Cat.KINDS[game.cataclysm.kind] or nil
+end
+
+local function rank(K, s)
+    for k, st in ipairs(K.stages) do if st == s then return k end end
+end
+
+-- The stage turn `turn` is in, for cataclysm kind `kind` (the heat by
+-- default), or nil before the omen.
+function Cat.stageAt(turn, kind)
+    local K = Cat.KINDS[kind or "heat"]
+    local at
+    for _, s in ipairs(K.stages) do if turn >= K.turns[s] then at = s end end
     return at
 end
 
 -- The game's stage now, or nil.
 function Cat.stage(game)
     if not game.cataclysm then return nil end
-    return Cat.stageAt(game.turn)
+    return Cat.stageAt(game.turn, game.cataclysm.kind)
 end
 
--- Has the game reached stage `s` (or one after)?
+-- Has the game reached stage `s` (or one after)? False for a stage of
+-- another kind's.
 function Cat.past(game, s)
-    local now = Cat.stage(game)
-    return now ~= nil and RANK[now] >= RANK[s]
+    local K, now = Cat.kindOf(game), Cat.stage(game)
+    if not now or not rank(K, s) then return false end
+    return rank(K, now) >= rank(K, s)
+end
+
+-- Is the game's cataclysm of this kind?
+function Cat.is(game, kind)
+    return game.cataclysm ~= nil and game.cataclysm.kind == kind
+end
+
+-- The name of stage `s` of the game's cataclysm: "THE GREAT DROUGHT".
+function Cat.name(game, s)
+    local K = Cat.kindOf(game)
+    return K and K.names[s]
+end
+
+-- Its stages and their turns, in order: { { "omen", 90 }, ... }.
+function Cat.stagesOf(game)
+    local K, out = Cat.kindOf(game), {}
+    if not K then return out end
+    for _, s in ipairs(K.stages) do out[#out + 1] = { s, K.turns[s] } end
+    return out
+end
+
+-- The building that holds it off ("cistern", "levee"), or nil.
+function Cat.ward(game)
+    local K = Cat.kindOf(game)
+    return K and K.ward
+end
+
+-- How the end of the world is told, lost.
+function Cat.ended(game)
+    local K = Cat.kindOf(game)
+    return K and K.ended
 end
 
 -- How the top bar shows it: "DROUGHT 41", the turns to the end. Nil before
@@ -67,16 +125,18 @@ function Cat.label(game)
     local s = Cat.stage(game)
     if not s then return nil end
     local left = max(0, D.LAST_TURN - game.turn + 1)
-    local word = ({ omen = "OMEN", drought = "DROUGHT", fires = "WILDFIRES", scorch = "SCORCH" })[s]
-    return word .. " " .. left
+    return Cat.kindOf(game).words[s] .. " " .. left
 end
 
 --- what holds the heat off --------------------------------------------------------
 
-local function cool(cell)
+-- Does the hex belong to a city that has built `building`?
+function Cat.warded(cell, building)
     local c = cell.ownerCity
-    return c and c.buildings and c.buildings.cistern and c.owner == cell.owner
+    return c ~= nil and c.buildings ~= nil and c.buildings[building] ~= nil and c.owner == cell.owner
 end
+
+local function cool(cell) return Cat.warded(cell, "cistern") end
 Cat.cool = cool
 
 -- Does a farm on this cell lose food to the drought?
@@ -84,8 +144,12 @@ function Cat.droughtFarm(game, cell)
     return cell.improvement == "farm" and Cat.past(game, "drought") and not game:onRiver(cell) and not cool(cell)
 end
 
--- The food city `city` loses this turn to thirst.
+-- The food city `city` loses this turn to thirst (or, in the deluge, to
+-- fever).
 function Cat.thirst(game, city)
+    local K = Cat.kindOf(game)
+    if K and K.thirst then return K.thirst(game, city) end
+    if not Cat.is(game, "heat") then return 0 end
     local s = Cat.stage(game)
     local t = s and D.HEAT.thirst[s] or 0
     if t > 0 and city.buildings.cistern then t = max(0, t - D.HEAT.cisternThirst) end
@@ -140,9 +204,9 @@ function Cat.dry(game, cell)
 end
 
 -- Picks `n` hexes by weight, without picking one twice.
-local function pick(game, weigh, n)
+local function pick(game, weigh, n, cells)
     local list, total = {}, 0
-    for _, cell in ipairs(game.cells) do
+    for _, cell in ipairs(cells or game.cells) do
         local w = weigh(cell)
         if w > 0 then
             list[#list + 1] = { cell = cell, w = w }
@@ -167,6 +231,7 @@ local function pick(game, weigh, n)
     end
     return out
 end
+Cat.pick = pick
 
 --- fire ---------------------------------------------------------------------------
 
@@ -200,7 +265,7 @@ local function burnOut(game, cell)
     game:emit({ kind = "terrain", cell = cell.id })
 end
 
--- Unit u hurt by the heat: `how` says what killed it, if it does.
+-- Unit u hurt by the cataclysm: `how` says what killed it, if it does.
 local function hurt(game, u, amount, how)
     u.hp = u.hp - amount
     game:emit({ kind = "hit", cell = u.cell, unit = u, amount = amount })
@@ -213,12 +278,15 @@ local function hurt(game, u, amount, how)
     end
 end
 
+Cat.hurt = hurt
+
 local function unitsOn(game, cell)
     local out = {}
     if game.mil[cell.id] then out[#out + 1] = game.mil[cell.id] end
     if game.civ[cell.id] then out[#out + 1] = game.civ[cell.id] end
     return out
 end
+Cat.unitsOn = unitsOn
 
 local function fires(game, stage)
     local H = D.HEAT
@@ -261,19 +329,8 @@ local TELL = {
     scorch = function() return ("THE SCORCH: THE EARTH BAKES. THE WORLD ENDS IN %d TURNS"):format(D.LAST_TURN - D.HEAT.scorch + 1) end,
 }
 
--- The cataclysm's part of a turn, played once every civilization and the
--- wild have, as the new turn begins.
-function Cat.turn(game)
-    local c = game.cataclysm
-    if not c then return end
-    local stage = Cat.stage(game)
-    if not stage then return end
-    if c.stage ~= stage then
-        c.stage = stage
-        game:tell(nil, TELL[stage]())
-        game:emit({ kind = "heat", stage = stage })
-    end
-    if stage == "omen" then return end
+-- The heat's part of a turn, in stage `stage`.
+local function heatTurn(game, stage)
     if Cat.past(game, "fires") then fires(game, stage) end
     if stage == "scorch" then
         for _, cell in ipairs(game.cells) do
@@ -292,10 +349,29 @@ function Cat.turn(game)
             Cat.dry(game, cell)
         end
     end
+end
+HEAT.tell, HEAT.play = TELL, heatTurn
+
+-- The cataclysm's part of a turn, played once every civilization and the
+-- wild have, as the new turn begins.
+function Cat.turn(game)
+    local c = game.cataclysm
+    if not c then return end
+    local K = Cat.KINDS[c.kind]
+    local stage = Cat.stage(game)
+    if not stage then return end
+    if c.stage ~= stage then
+        c.stage = stage
+        game:tell(nil, K.tell[stage]())
+        game:emit({ kind = K.event, stage = stage })
+    end
+    if stage ~= "omen" then K.play(game, stage) end
     local left = D.LAST_TURN - game.turn + 1
     if left == 5 or left == 1 then
         game:tell(nil, left == 1 and "THIS IS THE LAST TURN OF THE WORLD" or "FIVE TURNS ARE LEFT TO THE WORLD")
     end
 end
+
+Cat.KINDS.flood = require "src.flood"
 
 return Cat

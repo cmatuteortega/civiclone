@@ -105,6 +105,7 @@ end
 function Game:moveCost(cell)
     if not self:passable(cell) then return nil end
     return 1 + (cell.elev == "hills" and 1 or 0) + (cell.feature == "forest" and 1 or 0)
+        + (D.TERRAIN[cell.terrain].move or 0)
 end
 
 -- The river along the edge between two neighbouring cells, or nil.
@@ -209,7 +210,7 @@ end
 function Game:yield(cell)
     local t, e = D.TERRAIN[cell.terrain], D.ELEV[cell.elev]
     local f, p, g = t.food + e.food, t.prod + e.prod, t.gold
-    if cell.elev == "mountain" or cell.fire then return 0, 0, 0 end
+    if cell.elev == "mountain" or cell.fire or cell.flood then return 0, 0, 0 end
     if cell.feature then
         local ft = D.FEATURE[cell.feature]
         f, p = f + ft.food, p + ft.prod
@@ -228,6 +229,8 @@ function Game:yield(cell)
     end
     if Cat.droughtFarm(self, cell) then f = f - D.HEAT.droughtFarm end
     if cell.scorched then f = 0 end
+    local K = Cat.kindOf(self)
+    if K and K.food then f = K.food(self, cell, f) end
     if cell.city then f, p = max(f, 2), max(p, 1) end
     return f, p, g
 end
@@ -245,6 +248,9 @@ function Game:describe(cell)
     if cell.resource then parts[#parts + 1] = D.RESOURCE[cell.resource].name end
     if cell.improvement then parts[#parts + 1] = D.IMPROVEMENT[cell.improvement].name end
     if self:onRiver(cell) then parts[#parts + 1] = "RIVER" end
+    if cell.flood then parts[#parts + 1] = "- FLOODED"
+    elseif cell.silt then parts[#parts + 1] = "- SILT"
+    elseif cell.drowned then parts[#parts + 1] = "- DROWNED LAND" end
     if cell.fire then parts[#parts + 1] = "- BURNING"
     elseif cell.scorched then parts[#parts + 1] = "- SCORCHED"
     elseif cell.burnt then parts[#parts + 1] = "- BURNT" end
@@ -793,8 +799,8 @@ function Game:canBuild(city, kind, id)
     if not def then return false end
     if def.tech and not p.techs[def.tech] then return false end
     if kind == "building" and city.buildings[id] then return false end
-    -- What holds the heat off, only when there is heat.
-    if def.cool and not self.cataclysm then return false end
+    -- What holds a cataclysm off, only against that one.
+    if def.ward and not Cat.is(self, def.ward) then return false end
     -- Ships, harbours and lighthouses only by the water.
     if (def.sea or def.coastal) and not self:coastal(self.cells[city.cell]) then return false end
     return true
@@ -1159,7 +1165,7 @@ function Game:outcome()
         local mine, best = self:score(me), 0
         for k = 2, #self.players do best = max(best, self:score(self.players[k])) end
         if mine >= best then return "won", "SCORE VICTORY" end
-        return "lost", self.cataclysm and "THE WORLD HAS BURNED" or "TIME HAS RUN OUT"
+        return "lost", Cat.ended(self) or "TIME HAS RUN OUT"
     end
 end
 
@@ -1232,7 +1238,7 @@ function Game:improvementsFor(u)
         return out
     end
     if cell.improvement ~= "farm" and cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert"
-        and not cell.fire then
+        and not D.TERRAIN[cell.terrain].noFarm and not cell.fire and not cell.flood then
         out[#out + 1] = "farm"
     end
     if cell.improvement ~= "mine" and (cell.elev == "hills" or cell.resource == "stone" or cell.resource == "gems")

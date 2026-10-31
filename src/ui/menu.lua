@@ -490,6 +490,7 @@ end
 -- show, greyed, so the player knows they are coming.
 Menu.CATACLYSMS = {
     { id = "heat", name = "HEAT DEATH", about = { "THE SUN GROWS CRUEL: DROUGHT, WILDFIRES,", "THEN THE SCORCH. THE WORLD ENDS AT TURN 160" } },
+    { id = "flood", name = "THE DELUGE", about = { "THE RAINS WILL NOT STOP: MARSHES, FLOODS,", "THEN THE RISING SEA. THE WORLD ENDS AT TURN 160" } },
     { id = "sky", name = "SKY DEATH", soon = true, about = { "METEORS AND STRANGE THINGS IN THE SKY.", "NOT YET MADE" } },
     { id = "demons", name = "DEMONS", soon = true, about = { "DEMONIC CREATURES COME UP OUT OF THE EARTH.", "NOT YET MADE" } },
     { id = "none", name = "NONE", about = { "NO CATACLYSM: THE GAME ENDS AT TURN 150", "AND THE HIGHEST SCORE WINS" } },
@@ -537,13 +538,10 @@ end
 local function devWindow()
     local O = require "src.ui.orders"
     local Cat = require "src.cataclysm"
-    local D = require "src.defs"
     local g = S.game
     local jumps = { { "+1", 1 }, { "+5", 5 }, { "+10", 10 }, { "+25", 25 } }
     local stages = {}
-    if g.cataclysm then
-        for _, st in ipairs(Cat.STAGES) do stages[#stages + 1] = { Cat.NAMES[st]:gsub("^THE ", ""), D.HEAT[st] } end
-    end
+    for _, st in ipairs(Cat.stagesOf(g)) do stages[#stages + 1] = { Cat.name(g, st[1]):gsub("^THE ", ""), st[2] } end
     stages[#stages + 1] = { "LAST TURN", g:lastTurn() }
     local w, h = 200, 11 + 26 + 14 + 8 + #stages * 14 + 24
     Win.add({
@@ -552,7 +550,7 @@ local function devWindow()
         close = function() S.dev = false end,
         draw = function(x, y, ww, hh)
             local stage = Cat.stage(g)
-            text("w", "TURN " .. g.turn .. (stage and ("  " .. Cat.NAMES[stage]) or ""), x + 6, y + 4)
+            text("w", "TURN " .. g.turn .. (stage and ("  " .. Cat.name(g, stage)) or ""), x + 6, y + 4)
             text("s", "THE COMPUTER PLAYS YOUR SIDE UP TO THE TURN", x + 6, y + 13)
             local bw = floor((ww - 12 - 6) / #jumps)
             for k, j in ipairs(jumps) do

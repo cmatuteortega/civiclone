@@ -132,15 +132,32 @@ water under a roofed well-head, holds a city's land against it.
 ![The scorch: baked earth cracked into plates, beside the sand and the ash](shots/24-scorch.png)
 ![Towns without and with a cistern, on grassland, plains and desert](shots/25-cistern.png)
 
+Or it ends in water (`src/flood.lua`): the deluge. The rains will not stop.
+At first they are a blessing, greening the deserts and fattening the farms,
+but the low grass beside the rivers and the sea goes to marsh, sodden ground
+with dark pools and reeds in it. Then the rivers burst their banks: brown
+floodwater lies over the fields, eddying as it runs on down the valleys and
+up to the trees' knees, and when it goes down it takes the farms and leaves
+pale silt behind. Storms come with lightning and thunder, rain streaks the
+screen and opens rings on every water. Last the sea rises over the low
+shore a few hexes a turn, leaving drowned forests standing dead in the
+shallows, and ships sail where the fields were. A levee, banks of earth
+capped with stone round a city's hex, holds its land against it.
+
+![The deluge: rain, floods, marsh and drowned land](shots/29-deluge.gif)
+![Marsh: sodden ground, dark pools and reeds, in the long rains](shots/30-marsh.png)
+![The rising sea over the low shore, in the storm](shots/32-rising-sea.png)
+![Towns without and with a levee, on grass, by a river and on the coast](shots/31-levee.png)
+
 ## Running it
 
 ```
 love .
 ```
 
-Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|none` picks how the world ends, `--play` skips
+Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|none` picks how the world ends, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds

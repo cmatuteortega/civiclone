@@ -1016,7 +1016,7 @@ function M.city(look, pop, capital, built, shore, drop, site)
     drop = drop and floor(drop * 2 + 0.5) / 2 or 0
     local key = table.concat({ "c", look, #lay.houses, lay.tier, capital and 1 or 0, b.walls and 1 or 0,
         b.granary and 1 or 0, b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
-        b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, siteKey(site) }, ":")
+        b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, b.levee and 1 or 0, siteKey(site) }, ":")
     return kept(key, function()
         local L = LOOK[look]
         local parts = {}
@@ -1093,6 +1093,29 @@ function M.city(look, pop, capital, built, shore, drop, site)
             parts[#parts + 1] = part(Sh.prism(12, x, 0, z, 1.9, 4.8), WATER, 51, function(ux, uy, uz)
                 if uy > 0.98 and ux < -0.15 and uz < -0.1 and ux + uz > -1.0 then return IDX.t end
             end)
+        end
+        if b.levee then
+            -- Banks of earth all round the hex, low and broad, faced with
+            -- stone on top: the city's stand against the water. Gaps where
+            -- the pier goes out and the bridges cross.
+            local r = 9.5
+            for k = 0, 5 do
+                local a0, a1 = math.rad(60 * k - 30), math.rad(60 * k + 30)
+                local x0, z0, x1, z1 = r * cos(a0), r * sin(a0), r * cos(a1), r * sin(a1)
+                local turn = -math.atan2(z1 - z0, x1 - x0)
+                local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
+                local open = k == shore or (site.river and site.river[k])
+                local runs = open and { { 0.18, 0.36 }, { 0.82, 0.36 } } or { { 0.5, 1.04 } }
+                for n, run in ipairs(runs) do
+                    local mx, mz = x0 + (x1 - x0) * run[1], z0 + (z1 - z0) * run[1]
+                    local l = len * run[2]
+                    -- The bank, its earth in courses, and a coping of stone.
+                    parts[#parts + 1] = part(Sh.box(mx, 0, mz, l, 2.4, 1.3, turn), R2.soil, 60 + k * 2 + n,
+                        function(ux, uy) if uy < 0.5 and floor((ux + 1) * 9) % 3 == 0 then return IDX.n end end)
+                    parts[#parts + 1] = part(Sh.box(mx, 1.3, mz, l - 0.4, 1.4, 0.55, turn), R.stone, 60 + k * 2 + n,
+                        function(ux) if floor((ux + 1) * 6) % 2 == 0 then return IDX.t end end)
+                end
+            end
         end
         if b.monument then
             local x, z = at("monument")

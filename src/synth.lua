@@ -341,6 +341,11 @@ local DEFS = {
         { at = 0.05, dur = 0.9, wave = "saw", f0 = N.A3, lp = { 600 }, a = 0.1, curve = 1.2, vol = 0.4 },
         { at = 0.7, dur = 0.9, wave = "saw", f0 = N.F3, lp = { 500 }, a = 0.1, curve = 1.2, vol = 0.4 },
         { at = 1.35, dur = 1.6, wave = "saw", f0 = N.D3, lp = { 500, 200 }, a = 0.1, curve = 1.5, vol = 0.45 }),
+    -- Thunder, in the storms of the deluge: a crack, then a long low roll.
+    thunder = sound({ vol = 0.45, gap = 3 },
+        { dur = 0.25, wave = "noise", hp = { 300 }, lp = { 4000, 900 }, a = 0.002, curve = 2 },
+        { at = 0.05, dur = 3.2, wave = "noise", lp = { 260, 60 }, a = 0.08, curve = 1.2, trem = { 3.5, 0.6 } },
+        { at = 0.1, dur = 2.6, f0 = 55, f1 = 38, a = 0.1, curve = 1.5, vol = 0.35 }),
     gong = sound({ vol = 0.4, gap = 2 },
         { dur = 3.5, f0 = 98, fm = { 1.41, 2.2, true }, a = 0.005, curve = 1.6 },
         { dur = 2.5, f0 = 98 * 2.76, a = 0.005, curve = 2, vol = 0.3, vib = { 3, 0.004 } },
@@ -427,6 +432,27 @@ local LOOPS = {
     leaves = sound({ len = 6, loop = 0.6, gain = 0.5, seed = 9 },
         { dur = 6.6, wave = "noise", hp = { 1400 }, lp = { 5500 }, a = 0.01, curve = 0, trem = { 1 / 3, 0.75 } },
         { dur = 6.6, wave = "noise", hp = { 800 }, lp = { 2500 }, a = 0.01, curve = 0, trem = { 1 / 2, 0.8 }, vol = 0.6 }),
+    -- Rain: a steady hiss on everything, and drops pattering near, a few
+    -- louder on the leaves and the roofs.
+    rain = { len = 6, loop = 0.5, gain = 0.55, seed = 13,
+        gen = function()
+            local lo, hi, lk, hk = 0, 0, onePole(2200), onePole(500)
+            local drops = {}
+            local r = Rng.new(31)
+            for k = 1, 260 do drops[k] = { t = r:random() * 5.98, v = 0.2 + r:random() * 0.8, f = 1800 + r:random() * 2600 } end
+            table.sort(drops, function(a, b) return a.t < b.t end)
+            return function(t, rng)
+                local n = rng:random() * 2 - 1
+                lo = lo + lk * (n - lo)
+                hi = hi + hk * (lo - hi)
+                local s = (lo - hi) * 1.6 * (0.85 + 0.15 * sin(TAU * t / 3))
+                for _, d in ipairs(drops) do
+                    local u = t - d.t
+                    if u >= 0 and u < 0.012 then s = s + sin(TAU * d.f * u) * (1 - u / 0.012) ^ 2 * d.v * 0.3 end
+                end
+                return s
+            end
+        end },
     -- The heights: a hollow wind with a whistle in it, rising and falling.
     heights = sound({ len = 9, loop = 0.9, gain = 0.5, seed = 11 },
         { dur = 9.9, wave = "noise", lp = { 900 }, hp = { 250 }, a = 0.01, curve = 0, trem = { 1 / 4.5, 0.7 } },
