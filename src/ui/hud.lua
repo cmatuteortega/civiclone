@@ -427,7 +427,7 @@ function overBody(x, y, w, h)
         text(p.id == 1 and "w" or "s", s, x + 6, yy)
         yy = yy + 8
     end
-    button("NEW GAME", x + 10, y + h - 16, 76, 12, function() S.newGame() end, { strong = true })
+    button("NEW GAME", x + 10, y + h - 16, 76, 12, Menu.openNewGame, { strong = true })
     button("KEEP LOOKING", x + w - 86, y + h - 16, 76, 12, function() S.over.hidden = true end)
 end
 

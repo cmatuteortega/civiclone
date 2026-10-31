@@ -54,6 +54,10 @@ Settings.LIST = {
     { id = "autoCycle", tab = "gameplay", name = "AUTO-SELECT NEXT UNIT", values = ONOFF.values, show = ONOFF.show, default = true },
     { id = "follow", tab = "gameplay", name = "CAMERA FOLLOWS SELECTION", values = ONOFF.values, show = ONOFF.show, default = true },
     { id = "grid", tab = "gameplay", name = "HEX GRID", values = ONOFF.values, show = ONOFF.show, default = true },
+    { id = "devTools", tab = "gameplay", name = "DEVELOPER TOOLS", values = ONOFF.values, show = ONOFF.show, default = false },
+    -- Not in a tab: the cataclysm last chosen for a new game (the new game
+    -- window, src/ui/menu.lua), kept for the next.
+    { id = "cataclysm", tab = "newgame", name = "CATACLYSM", values = { "heat", "none" }, default = "heat" },
 }
 Settings.BY = {}
 for _, s in ipairs(Settings.LIST) do Settings.BY[s.id] = s end

@@ -48,6 +48,7 @@ local TIPS = {
     animSpeed = "HOW FAST UNITS WALK AND FIGHT",
     panSpeed = "HOW FAST THE KEYS AND SCREEN EDGES MOVE THE CAMERA",
     edgePan = "THE POINTER AT THE EDGE OF THE WINDOW MOVES THE CAMERA",
+    devTools = "A DEV WINDOW IN THE MENU: SKIP TURNS, JUMP TO THE CATACLYSM'S STAGES",
     autoCycle = "AFTER A UNIT'S ORDERS, ON TO THE NEXT THAT NEEDS SOME",
     follow = "THE CAMERA GOES TO EACH UNIT AS IT IS CHOSEN",
     grid = "THE LINES BETWEEN HEXES",
@@ -259,13 +260,19 @@ end
 
 function Menu.openPause() S.pause = true end
 
+-- The new game window: which cataclysm ends the world, then START.
+function Menu.openNewGame() S.choosing = true end
+
+-- The developer tools' window (the DEVELOPER TOOLS setting).
+function Menu.openDev() S.dev = true end
+
 -- Asks `question` with a yes and a no; `yes` is done on yes.
 function Menu.ask(question, yesLabel, yes)
     S.ask = { text = question, label = yesLabel, fn = yes }
 end
 
 -- Is any menu up (so the board and its keys wait)?
-function Menu.open() return S.settings or S.pause or S.ask or trial ~= nil end
+function Menu.open() return S.settings or S.pause or S.ask or S.choosing or S.dev or trial ~= nil end
 
 -- Escape: shuts the front menu. Answers whether there was one.
 function Menu.back()
@@ -273,6 +280,8 @@ function Menu.back()
     if trial then endTrial(false) return true end
     if S.ask then S.ask = nil return true end
     if S.settings then Menu.closeSettings() return true end
+    if S.dev then S.dev = false return true end
+    if S.choosing then S.choosing = false return true end
     if S.pause then S.pause = false return true end
     return false
 end
@@ -440,7 +449,8 @@ end
 --- the pause menu, and questions ---------------------------------------------------------
 
 local function pauseWindow()
-    local w, h = 120, 11 + 5 * 15 + 6
+    local dev = Settings.get("devTools")
+    local w, h = 120, 11 + (dev and 6 or 5) * 15 + 6
     Win.add({
         id = "pause", title = "MENU", w = w, h = h, modal = true,
         x = floor((S.vw - w) / 2), y = floor((S.vh - h) / 2),
@@ -454,10 +464,11 @@ local function pauseWindow()
             end
             item("RESUME", function() S.pause = false end, { strong = true })
             item("SETTINGS", Menu.openSettings)
+            if dev then item("DEV TOOLS", function() S.pause = false Menu.openDev() end) end
             item("NEW GAME", function()
                 Menu.ask("START AGAIN? THIS GAME WILL BE LOST.", "NEW GAME", function()
                     S.pause = false
-                    S.newGame()
+                    Menu.openNewGame()
                 end)
             end)
             item("MAIN MENU", function()
@@ -469,6 +480,95 @@ local function pauseWindow()
             item("QUIT GAME", function()
                 Menu.ask("QUIT? THIS GAME WILL BE LOST.", "QUIT", function() love.event.quit() end)
             end)
+        end,
+    })
+end
+
+--- a new game: how the world ends ------------------------------------------------------
+
+-- The cataclysms, in the order the window lists them. Those not built yet
+-- show, greyed, so the player knows they are coming.
+Menu.CATACLYSMS = {
+    { id = "heat", name = "HEAT DEATH", about = { "THE SUN GROWS CRUEL: DROUGHT, WILDFIRES,", "THEN THE SCORCH. THE WORLD ENDS AT TURN 160" } },
+    { id = "sky", name = "SKY DEATH", soon = true, about = { "METEORS AND STRANGE THINGS IN THE SKY.", "NOT YET MADE" } },
+    { id = "demons", name = "DEMONS", soon = true, about = { "DEMONIC CREATURES COME UP OUT OF THE EARTH.", "NOT YET MADE" } },
+    { id = "none", name = "NONE", about = { "NO CATACLYSM: THE GAME ENDS AT TURN 150", "AND THE HIGHEST SCORE WINS" } },
+}
+
+local function newGameWindow()
+    local w, h = 220, 11 + 14 + #Menu.CATACLYSMS * 14 + 26 + 22
+    Win.add({
+        id = "newgame", title = "NEW GAME", w = w, h = h, modal = true,
+        x = floor((S.vw - w) / 2), y = floor((S.vh - h) / 2),
+        close = function() S.choosing = false end,
+        draw = function(x, y, ww, hh)
+            text("w", "HOW DOES THE WORLD END?", x + 6, y + 4)
+            local pick = Settings.get("cataclysm")
+            local under
+            local yy = y + 15
+            for _, c in ipairs(Menu.CATACLYSMS) do
+                local label = c.soon and (c.name .. " - COMING") or c.name
+                button(label, x + 6, yy, ww - 12, 12, function()
+                    if c.soon then return end
+                    Settings.set("cataclysm", c.id)
+                    Settings.save()
+                end, { on = c.id == pick, off = c.soon })
+                if hovering(x + 6, yy, ww - 12, 12) then under = c end
+                yy = yy + 14
+            end
+            -- What the one under the pointer (or the one chosen) does.
+            local about = under and under.about
+            if not about then
+                for _, c in ipairs(Menu.CATACLYSMS) do if c.id == pick then about = c.about end end
+            end
+            for k, l in ipairs(about or {}) do text("s", l, x + 6, yy + 2 + (k - 1) * 8) end
+            local bw = 60
+            button("START", x + floor(ww / 2) - bw - 2, y + hh - 16, bw, 12, function()
+                S.choosing = false
+                S.newGame()
+            end, { strong = true })
+            button("CANCEL", x + floor(ww / 2) + 2, y + hh - 16, bw, 12, function() S.choosing = false end)
+        end,
+    })
+end
+
+--- developer tools: skipping turns ---------------------------------------------------------
+
+local function devWindow()
+    local O = require "src.ui.orders"
+    local Cat = require "src.cataclysm"
+    local D = require "src.defs"
+    local g = S.game
+    local jumps = { { "+1", 1 }, { "+5", 5 }, { "+10", 10 }, { "+25", 25 } }
+    local stages = {}
+    if g.cataclysm then
+        for _, st in ipairs(Cat.STAGES) do stages[#stages + 1] = { Cat.NAMES[st]:gsub("^THE ", ""), D.HEAT[st] } end
+    end
+    stages[#stages + 1] = { "LAST TURN", g:lastTurn() }
+    local w, h = 200, 11 + 26 + 14 + 8 + #stages * 14 + 24
+    Win.add({
+        id = "dev", title = "DEV TOOLS", w = w, h = h, modal = true,
+        x = floor((S.vw - w) / 2), y = floor((S.vh - h) / 2),
+        close = function() S.dev = false end,
+        draw = function(x, y, ww, hh)
+            local stage = Cat.stage(g)
+            text("w", "TURN " .. g.turn .. (stage and ("  " .. Cat.NAMES[stage]) or ""), x + 6, y + 4)
+            text("s", "THE COMPUTER PLAYS YOUR SIDE UP TO THE TURN", x + 6, y + 13)
+            local bw = floor((ww - 12 - 6) / #jumps)
+            for k, j in ipairs(jumps) do
+                button(j[1], x + 6 + (k - 1) * (bw + 2), y + 23, bw, 12, function() O.skipTo(g.turn + j[2]) end,
+                    { off = S.over ~= nil })
+            end
+            local yy = y + 41
+            text("c", "JUMP TO:", x + 6, yy)
+            yy = yy + 9
+            for _, st in ipairs(stages) do
+                local past = g.turn >= st[2]
+                button(st[1] .. "  (TURN " .. st[2] .. ")", x + 6, yy, ww - 12, 12, function() O.skipTo(st[2]) end,
+                    { off = past or S.over ~= nil })
+                yy = yy + 14
+            end
+            button("CLOSE", x + ww - 56, y + hh - 16, 50, 12, function() S.dev = false end, { strong = true })
         end,
     })
 end
@@ -495,6 +595,8 @@ end
 
 function Menu.draw()
     if S.pause and S.mode == "play" then pauseWindow() end
+    if S.dev and S.mode == "play" then devWindow() end
+    if S.choosing then newGameWindow() end
     if S.settings then settingsWindow() end
     if S.ask then
         local a = S.ask

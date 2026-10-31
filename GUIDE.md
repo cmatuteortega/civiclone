@@ -32,7 +32,19 @@ that is the file to edit to tune the game.
 ## Starting a game
 
 Run `love .` in the repository (LÖVE 11). The title screen has **NEW GAME**
-and **QUIT** buttons; Enter or Space also start a game.
+and **QUIT** buttons; Enter or Space also open the new game window.
+
+The **new game** window asks how the world ends, then **START** (or Enter)
+begins:
+
+| Cataclysm | What it means |
+| --- | --- |
+| **Heat death** | The [heat death](#the-heat-death): drought, wildfires and the scorch, and the game ends at turn 160 |
+| **Sky death**, **Demons** | Shown greyed: not made yet |
+| **None** | No cataclysm and no cisterns: the game ends at turn 150 on score |
+
+The choice is kept for the next game. `love . --cataclysm none` (or `heat`)
+overrides it.
 
 Every game makes a new map from a seed: random by default, or chosen with
 `love . --seed 1234`. The same seed always makes the same map. While the map
@@ -762,13 +774,20 @@ In all-AI games the land is nearly all desert by the end and cities fall
 from their peak around turn 125 to a third of it, so the score at the end
 rewards whoever kept their people alive.
 
+**Developer tools.** With **DEVELOPER TOOLS** on (Settings, Gameplay), the
+menu (Esc) has a **DEV TOOLS** item. Its window shows the turn and the
+stage, skips 1, 5, 10 or 25 turns, or jumps straight to the omen, the
+drought, the wildfires, the scorch or the last turn. The computer plays your
+side for the turns skipped, in silence; the news keeps the last of what
+happened.
+
 ## Winning and losing
 
 | Outcome | How |
 | --- | --- |
 | **Domination victory** | Every rival is destroyed, or you hold every capital |
-| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), passes and your score is at least as high as every rival's |
-| **Defeat** | Your civilization is destroyed, or turn 160 passes and a rival scores higher |
+| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
+| **Defeat** | Your civilization is destroyed, or that last turn passes and a rival scores higher |
 
 **Elimination:** a civilization with no cities and no settler is destroyed,
 and any units it has left are removed. Before its first city, it has until
@@ -1089,6 +1108,7 @@ and picks up where it left off.
 | `love . --play --shot port.png --turns 80 --select harbour --hour 11` | The player's city on the water (one founded on the nearest shore if there is none) given a harbour and a lighthouse, with a galley, a quadrireme, a warrior in a boat and fishing boats round it. `--select port` looks at the best city on the water you know, `--select fleet` at one of your ships |
 | `love . --play --shot river.png --select river --hour 10` | The camera over the hex with the most river by it (a waterfall if there is one), with the land round it shown. `--select ford` adds a warrior who wades across it a moment later; `--select bridge` founds a city of yours where the most river runs by in open country near home, so its bridges show |
 | `love . --play --shot river.png --select ford --film 48` | `--film N`: N pictures three frames apart instead of one (`river-001.png` on), to see what moves; [shots/16-river.gif](shots/16-river.gif) was made so |
+| `love . --play --shot dev.png --skip 121 --open dev` | `--skip N`: the developer tools' skip, to turn N, before the picture; `--open dev` (or `newgame`) shows that window in it |
 | `love . --play --shot fire.png --turns 128 --select fire` | The camera over the most fire on the map, with the land round it shown. `--select scorch` for the most baked earth, `--select burnt` for the most burnt land; `--select cistern` gives your capital a cistern and looks at it |
 | `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
 | `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |

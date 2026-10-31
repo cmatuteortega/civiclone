@@ -210,9 +210,15 @@ function Input.keypressed(key)
         return
     end
     if is("sound", key) then O.cycleSound() return end
+    -- In the new game window, Enter starts it.
+    if S.choosing and not S.ask and not S.settings and (key == "return" or key == "kpenter") then
+        S.choosing = false
+        S.newGame()
+        return
+    end
     if Menu.open() then return end
     if S.mode ~= "play" then
-        if key == "return" or key == "space" then S.newGame() end
+        if key == "return" or key == "space" then Menu.openNewGame() end
         return
     end
     local u = S.selected and S.selected.unit

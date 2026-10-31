@@ -6,8 +6,10 @@ local D = {}
 
 D.COLS, D.ROWS = 34, 22
 -- The game ends as the cataclysm does (src/cataclysm.lua, D.HEAT): when
--- this turn is played out, the highest score wins.
+-- this turn is played out, the highest score wins. A game with no
+-- cataclysm ends sooner, as games did before there was one.
 D.LAST_TURN = 160
+D.PLAIN_LAST_TURN = 150
 
 -- Each land hex is a base (grass, plains, desert) at an elevation (flat,
 -- hills, mountains), and maybe has a forest on it. Water is coast or ocean.

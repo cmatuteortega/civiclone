@@ -138,7 +138,7 @@ water under a roofed well-head, holds a city's land against it.
 love .
 ```
 
-Optional flags: `--seed N` plays the map made from seed N, `--play` skips
+Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|none` picks how the world ends, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
 city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
@@ -191,7 +191,7 @@ Everything is saved as you change it, in `settings` in LÖVE's save folder.
 | Display | Windowed, borderless or exclusive fullscreen; resolution; vsync; moving water; wind and life; day and night; the clock's look; a frame rate limit; a frame rate counter. A new mode or resolution reverts after 15 seconds unless you keep it |
 | Interface | Interface size and map pixel size (automatic, or any whole zoom the window allows); touch buttons; hex tooltips; how long the news stays; lock windows; snap windows to edges; reset window positions |
 | Audio | Master, music, ambience and effects volumes; mute in the background |
-| Gameplay | Animation speed; camera pan speed; pan at the screen's edges; auto-select the next unit; camera follows selection; hex grid |
+| Gameplay | Animation speed; camera pan speed; pan at the screen's edges; auto-select the next unit; camera follows selection; hex grid; developer tools (a DEV TOOLS window in the menu that skips turns and jumps to the cataclysm's stages) |
 | Controls | Every command's key: click one, press the new key. A key already in use swaps |
 
 The unit and city panels, research, the menus and the end of the game are

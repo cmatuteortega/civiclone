@@ -793,6 +793,8 @@ function Game:canBuild(city, kind, id)
     if not def then return false end
     if def.tech and not p.techs[def.tech] then return false end
     if kind == "building" and city.buildings[id] then return false end
+    -- What holds the heat off, only when there is heat.
+    if def.cool and not self.cataclysm then return false end
     -- Ships, harbours and lighthouses only by the water.
     if (def.sea or def.coastal) and not self:coastal(self.cells[city.cell]) then return false end
     return true
@@ -1133,6 +1135,9 @@ function Game:score(p)
     return floor(s)
 end
 
+-- The last turn played: the cataclysm's, or without one an earlier end.
+function Game:lastTurn() return self.cataclysm and D.LAST_TURN or D.PLAIN_LAST_TURN end
+
 -- How the game stands for the human: nil while it goes on, or "won" / "lost"
 -- and why.
 function Game:outcome()
@@ -1150,7 +1155,7 @@ function Game:outcome()
         end
     end
     if capitals >= #self.players and held == capitals then return "won", "DOMINATION VICTORY" end
-    if self.turn > D.LAST_TURN then
+    if self.turn > self:lastTurn() then
         local mine, best = self:score(me), 0
         for k = 2, #self.players do best = max(best, self:score(self.players[k])) end
         if mine >= best then return "won", "SCORE VICTORY" end

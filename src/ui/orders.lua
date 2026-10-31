@@ -276,4 +276,30 @@ function O.endTurn()
     O.nextUnit()
 end
 
+-- Developer tools: the computer plays the player's side, turn after turn,
+-- up to turn `to` (or the game's end), to see what comes later. What
+-- happened meanwhile is taken in silence and without the walking about;
+-- the news keeps the last of it.
+function O.skipTo(to)
+    local g = S.game
+    if S.over then return end
+    local was = Audio.on
+    Audio.on = false
+    S.selected, S.panel = nil, nil
+    while g.turn < to and not S.over do
+        AI.play(g, me())
+        g:endTurn(AI)
+        -- Each turn's news, so the cataclysm's are kept.
+        O.collectLog()
+        local result, why = g:outcome()
+        if result then S.over = { result = result, why = why } end
+        Anim.events(g)
+    end
+    S.anim, S.effects, S.wakes = {}, {}, {}
+    for _, u in ipairs(g.units) do u.trail = { u.cell } end
+    me().sightChanged = true
+    Audio.on = was
+    if not S.over then O.nextUnit() end
+end
+
 return O

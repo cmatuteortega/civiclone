@@ -148,6 +148,19 @@ return {
         assert(count(g, function(c) return c.terrain == "desert" end) == before)
         assert(Cat.label(g) == nil)
     end },
+    { "with no cataclysm the game ends at the old last turn, and there are no cisterns", function()
+        local g = Game.new({ seed = 5, wild = false, cataclysm = false })
+        assert(g:lastTurn() == D.PLAIN_LAST_TURN)
+        assert(Game.new({ seed = 5, wild = false }):lastTurn() == D.LAST_TURN)
+        local s
+        for _, u in ipairs(g.units) do if u.owner == 1 and u.kind == "settler" then s = u end end
+        local city = g:found(s)
+        g.players[1].techs.masonry = true
+        assert(not g:canBuild(city, "building", "cistern"))
+        assert(g:canBuild(city, "building", "walls"))
+        g.turn = D.PLAIN_LAST_TURN + 1
+        assert(g:outcome())
+    end },
     { "an all-AI game runs through the heat death to its end", function()
         local g = Game.new({ seed = 7, allAI = true })
         local land = count(g, function(c) return not g:isWater(c) and c.elev ~= "mountain" end)

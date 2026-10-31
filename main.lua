@@ -56,11 +56,13 @@ function love.focus(f) focused = f Audio.hide(away()) end
 function love.quit() Audio.stop() end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
--- bar fills, then the first turn.
+-- bar fills, then the first turn. The world ends by the cataclysm chosen in
+-- the new game window (or `--cataclysm heat|none`), or by none.
 function S.newGame(seed)
     seed = seed or S.seedArg or (os.time() % 100000)
     S.seedArg = nil
-    S.game = Game.new({ seed = seed })
+    local kind = S.cataclysmArg or Settings.get("cataclysm")
+    S.game = Game.new({ seed = seed, cataclysm = kind ~= "none" and kind or false })
     S.world = World.new(S.game)
     S.anim, S.effects, S.msgs, S.wakes = {}, {}, {}, {}
     S.selected, S.panel, S.over, S.hover = nil, nil, nil, nil
@@ -104,6 +106,9 @@ function love.load(args)
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
+        -- `--cataclysm heat|none`: how the world ends, whatever the new game
+        -- window last had.
+        if a == "--cataclysm" and args[n + 1] then S.cataclysmArg = args[n + 1] end
         -- `--touch` lays out the screen as for a phone.
         if a == "--touch" then S.touch, S.phone = true, true end
         -- For checking how it looks: `--shot file.png` takes a picture of the
@@ -112,6 +117,9 @@ function love.load(args)
         if a == "--shot" then S.plan = { file = args[n + 1] or "shot.png", turns = 0, frames = 0 } end
         if a == "--turns" and S.plan then S.plan.turns = tonumber(args[n + 1]) or 0 end
         if a == "--select" and S.plan then S.plan.select = args[n + 1] end
+        -- `--skip n`: the developer tools' skip, up to turn n, as its
+        -- buttons do it.
+        if a == "--skip" and S.plan then S.plan.skip = tonumber(args[n + 1]) end
         -- `--zoom n`: the board n whole steps nearer than the window's own.
         if a == "--zoom" and tonumber(args[n + 1]) then S.zoomStep = tonumber(args[n + 1]) end
         -- `--film n`: n pictures a few frames apart instead of one, named
@@ -121,7 +129,7 @@ function love.load(args)
         if a == "--hour" and tonumber(args[n + 1]) then Daylight.force = tonumber(args[n + 1]) / 24 end
         -- `--clock look`: the clock drawn so (arc, dial, strip, scene, off).
         if a == "--clock" then require("src.ui.clock").force = args[n + 1] end
-        -- `--open settings:audio` (or `pause`) shows a menu in the picture.
+        -- `--open settings:audio` (or `pause`, `newgame`, `dev`) shows a menu in the picture.
         if a == "--open" and S.plan then S.plan.open = args[n + 1] end
         -- `--sounds` writes every sound as a .wav into the save folder, and quits.
         if a == "--sounds" then
@@ -146,6 +154,7 @@ local function followPlan()
             AI.play(S.game, S.game.players[1])
             O.endTurn()
         end
+        if plan.skip then O.skipTo(plan.skip) end
         Anim.events(S.game)
         S.anim, S.effects, S.wakes = {}, {}, {}
         for _, u in ipairs(S.game.units) do u.trail = { u.cell } end
@@ -438,6 +447,8 @@ local function followPlan()
         local what, tab = plan.open:match("^(%a+):?(%a*)$")
         if what == "pause" then Menu.openPause() end
         if what == "settings" then Menu.openSettings(tab ~= "" and tab or nil) end
+        if what == "newgame" then Menu.openNewGame() end
+        if what == "dev" then Menu.openDev() end
     end
     if plan.wader and plan.frames == 60 then
         S.game:moveTo(plan.wader.unit, plan.wader.to)
@@ -539,7 +550,7 @@ local function title()
     bigText("w", "SEPIA", cx, y, 4)
     local sub = "BUILD AN EMPIRE ON A MAP OF SEPIA HEXES"
     Draw.text("c", sub, cx - floor(Font.width(sub) / 2), y + 26)
-    Draw.button("NEW GAME", cx - 40, y + 38, 80, 14, function() S.newGame() end, { strong = true })
+    Draw.button("NEW GAME", cx - 40, y + 38, 80, 14, Menu.openNewGame, { strong = true })
     Draw.button("SETTINGS", cx - 40, y + 54, 39, 12, Menu.openSettings)
     Draw.button("QUIT", cx + 1, y + 54, 39, 12, function() love.event.quit() end)
     local help = S.touch and {
