@@ -107,6 +107,11 @@ local function build(cols, rows, seed)
             cell.resource = "gems"
         end
     end
+    -- Fish in the shallows, from a roll of their own so the land is as it was.
+    local fishRng = Rng.new(seed + 4243)
+    for _, cell in ipairs(cells) do
+        if cell.terrain == "coast" and fishRng:random() < 0.12 then cell.resource = "fish" end
+    end
     -- How high each hex stands: low and high ground a step apart, so the land
     -- reads in terraces.
     for _, cell in ipairs(cells) do

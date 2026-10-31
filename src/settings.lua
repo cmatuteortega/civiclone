@@ -80,6 +80,7 @@ Settings.COMMANDS = {
     { id = "skip", name = "SKIP UNIT", default = "space" },
     { id = "farm", name = "BUILD FARM", default = "r" },
     { id = "mine", name = "BUILD MINE", default = "m" },
+    { id = "boats", name = "BUILD FISHING BOATS", default = "n" },
     { id = "fullscreen", name = "TOGGLE FULLSCREEN", default = "f11" },
 }
 Settings.COMMAND = {}

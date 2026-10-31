@@ -59,6 +59,8 @@ local R = {
     stone = ramp("c", "s", "t", "k"),
     horse = ramp("t", "n", "u", "o"),
     straw = ramp("w", "c", "t", "k"),
+    hull = ramp("c", "s", "t", "n"),
+    rope = ramp("c", "s", "t", "k"),
 }
 
 -- A civilization's colours: its cloth and roofs, and what to print on them.
@@ -277,18 +279,223 @@ function UNIT.horseman(look, pose)
     return parts
 end
 
+--- on the water -----------------------------------------------------------------
+--
+-- Everything that floats stands with its waterline at the pivot (y = 0):
+-- the sea's top. Below that the hull goes on down, and the board keeps a
+-- pixel only where it is nearer than the map there, so the water hides it
+-- and the boat sits in the sea rather than on it.
+
+-- A boat's hull, along x: `len` long, `beam` across, from `y0` (below the
+-- water) up to `y1`. A box with its sides drawn in under it, cut to a point
+-- at the bow (+x) and a blunter one at the stern, both raked out as they
+-- rise. `print` paints its planks.
+local function hull(len, beam, y0, y1, rmp, id, print)
+    local planes = {
+        { 0, 1, 0, 1 }, { 0, -1, 0, 0 },
+        -- The sides lean out from a narrower keel.
+        { 0, -0.45, 1, 0.55 }, { 0, -0.45, -1, 0.55 },
+        -- The bow and the stern, raked.
+        { 1, -0.35, 0.95, 0.8 }, { 1, -0.35, -0.95, 0.8 },
+        { -1, -0.25, 0.85, 0.82 }, { -1, -0.25, -0.85, 0.82 },
+    }
+    local at = A.mul(A.move(0, y0, 0), A.scale(len / 2, y1 - y0, beam / 2))
+    return part({ kind = "hull", planes = planes, reach = { -1.3, 1.3, 0, 1, -1, 1 }, at = at }, rmp, id, print)
+end
+
+-- Planks along a hull: a darker seam every so often, and the top strake in
+-- the civilization's trim so a ship can be told by its side as well as its
+-- sail.
+local function planked(look, eye)
+    return function(ux, uy, uz, lev)
+        -- Looking down into it: the bilge in shade inside the rail.
+        if uy > 0.99 and math.abs(uz) < 0.8 and math.abs(ux) < 0.86 then return IDX.u end
+        if uy > 0.84 then return look.trim end
+        if eye and ux > 0.62 and ux < 0.74 and uy > 0.55 and uy < 0.72 then return IDX.w end
+        if floor(uy * 7) % 2 == 0 and lev ~= 1 then return IDX.u end
+    end
+end
+
+-- A row of `n` oars along both sides from x0 to x1, out of the hull at
+-- height y and half-beam b, their blades in the water: forward at a stroke's
+-- start (pose 1), back at its end (2), level between.
+local function oars(parts, n, x0, x1, y, b, pose, reach)
+    local sweep = (pose == 1 and 1.6) or (pose == 2 and -1.6) or 0
+    local lift = pose == 1 and 0.8 or 0
+    reach = reach or 4
+    for k = 0, n - 1 do
+        local x = x0 + (x1 - x0) * k / math.max(1, n - 1)
+        for _, side in ipairs({ -1, 1 }) do
+            parts[#parts + 1] = part(Sh.seg(x, y, side * b, x + sweep, -0.6 + lift, side * (b + reach), 0.22), R.wood, 20)
+        end
+    end
+end
+
+-- A row of round shields hung along the near and far gunwales, in the
+-- civilization's cloth and trim by turns.
+local function shields(parts, look, n, x0, x1, y, b)
+    for k = 0, n - 1 do
+        local x = x0 + (x1 - x0) * k / math.max(1, n - 1)
+        local rmp = k % 2 == 0 and look.cloth or look.trim
+        for _, side in ipairs({ -1, 1 }) do
+            parts[#parts + 1] = part(Sh.ell(x, y, side * (b + 0.1), 0.7, 0.7, 0.25), rmp, 21)
+        end
+    end
+end
+
+-- A square sail on a yard, bellied by the wind (an ellipsoid pressed flat),
+-- in the civilization's cloth, Varro's banded; the light and dark carry a
+-- sun or a crescent painted on it.
+-- How far round a sail is braced on a ship facing `face`: as near as it
+-- goes (a little under 60 degrees) to square to the camera, so the sail
+-- shows whichever way the ship heads.
+local function braceFor(face)
+    local b = math.rad(60 * (face or 1) - 90)
+    b = (b + math.pi / 2) % math.pi - math.pi / 2
+    return math.max(-1, math.min(1, b))
+end
+
+local function sail(parts, look, x, y, w, ht, id, face)
+    local L = look
+    -- Braced round on the yard, as on a reach, so it shows from either side.
+    local brace = braceFor(face)
+    local bx, bz = math.sin(brace), math.cos(brace)
+    parts[#parts + 1] = part(Sh.ell(x + 0.5, y, 0, 1.2, ht / 2, w / 2, A.rotY(brace)), L.cloth, id, function(ux, uy, uz, lev)
+        if L.bands then
+            if floor((uy + 1) * 3) % 2 == 1 then return L.trim end
+            return
+        end
+        local d = uy * uy + uz * uz
+        if L == LOOK.light and d < 0.16 and d > 0.05 then return L.trim end
+        if L == LOOK.dark and d < 0.2 and (uy - 0.18) ^ 2 + (uz - 0.12) ^ 2 > 0.1 then return IDX.c end
+    end)
+    local half = w / 2 + 0.6
+    parts[#parts + 1] = part(Sh.seg(x + 0.6 + bx * half, y + ht / 2, -bz * half, x + 0.6 - bx * half, y + ht / 2, bz * half, 0.3),
+        R.wood, id + 1)
+end
+
+-- A galley: a long low hull with a bronze ram at the bow, a curled stern
+-- post, a single square sail, shields along its sides and five oars a side.
+function UNIT.galley(look, pose, face)
+    local parts = {}
+    parts[#parts + 1] = hull(17, 4.6, -1.6, 1.9, R.hull, 1, planked(look, true))
+    -- A deck a little under the gunwale, so the hull reads as hollow.
+    parts[#parts + 1] = part(Sh.box(-0.4, 1.6, 0, 13, 3.4, 0.3), R.wood, 2)
+    -- The ram, low at the bow, and the stern post curling up and over.
+    parts[#parts + 1] = part(Sh.seg(7.6, 0.1, 0, 10.4, 0.1, 0, 0.6, 0.5), R.metal, 3)
+    parts[#parts + 1] = part(Sh.seg(-7.8, 1.6, 0, -9.4, 4.4, 0, 0.55), R.hull, 4)
+    parts[#parts + 1] = part(Sh.seg(-9.4, 4.4, 0, -8.4, 5.6, 0, 0.45), R.hull, 4)
+    shields(parts, look, 5, -4.5, 4.5, 2.4, 2.05)
+    oars(parts, 5, -4.6, 4.2, 1.5, 2.2, pose)
+    -- The mast and its sail; on a blow (pose 3) the sail is half furled
+    -- for the ramming run.
+    parts[#parts + 1] = part(Sh.seg(0, 1.6, 0, 0, 13.5, 0, 0.35), R.wood, 5)
+    if pose == 3 then sail(parts, look, 0, 10.4, 8.4, 2.6, 6, face)
+    else sail(parts, look, 0, 8.4, 8.4, 6, 6, face) end
+    -- A steersman at the stern oar.
+    parts[#parts + 1] = part(Sh.ell(-6.6, 3.2, 0, 0.9, 1.4, 0.9), look.cloth, 8, banded(look))
+    parts[#parts + 1] = part(Sh.ell(-6.5, 5.0, 0, 0.8, 0.8, 0.8), R.skin, 9)
+    parts[#parts + 1] = part(Sh.seg(-6.6, 3.5, 1.2, -9.2, -0.6, 2.6, 0.3), R.wood, 10)
+    return parts
+end
+
+-- A quadrireme: a bigger, higher hull with two banks of oars, a foresail
+-- raked over the bow, and a fighting tower forward with a bolt thrower on
+-- it, its arms drawn back, and loosed on a blow.
+function UNIT.quadrireme(look, pose, face)
+    local parts = {}
+    parts[#parts + 1] = hull(19, 5.6, -1.8, 2.8, R.hull, 1, planked(look, true))
+    parts[#parts + 1] = part(Sh.box(-0.6, 2.5, 0, 15, 4.4, 0.3), R.wood, 2)
+    parts[#parts + 1] = part(Sh.seg(8.6, 0.2, 0, 11.4, 0.2, 0, 0.7, 0.55), R.metal, 3)
+    parts[#parts + 1] = part(Sh.seg(-8.8, 2.4, 0, -10.6, 5.6, 0, 0.6), R.hull, 4)
+    parts[#parts + 1] = part(Sh.seg(-10.6, 5.6, 0, -9.6, 7.0, 0, 0.5), R.hull, 4)
+    -- Two banks of oars, the lower ones shorter.
+    oars(parts, 6, -5.6, 5.0, 2.2, 2.7, pose, 4.2)
+    oars(parts, 6, -5.2, 5.4, 0.9, 2.5, pose == 1 and 2 or (pose == 2 and 1 or pose), 3)
+    -- The tower forward: a box of planks with a crenellated top, and the
+    -- bolt thrower on it.
+    parts[#parts + 1] = part(Sh.box(5.2, 2.6, 0, 3.6, 3.8, 3), R.wood, 11, function(ux, uy, uz)
+        if uy > 0.8 and floor((ux + uz + 2) * 3) % 2 == 0 then return look.trim end
+    end)
+    local fire = pose == 3
+    local by = 6.4
+    parts[#parts + 1] = part(Sh.seg(4.2, by, 0, 7.6, by + 0.3, 0, 0.45), R.wood, 12)
+    local armX = fire and 6.6 or 5.6
+    parts[#parts + 1] = part(Sh.seg(6.6, by + 0.2, 0, armX, by + 0.4, -2.0, 0.25), R.wood, 13)
+    parts[#parts + 1] = part(Sh.seg(6.6, by + 0.2, 0, armX, by + 0.4, 2.0, 0.25), R.wood, 13)
+    parts[#parts + 1] = part(Sh.seg(armX, by + 0.4, -2.0, fire and 6.4 or 4.6, by + 0.35, 0, 0.12), R.rope, 14)
+    parts[#parts + 1] = part(Sh.seg(armX, by + 0.4, 2.0, fire and 6.4 or 4.6, by + 0.35, 0, 0.12), R.rope, 14)
+    -- The main mast and sail, and the small foresail on a raked spar.
+    parts[#parts + 1] = part(Sh.seg(-1.2, 2.5, 0, -1.2, 15.5, 0, 0.4), R.wood, 5)
+    sail(parts, look, -1.2, 10, 9.6, 6.6, 6, face)
+    parts[#parts + 1] = part(Sh.seg(7.6, 2.8, 0, 10.6, 8.2, 0, 0.3), R.wood, 15)
+    parts[#parts + 1] = part(Sh.ell(9.4, 7.2, 0, 0.6, 1.5, 2.2), look.cloth, 16, banded(look))
+    -- Shields along the rail aft of the tower, and a steersman.
+    shields(parts, look, 5, -6.5, 2.2, 3.3, 2.55)
+    parts[#parts + 1] = part(Sh.ell(-7.6, 4.1, 0, 0.9, 1.4, 0.9), look.cloth, 8, banded(look))
+    parts[#parts + 1] = part(Sh.ell(-7.5, 5.9, 0, 0.8, 0.8, 0.8), R.skin, 9)
+    return parts
+end
+
+-- A land unit out on the water: a small open boat with a short mast and a
+-- sail in its colours, and the unit itself, a size smaller, standing in it.
+-- A wagon goes as its canvas-covered load and a drover; a horse stands in
+-- the boat as it is, only smaller.
+local function embarked(kind, look, pose, face)
+    local parts = {}
+    parts[#parts + 1] = hull(11, 4.4, -0.6, 3.0, R.hull, 1, planked(look))
+    -- The mast at the stern with a small sail, so the boat reads as theirs.
+    parts[#parts + 1] = part(Sh.seg(-3.9, 2, 0, -3.9, 12, 0, 0.3), R.wood, 3)
+    parts[#parts + 1] = part(Sh.ell(-3.6, 8.6, 0, 0.7, 2.8, 2.6, A.rotY(braceFor(face))), look.cloth, 4, banded(look))
+    -- A pair of oars, pulled as it goes.
+    oars(parts, 1, 2.6, 2.6, 1.9, 2.1, pose, 3)
+    local cargo
+    local s = 0.78
+    if kind == "settler" then
+        -- The wagon's canvas load, ribs and all, and the drover.
+        parts[#parts + 1] = part(Sh.ell(1.6, 2.7, 0, 2.6, 2.0, 1.6), look.cloth, 30, function(ux)
+            if floor((ux + 1) * 3) % 2 == 0 then return look.trim end
+        end)
+        cargo = {}
+        person(cargo, look, 0, { hat = "wide" })
+    elseif kind == "horseman" then
+        cargo = UNIT.horseman(look, 0)
+        s = 0.6
+    else
+        cargo = UNIT[kind](look, pose == 3 and 3 or 0)
+    end
+    local m = A.mul(A.move(kind == "settler" and -1.0 or 0.3, 2.2, 0), A.scale(s, s, s))
+    for _, q in ipairs(cargo) do
+        q.at = A.mul(m, q.at or A.id())
+        q.id = (q.id or 0) + 40
+        parts[#parts + 1] = q
+    end
+    return parts
+end
+M.embarkedParts = embarked
+
 -- Six facings, one a hex direction; facing k points along 60k degrees.
 M.FACINGS = 6
 
 -- The picture of a unit of `kind`, of a civilization that looks `look`,
--- facing direction `face` (0..5), in pose 0..3.
-function M.unit(kind, look, face, pose)
-    face, pose = face or 1, pose or 0
-    return kept(table.concat({ "u", kind, look, face, pose }, ":"), function()
-        local parts = UNIT[kind](LOOK[look], pose)
+-- facing direction `face` (0..5), in pose 0..3. On the water: `roll` (-1, 0,
+-- 1) heels it a little over to one side or the other on the swell, and
+-- `boat` puts a land unit in a boat (embarked).
+M.ROLL = 0.07
+function M.unit(kind, look, face, pose, roll, boat)
+    face, pose, roll = face or 1, pose or 0, roll or 0
+    return kept(table.concat({ boat and "e" or "u", kind, look, face, pose, roll }, ":"), function()
+        local parts = boat and embarked(kind, LOOK[look], pose, face) or UNIT[kind](LOOK[look], pose, face)
+        if roll ~= 0 then
+            local r = A.rotX(roll * M.ROLL)
+            for _, q in ipairs(parts) do q.at = A.mul(r, q.at or A.id()) end
+        end
         return place(parts, math.rad(60 * face))
     end, M.UNIT_SCALE)
 end
+
+-- Does this kind of unit float (and so roll, and stand on the water's top)?
+function M.ship(kind) return UNIT[kind] ~= nil and (kind == "galley" or kind == "quadrireme") end
 
 --- cities -----------------------------------------------------------------------
 
@@ -310,16 +517,102 @@ local function house(parts, x, z, look, id, size, turn)
     parts[#parts + 1] = part(Sh.roof(x, ht, z, w + 1, d + 1.2, 2.6 * size, h), look.roof, id + 1, banded(look))
 end
 
+-- What a city on the water builds out over it, in its own frame with +x
+-- out to sea and the water's top `yw` below the city's ground: steps down
+-- the bank and a timber pier with a boat tied up, then with a harbour a
+-- stone quay, a crane and goods on it, and with a lighthouse a mole running
+-- out to a striped tower with its lamp, lit at night.
+local function waterfront(parts, L, yw, b)
+    local q = {}
+    local function add(p) q[#q + 1] = p return p end
+    local function float(p, x, y, z)
+        p.at = A.mul(A.move(x, y, z), p.at)
+        return add(p)
+    end
+    local x0 = 8.3 -- the bank: the hex's edge, in the city's units
+    if b.harbour then
+        -- The quay along the bank, its stones in courses.
+        add(part(Sh.box(x0 + 1.4, yw - 1.4, 0, 3, 13, 2.9), R.stone, 60, function(ux, uy, uz, lev)
+            if lev ~= 1 and (floor(uy * 5) % 2 == 0 and floor((uz + 1) * 7) % 2 == 0) then return IDX.k end
+        end))
+        x0 = x0 + 2.9
+        local top = yw + 1.5
+        -- The crane: a post, its jib, a rope and a bale on the hook.
+        add(part(Sh.seg(9.6, top, -4.4, 9.6, top + 7, -4.4, 0.35), R.wood, 61))
+        add(part(Sh.seg(9.6, top + 6.4, -4.4, 13.4, top + 8.2, -4.4, 0.28), R.wood, 61))
+        add(part(Sh.seg(13.4, top + 8.2, -4.4, 13.4, top + 3.6, -4.4, 0.1), R.rope, 62))
+        add(part(Sh.box(13.4, top + 2.2, -4.4, 1.5, 1.5, 1.4), R.straw, 63))
+        -- Crates and jars waiting on the quay.
+        add(part(Sh.box(9.4, top, 3.2, 1.6, 1.6, 1.5), R.wood, 64))
+        add(part(Sh.box(9.6, top + 1.5, 3.4, 1.2, 1.2, 1.1), R.wood, 65))
+        for k, z in ipairs({ 5.2, 6.2 }) do
+            add(part(Sh.ell(9.4 + k * 0.4, top + 0.9, z, 0.55, 0.95, 0.55), R.straw, 66))
+        end
+    else
+        -- Steps cut down the bank to the water.
+        local drop = -yw
+        for k = 0, 2 do
+            add(part(Sh.box(x0 - 1.3 + k * 0.8, yw - 1, 1.6, 0.8, 2.2, drop * (1 - (k + 1) / 4) + 1), R.stone, 60))
+        end
+    end
+    -- The pier: planks on posts, out from the bank.
+    local deck, len = yw + 0.9, 5
+    add(part(Sh.box(x0 + len / 2, deck, 0, len, 2.4, 0.4), R.wood, 67, function(ux)
+        if floor((ux + 1) * 6) % 2 == 0 then return IDX.n end
+    end))
+    for k = 0, 2 do
+        for _, z in ipairs({ -1.1, 1.1 }) do
+            add(part(Sh.seg(x0 + 0.8 + k * 2, yw - 1, z, x0 + 0.8 + k * 2, deck + 0.7, z, 0.3), R.dark, 68))
+        end
+    end
+    -- A boat tied up alongside, its mast bare.
+    float(hull(5.6, 2.2, -0.7, 0.7, R.hull, 69, planked(L)), x0 + 2.6, yw, 2.6)
+    add(part(Sh.seg(x0 + 2.2, yw + 0.6, 2.6, x0 + 2.2, yw + 5.4, 2.6, 0.2), R.wood, 70))
+    add(part(Sh.seg(x0 + 4.4, deck + 0.6, 1.1, x0 + 4.4, yw + 0.6, 2.4, 0.1), R.rope, 71))
+    if b.lighthouse then
+        -- The mole: a spit of piled stone out to a rock.
+        local mx, mz = x0 + 5.5, -5
+        add(part(Sh.box((x0 + mx) / 2, yw - 1.2, mz, mx - x0 + 1, 2.2, 2.2), R.stone, 72, function(ux, uy)
+            if uy > 0.8 and floor((ux + 1) * 5) % 2 == 0 then return IDX.k end
+        end))
+        add(part(Sh.ell(mx, yw + 0.2, mz, 2.2, 1.6, 2.2), R.stone, 73))
+        -- The tower, banded light and dark, a gallery round its top, the
+        -- lantern with its lights, and a cap.
+        local ty = yw + 1.2
+        add(part(Sh.frustum(8, 0.7, mx, ty, mz, 1.8, 9, 0, math.pi / 8), R.wall, 74, function(ux, uy)
+            if floor(uy * 4) % 2 == 1 then return R.dark end
+        end))
+        add(part(Sh.prism(8, mx, ty + 9, mz, 1.75, 0.45, 0, math.pi / 8), R.stone, 75))
+        add(part(Sh.prism(8, mx, ty + 9.45, mz, 1.0, 1.7, 0, math.pi / 8), R.metal, 76, function(ux, uy, uz)
+            if uy > 0.12 and uy < 0.88 and math.abs(math.atan2(uz, ux) % (math.pi / 4) - math.pi / 8) > 0.12 then
+                return IDX.c, true
+            end
+        end))
+        add(part(Sh.pyramid(8, mx, ty + 11.15, mz, 1.35, 1.7, 0, math.pi / 8), L.roof, 77))
+    end
+    for _, p in ipairs(q) do parts[#parts + 1] = p end
+end
+
 -- The picture of a city: its houses (one more for each citizen, up to the
--- spots there are), its palace or hall, and whatever it has built.
-function M.city(look, pop, capital, built)
+-- spots there are), its palace or hall, and whatever it has built. A city on
+-- the water is told `shore`, the way (0..5) to the water it faces, and
+-- `drop`, how far below its ground (in room units) the water's top is.
+function M.city(look, pop, capital, built, shore, drop)
     local b = built or {}
     local houses = math.min(#SPOTS, 1 + pop)
+    drop = drop and floor(drop * 2 + 0.5) / 2 or 0
     local key = table.concat({ "c", look, houses, capital and 1 or 0, b.walls and 1 or 0, b.granary and 1 or 0,
-        b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0 }, ":")
+        b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
+        b.harbour and 1 or 0, b.lighthouse and 1 or 0 }, ":")
     return kept(key, function()
         local L = LOOK[look]
         local parts = {}
+        if shore then
+            local front = {}
+            waterfront(front, L, -drop / M.CITY_SCALE, b)
+            place(front, math.rad(60 * shore))
+            for _, p in ipairs(front) do parts[#parts + 1] = p end
+        end
         for k = 1, houses do
             local s = SPOTS[k]
             house(parts, s[1], s[2], L, 10 + k * 2, 0.9 + (k % 3) * 0.08, k % 2 == 0)
@@ -363,8 +656,11 @@ function M.city(look, pop, capital, built)
                 local x0, z0, x1, z1 = r * cos(a0), r * sin(a0), r * cos(a1), r * sin(a1)
                 local mx, mz = (x0 + x1) / 2, (z0 + z1) / 2
                 local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
-                parts[#parts + 1] = part(Sh.box(mx, 0, mz, len, 1.6, 3.2, -math.atan2(z1 - z0, x1 - x0)), R.stone, 40,
-                    function(ux, uy) if uy > 0.8 and floor((ux + 1) * 6) % 2 == 0 then return IDX.k end end)
+                -- Not along the water's edge: the pier goes out there.
+                if k ~= shore then
+                    parts[#parts + 1] = part(Sh.box(mx, 0, mz, len, 1.6, 3.2, -math.atan2(z1 - z0, x1 - x0)), R.stone, 40,
+                        function(ux, uy) if uy > 0.8 and floor((ux + 1) * 6) % 2 == 0 then return IDX.k end end)
+                end
                 parts[#parts + 1] = part(Sh.prism(6, x0, 0, z0, 1.9, 4.8), R.stone, 41 + k)
                 parts[#parts + 1] = part(Sh.pyramid(6, x0, 4.8, z0, 2.3, 2.2), L.roof, 41 + k)
             end
@@ -606,6 +902,74 @@ function M.deer(face, pose, stag)
         end
         return place(parts, math.rad(60 * face))
     end, M.UNIT_SCALE * 0.55)
+end
+
+--- the sea's harvest -------------------------------------------------------------
+
+-- Fishing boats over the fish: two small open boats, each with a fisher in
+-- the civilization's cloth, hauling a net strung between them on a line of
+-- floats; a stake of a fish trap off to one side. `roll` heels them on the
+-- swell (-1, 0, 1), the two by turns.
+function M.fishingBoats(look, roll)
+    roll = roll or 0
+    return kept(table.concat({ "boats", look, roll }, ":"), function()
+        local L = LOOK[look]
+        local parts = {}
+        local function boat(x, z, h, r, id)
+            local q = {}
+            q[#q + 1] = hull(6.4, 2.6, -0.8, 0.9, R.hull, id, planked(L))
+            q[#q + 1] = part(Sh.box(0, 0.6, 0, 4.6, 1.8, 0.2), R.wood, id + 1)
+            -- The fisher, leaning out to the net.
+            local f = {}
+            person(f, L, 0, { hat = "wide",
+                hands = function() return 1.0, 6.2, 2.6, 1.4, 6.2, 1.4 end })
+            local m = A.mul(A.move(0.4, 0.2, 0), A.rotX(-0.25), A.scale(0.62, 0.62, 0.62))
+            for _, p in ipairs(f) do
+                p.at = A.mul(m, p.at or A.id())
+                p.id = p.id + id + 2
+                q[#q + 1] = p
+            end
+            local t = A.mul(A.move(x, 0, z), A.rotY(-h), A.rotX(r * M.ROLL))
+            for _, p in ipairs(q) do
+                p.at = A.mul(t, p.at)
+                parts[#parts + 1] = p
+            end
+        end
+        boat(-5.5, -1.5, math.rad(80), roll, 10)
+        boat(5, 2.5, math.rad(-100), -roll, 30)
+        -- The net's floats, in a bow between the two.
+        for k = 0, 8 do
+            local f = k / 8
+            local x = -4.4 + f * 8.6
+            local z = -0.2 + f * 2.6 + math.sin(f * math.pi) * 3.2
+            parts[#parts + 1] = part(Sh.ell(x, 0.15, z, 0.45, 0.35, 0.45), R.straw, 50)
+        end
+        -- A fish trap: stakes in a ring, a little off.
+        for k = 0, 4 do
+            local a = k * 2 * math.pi / 5
+            parts[#parts + 1] = part(Sh.seg(-1 + math.cos(a) * 1.6, -1, -7 + math.sin(a) * 1.3,
+                -1 + math.cos(a) * 1.5, 1.6 + (k % 2) * 0.5, -7 + math.sin(a) * 1.2, 0.22), R.dark, 51)
+        end
+        return parts
+    end, M.UNIT_SCALE)
+end
+
+-- A fish leaping, side on, its body bent by `bend` (-1 rising, 0, 1
+-- falling) and facing `face` (+1 east or -1 west).
+function M.fish(bend, face)
+    return kept(table.concat({ "fish", bend, face }, ":"), function()
+        local parts = {}
+        local a = bend * 0.5
+        parts[#parts + 1] = part(Sh.ell(0, 0, 0, 1.5, 0.75, 0.8, A.rotZ(a)), R.metal, 1, function(ux, uy)
+            if uy > 0.35 then return IDX.k end
+        end)
+        local tx, ty = -1.5 * math.cos(a), -1.5 * math.sin(a)
+        parts[#parts + 1] = part(Sh.ell(tx - 0.3, ty, 0, 0.45, 0.6, 0.15, A.rotZ(a)), R.metal, 2)
+        if face < 0 then
+            for _, p in ipairs(parts) do p.at = A.mul(A.scale(-1, 1, 1), p.at) end
+        end
+        return parts
+    end,1.6)
 end
 
 return M

@@ -29,16 +29,20 @@ D.RESOURCE = {
     wheat = { name = "WHEAT", food = 1, prod = 0, gold = 0 },
     stone = { name = "STONE", food = 0, prod = 1, gold = 0 },
     gems = { name = "GEMS", food = 0, prod = 0, gold = 3 },
+    fish = { name = "FISH", food = 1, prod = 0, gold = 0 },
 }
 -- What a builder can make, and where.
 D.IMPROVEMENT = {
     farm = { name = "FARM", food = 1, prod = 0, key = "R" },
     mine = { name = "MINE", food = 0, prod = 2, key = "M", tech = "mining" },
+    boats = { name = "FISHING BOATS", food = 1, prod = 0, key = "N", tech = "sailing" },
 }
 
 -- Units. `str` is melee strength (or how well it stands when it is attacked),
 -- `ranged` and `range` a ranged unit's shot, `moves` its movement points.
--- `pop`: a settler takes a citizen with it.
+-- `pop`: a settler takes a citizen with it. `sea`: a ship, that sails the
+-- coast (and the ocean, after Cartography) and is built only by a city on
+-- the water.
 D.UNITS = {
     settler = { name = "SETTLER", cost = 70, str = 0, moves = 2, sight = 2, civilian = true, pop = 1, order = 1 },
     builder = { name = "BUILDER", cost = 45, str = 0, moves = 2, sight = 2, civilian = true, charges = 3, order = 2 },
@@ -49,15 +53,27 @@ D.UNITS = {
     spearman = { name = "SPEARMAN", cost = 65, str = 25, moves = 2, sight = 2, tech = "bronze", order = 7 },
     horseman = { name = "HORSEMAN", cost = 80, str = 36, moves = 4, sight = 2, tech = "horses", order = 8 },
     swordsman = { name = "SWORDSMAN", cost = 90, str = 35, moves = 2, sight = 2, tech = "iron", order = 9 },
+    galley = { name = "GALLEY", cost = 65, str = 25, moves = 3, sight = 2, sea = true, tech = "sailing", order = 10 },
+    quadrireme = { name = "QUADRIREME", cost = 110, str = 20, ranged = 25, range = 2, moves = 3, sight = 2, sea = true,
+        tech = "shipbuilding", order = 11 },
 }
+
+-- A land unit on the water rows across it in a boat: embarked. It moves as
+-- far as this, stands this strong whatever it is, and cannot attack.
+-- Stepping from the land onto the water, or back, takes all its moves.
+D.EMBARK = { moves = 3, str = 10 }
 
 -- Buildings: what each adds to its city every turn.
 D.BUILDINGS = {
-    monument = { name = "MONUMENT", cost = 50, culture = 2, order = 1 },
-    granary = { name = "GRANARY", cost = 65, food = 2, tech = "pottery", order = 2 },
-    library = { name = "LIBRARY", cost = 90, science = 2, tech = "writing", order = 3 },
-    market = { name = "MARKET", cost = 100, gold = 4, tech = "currency", order = 4 },
-    walls = { name = "WALLS", cost = 80, defense = 10, hp = 100, tech = "masonry", order = 5 },
+    monument = { name = "MONUMENT", short = "MON.", cost = 50, culture = 2, order = 1 },
+    granary = { name = "GRANARY", short = "GRAN.", cost = 65, food = 2, tech = "pottery", order = 2 },
+    library = { name = "LIBRARY", short = "LIB.", cost = 90, science = 2, tech = "writing", order = 3 },
+    market = { name = "MARKET", short = "MKT.", cost = 100, gold = 4, tech = "currency", order = 4 },
+    walls = { name = "WALLS", short = "WALLS", cost = 80, defense = 10, hp = 100, tech = "masonry", order = 5 },
+    -- Only a city on the water: each worked water hex yields this much more.
+    harbour = { name = "HARBOUR", short = "HARB.", cost = 90, seaFood = 1, coastal = true, tech = "shipbuilding", order = 6 },
+    lighthouse = { name = "LIGHTHOUSE", short = "LIGHT.", cost = 80, seaGold = 1, sight = 4, coastal = true, tech = "cartography",
+        order = 7 },
 }
 
 -- Technologies, in the order the list shows them.
@@ -71,6 +87,9 @@ D.TECHS = {
     { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, gives = "HORSEMAN" },
     { id = "currency", name = "CURRENCY", cost = 80, needs = { "writing" }, gives = "MARKET" },
     { id = "iron", name = "IRON WORKING", cost = 100, needs = { "bronze" }, gives = "SWORDSMAN" },
+    { id = "sailing", name = "SAILING", cost = 40, needs = { "pottery" }, gives = "GALLEY, EMBARKING, FISHING BOATS" },
+    { id = "shipbuilding", name = "SHIPBUILDING", cost = 70, needs = { "sailing" }, gives = "QUADRIREME, HARBOUR" },
+    { id = "cartography", name = "CARTOGRAPHY", cost = 90, needs = { "shipbuilding" }, gives = "OCEAN, LIGHTHOUSE" },
 }
 D.TECH = {}
 for _, t in ipairs(D.TECHS) do D.TECH[t.id] = t end

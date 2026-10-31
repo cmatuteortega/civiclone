@@ -4,6 +4,17 @@ local D = require "src.defs"
 
 local function newGame(seed) return Game.new({ seed = seed or 5 }) end
 
+-- A land hex beside the coast, and that coast hex: somewhere to sail from.
+local function shore(g)
+    for _, cell in ipairs(g.cells) do
+        if g:passable(cell) and not cell.city and not cell.owner then
+            for _, n in ipairs(g:neighbours(cell)) do
+                if n.terrain == "coast" and not g.mil[n.id] then return cell, n end
+            end
+        end
+    end
+end
+
 local function find(g, owner, kind)
     for _, u in ipairs(g.units) do if u.owner == owner and u.kind == kind then return u end end
 end
@@ -122,7 +133,123 @@ return {
         assert(g:yield(g.cells[b.cell]) == f0 + 1)
         assert(b.charges == 2)
     end },
+    { "land units take to the water only after sailing, and it takes all their moves", function()
+        local g = newGame()
+        local land, sea = shore(g)
+        local w = g:addUnit("warrior", 1, land.id)
+        assert(not g:canEnter(w, sea), "no boats before sailing")
+        assert(not g:step(w, sea.id))
+        g.players[1].techs.sailing = true
+        assert(g:canEnter(w, sea))
+        assert(g:stepCost(w, land, sea) == Game.ALL)
+        w.moves = 1
+        assert(g:step(w, sea.id), "embarks with any moves left")
+        assert(w.cell == sea.id and w.moves == 0 and g:embarked(w))
+        assert(g:defense(w) == D.EMBARK.str)
+        g:beginTurn(g.players[1])
+        assert(w.moves == D.EMBARK.moves, "a boat's moves on the water")
+        -- Out on the water it cannot attack, even next to an enemy.
+        local enemy = g:addUnit("warrior", 2, land.id)
+        assert(not g:canAttack(w, land))
+        g:removeUnit(enemy)
+        -- And back onto the land, again for all its moves.
+        assert(g:step(w, land.id))
+        assert(w.moves == 0 and not g:embarked(w))
+    end },
+    { "the ocean wants cartography, for ships and boats alike", function()
+        local g = newGame()
+        g.players[1].techs.sailing = true
+        local ocean
+        for _, cell in ipairs(g.cells) do if cell.terrain == "ocean" then ocean = cell break end end
+        assert(ocean, "the map has open ocean")
+        local _, sea = shore(g)
+        local ship = g:addUnit("galley", 1, sea.id)
+        local w = g:addUnit("warrior", 1, shore(g).id)
+        assert(not g:canEnter(ship, ocean) and not g:canEnter(w, ocean))
+        assert(g:canEnter(ship, sea))
+        assert(not g:canEnter(ship, shore(g)), "a ship does not sail onto the land")
+        g.players[1].techs.cartography = true
+        assert(g:canEnter(ship, ocean) and g:canEnter(w, ocean))
+    end },
+    { "only a city on the water builds ships and harbours, and they come out on the water", function()
+        local g = newGame()
+        local p = g.players[1]
+        p.techs.pottery, p.techs.sailing, p.techs.shipbuilding = true, true, true
+        local land = shore(g)
+        local s = g:addUnit("settler", 1, land.id)
+        for _, c in ipairs(g.cities) do g.cells[c.cell].city = nil end
+        g.cities = {}
+        local city = g:found(s)
+        assert(city and g:coastal(g.cells[city.cell]))
+        assert(g:canBuild(city, "unit", "galley") and g:canBuild(city, "building", "harbour"))
+        assert(not g:canBuild(city, "building", "lighthouse"), "lighthouse wants cartography")
+        g:setBuild(city, "unit", "galley")
+        city.prod = 1000
+        assert(g:complete(city))
+        local ship = find(g, 1, "galley")
+        assert(ship and g:isWater(g.cells[ship.cell]))
+        -- A city inland cannot.
+        for _, cell in ipairs(g.cells) do
+            if g:passable(cell) and not g:coastal(cell) then
+                local inland = { owner = 1, cell = cell.id, buildings = {} }
+                assert(not g:canBuild(inland, "unit", "galley"))
+                assert(not g:canBuild(inland, "building", "harbour"))
+                break
+            end
+        end
+    end },
+    { "a galley sinks a boat but a soldier on the shore cannot touch a ship", function()
+        local g = newGame()
+        g.players[1].techs.sailing, g.players[2].techs.sailing = true, true
+        local land, sea = shore(g)
+        local ship = g:addUnit("galley", 1, sea.id)
+        local soldier = g:addUnit("warrior", 2, land.id)
+        assert(not g:canAttack(soldier, sea), "no melee from the land onto the water")
+        assert(not g:canAttack(ship, land), "no ramming the beach")
+        -- An enemy rowed out next to it is fair game.
+        local water
+        for _, n in ipairs(g:neighbours(sea)) do
+            if n.terrain == "coast" and not g.mil[n.id] then water = n break end
+        end
+        assert(water)
+        g:removeUnit(soldier)
+        local boat = g:addUnit("warrior", 2, water.id)
+        assert(g:embarked(boat) and g:canAttack(ship, water))
+        local dealt = g:forecast(ship, water)
+        assert(dealt >= 40, "a boat is easy prey: " .. dealt)
+        boat.hp = 1
+        g:attack(ship, water)
+        assert(boat.dead and ship.cell == water.id)
+    end },
+    { "fishing boats, a harbour and a lighthouse feed a city from the sea", function()
+        local g = newGame()
+        local p = g.players[1]
+        p.techs.pottery, p.techs.sailing, p.techs.shipbuilding, p.techs.cartography = true, true, true, true
+        local land, sea = shore(g)
+        sea.resource = "fish"
+        local s = g:addUnit("settler", 1, land.id)
+        for _, c in ipairs(g.cities) do g.cells[c.cell].city = nil end
+        g.cities = {}
+        local city = g:found(s)
+        assert(sea.owner == 1)
+        local f0, _, g0 = g:workYield(city, sea)
+        local b = g:addUnit("builder", 1, sea.id)
+        assert(g:embarked(b))
+        local can = g:improvementsFor(b)
+        assert(#can == 1 and can[1] == "boats")
+        assert(g:improve(b, "boats"))
+        city.buildings.harbour, city.buildings.lighthouse = true, true
+        local f1, _, g1 = g:workYield(city, sea)
+        assert(f1 == f0 + 2 and g1 == g0 + 1, "boats and harbour +2 food, lighthouse +1 gold")
+        g:look(p)
+        local far
+        for _, cell in ipairs(g:within(g.cells[city.cell], 4)) do
+            if g:dist(cell, g.cells[city.cell]) == 4 then far = cell break end
+        end
+        assert(p.visible[far.id], "the lighthouse sees 4 out")
+    end },
     { "a hundred turns of computers playing every side run clean", function()
+        local ships = 0
         for _, seed in ipairs({ 3, 8 }) do
             local g = Game.new({ seed = seed, allAI = true })
             for _ = 1, 100 do
@@ -135,7 +262,9 @@ return {
             -- Every unit stands in the slot the game thinks it does.
             for _, u in ipairs(g.units) do
                 assert(g:slot(u)[u.cell] == u, "unit " .. u.kind .. " is where it says")
+                if u.def.sea then ships = ships + 1 end
             end
         end
+        assert(ships > 0, "someone put to sea")
     end },
 }

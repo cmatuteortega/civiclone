@@ -7,6 +7,7 @@
 -- once there are enough of them -- march on the nearest enemy city they know.
 
 local Mapgen = require "src.mapgen"
+local D = require "src.defs"
 
 local max = math.max
 
@@ -20,12 +21,39 @@ local function bestSoldier(game, city, ranged)
     local best, bv
     for _, it in ipairs(game:buildable(city)) do
         local def = it.def
-        if it.kind == "unit" and not def.civilian and (def.ranged ~= nil) == ranged and it.id ~= "scout" then
+        if it.kind == "unit" and not def.civilian and not def.sea and (def.ranged ~= nil) == ranged and it.id ~= "scout" then
             local v = (def.ranged or def.str) + def.moves
             if not bv or v > bv then best, bv = it.id, v end
         end
     end
     return best
+end
+
+-- The best ship this city can build, if it can build one.
+local function bestShip(game, city)
+    local best, bv
+    for _, it in ipairs(game:buildable(city)) do
+        if it.kind == "unit" and it.def.sea then
+            local v = (it.def.ranged or it.def.str) + game.rng:random() * 6
+            if not bv or v > bv then best, bv = it.id, v end
+        end
+    end
+    return best
+end
+
+-- How many ships a civilization wants: one for every two cities on the
+-- water, one more once it knows of a rival's city on the water, at most 3.
+local function shipsWanted(game, p)
+    local coastal = 0
+    for _, c in ipairs(game:citiesOf(p.id)) do
+        if game:coastal(game.cells[c.cell]) then coastal = coastal + 1 end
+    end
+    if coastal == 0 then return 0 end
+    local want = math.ceil(coastal / 2)
+    for _, c in ipairs(game.cities) do
+        if c.owner ~= p.id and p.explored[c.cell] and game:coastal(game.cells[c.cell]) then want = want + 1 break end
+    end
+    return math.min(3, want)
 end
 
 local function count(game, p, kind)
@@ -51,7 +79,20 @@ local function chooseBuild(game, p, city)
         return "unit", "settler"
     end
     if count(game, p, "builder") < max(1, cities - 1) and game.turn > 6 then return "unit", "builder" end
-    for _, id in ipairs({ "monument", "granary", "walls", "library", "market" }) do
+    -- A ship or two from the cities on the water.
+    if game.turn > 15 then
+        local ship = bestShip(game, city)
+        if ship then
+            local ships = 0
+            for _, u in ipairs(game:unitsOf(p.id)) do if u.def.sea then ships = ships + 1 end end
+            for _, c in ipairs(game:citiesOf(p.id)) do
+                if c.build and c.build.kind == "unit" and game:canBuild(c, "unit", c.build.id)
+                    and D.UNITS[c.build.id].sea then ships = ships + 1 end
+            end
+            if ships < shipsWanted(game, p) then return "unit", ship end
+        end
+    end
+    for _, id in ipairs({ "monument", "granary", "walls", "library", "harbour", "market", "lighthouse" }) do
         if game:canBuild(city, "building", id) then
             if id ~= "walls" or game.turn > 30 then return "building", id end
         end
@@ -122,8 +163,10 @@ local function improve(game, u)
     for _, cell in ipairs(game.cells) do
         if cell.workedBy and cell.owner == u.owner and not cell.improvement and not game.mil[cell.id]
             and not game.civ[cell.id] then
-            local can = (cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert")
-                or (cell.elev == "hills" and game.players[u.owner].techs.mining)
+            local techs = game.players[u.owner].techs
+            local can = (cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert" and not game:isWater(cell))
+                or (cell.elev == "hills" and techs.mining)
+                or (cell.resource == "fish" and techs.sailing)
             if can then
                 local d = game:dist(here, cell)
                 if not bd or d < bd then best, bd = cell, d end
@@ -188,7 +231,7 @@ local function frontier(game, p, u)
     local here = game.cells[u.cell]
     local best, bd
     for _, cell in ipairs(game.cells) do
-        if not p.explored[cell.id] and game:passable(cell) then
+        if not p.explored[cell.id] and game:canEnter(u, cell) then
             local d = game:dist(here, cell) + game.rng:random() * 2
             if not bd or d < bd then best, bd = cell, d end
         end
@@ -205,7 +248,39 @@ local function march(game, u, goal)
     return true
 end
 
+-- A ship: strike, go home when hurt, sail on the enemy's cities on the water
+-- when the army marches, and otherwise chart the coast.
+local function ship(game, p, u, attacking)
+    if strike(game, u) then return end
+    if u.hp < 50 then
+        for _, c in ipairs(game:citiesOf(p.id)) do
+            if game:canEnter(u, game.cells[c.cell]) and not game.mil[c.cell] then
+                march(game, u, game.cells[c.cell])
+                break
+            end
+        end
+        return
+    end
+    if attacking then
+        local here = game.cells[u.cell]
+        local best, bd
+        for _, c in ipairs(game.cities) do
+            local cell = game.cells[c.cell]
+            if c.owner ~= p.id and p.explored[c.cell] and game:coastal(cell) then
+                local d = game:dist(here, cell)
+                if not bd or d < bd then best, bd = cell, d end
+            end
+        end
+        if best and march(game, u, best) then
+            strike(game, u)
+            return
+        end
+    end
+    if not march(game, u, frontier(game, p, u)) then u.fortified = true end
+end
+
 local function soldier(game, p, u, attacking)
+    if u.def.sea then return ship(game, p, u, attacking) end
     if strike(game, u) then return end
     -- Wounded: back home to heal.
     if u.hp < 45 then

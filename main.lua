@@ -139,7 +139,86 @@ local function followPlan()
             local u = S.game:unitsOf(1)[1]
             if u then O.select(u, true) end
         end
-        if S.selected then View.lookAt(S.game.cells[(S.selected.unit or S.selected.city).cell], true) end
+        -- `--select port`: the player's city on the water with the most
+        -- built out over it; `--select fleet`: one of the player's ships, or
+        -- failing that a unit of theirs on the water.
+        -- `--select harbour`: for looking at the sea's models, the player's
+        -- city on the water given a harbour and a lighthouse, with a galley,
+        -- a quadrireme, a soldier in a boat and fishing boats round it.
+        if plan.select == "harbour" then
+            local g = S.game
+            local p = g.players[1]
+            for _, t in ipairs({ "pottery", "sailing", "shipbuilding", "cartography" }) do p.techs[t] = true end
+            -- No city on the water yet: found one on the nearest free shore.
+            local coastal = false
+            for _, c in ipairs(g:citiesOf(1)) do coastal = coastal or g:coastal(g.cells[c.cell]) end
+            local cap = g:citiesOf(1)[1]
+            if not coastal and cap then
+                local best, bd
+                for _, cell in ipairs(g.cells) do
+                    if g:passable(cell) and g:coastal(cell) and not g.mil[cell.id] and not g.civ[cell.id] then
+                        local s = g:addUnit("settler", 1, cell.id)
+                        if g:canFound(s) then
+                            local d = g:dist(cell, g.cells[cap.cell])
+                            if not bd or d < bd then best, bd = cell, d end
+                        end
+                        g:removeUnit(s)
+                    end
+                end
+                if best then
+                    g:found(g:addUnit("settler", 1, best.id)).pop = 5
+                    Anim.events(g)
+                end
+            end
+            for _, c in ipairs(g:citiesOf(1)) do
+                local cell = g.cells[c.cell]
+                if g:coastal(cell) then
+                    c.buildings.harbour, c.buildings.lighthouse = true, true
+                    -- Ships a little way out, boats on the near water but off
+                    -- the pier's side.
+                    local kinds = { "galley", "quadrireme", "warrior" }
+                    local pier = g:cell(require("src.hex").step(cell.c, cell.r, Anim.shore(g, cell) or 1))
+                    local fished = false
+                    for _, n in ipairs(g:within(cell, 3)) do
+                        local d = g:dist(n, cell)
+                        if g:isWater(n) and n.terrain == "coast" and not g.mil[n.id] and not g.civ[n.id] then
+                            if d == 1 and n ~= pier and not fished then
+                                n.resource, n.improvement, n.owner, fished = "fish", "boats", 1, true
+                            elseif d >= 2 and #kinds > 0 then
+                                g:addUnit(table.remove(kinds, 1), 1, n.id)
+                            end
+                        end
+                    end
+                    O.select(c, true)
+                    break
+                end
+            end
+            g:look(p)
+            S.bordersDirty = true
+        end
+        if plan.select == "port" then
+            local best, bv = nil, -1
+            for _, c in ipairs(S.game.cities) do
+                if S.game:coastal(S.game.cells[c.cell]) and S.game.players[1].explored[c.cell] then
+                    local v = (c.buildings.harbour and 2 or 0) + (c.buildings.lighthouse and 2 or 0) + c.pop * 0.1
+                        + (c.owner == 1 and 1 or 0)
+                    if v > bv then best, bv = c, v end
+                end
+            end
+            if best then
+                if best.owner == 1 then O.select(best, true) else View.lookAt(S.game.cells[best.cell], true) end
+            end
+        elseif plan.select == "fleet" then
+            local pick
+            for _, u in ipairs(S.game:unitsOf(1)) do
+                if u.def.sea then pick = u break end
+                if not pick and S.game:embarked(u) then pick = u end
+            end
+            if pick then O.select(pick, true) end
+        end
+        if S.selected and plan.select ~= "port" then
+            View.lookAt(S.game.cells[(S.selected.unit or S.selected.city).cell], true)
+        end
         -- `--select coast`: the camera over the explored shore nearest the
         -- player's first unit or city, to look at the sea.
         if plan.select == "coast" and S.selected then

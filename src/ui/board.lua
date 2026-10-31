@@ -183,6 +183,45 @@ local function breath(u, a)
     return t < 0.45 and 0.7 or 0
 end
 
+-- How a boat heels on the swell now: -1, 0 or 1, each its own time, still
+-- while it moves or when the water is set still.
+local function roll(seed, a)
+    if Sea.still() or (a and (#a.queue > 0 or a.lunge)) then return 0 end
+    local v = math.sin(Sea.time() * 1.25 + seed * 1.71)
+    return v > 0.55 and 1 or (v < -0.55 and -1 or 0)
+end
+
+-- Now and then a fish over a fish hex leaps, and rings spread where it fell.
+local LEAP, RINGS = 0.8, 1.6
+local function fish(cell, list)
+    if Sea.still() then return end
+    local period = 5 + (cell.id % 7) * 0.7
+    local t = (Sea.time() + cell.id * 1.37) % period
+    local ox = ((cell.id * 7) % 9 - 4) * 1.2
+    local oz = ((cell.id * 5) % 7 - 3) * 1.1
+    local dir = cell.id % 2 == 0 and 1 or -1
+    if t < LEAP then
+        local f = t / LEAP
+        local x, y, z = cell.x + ox + (f - 0.5) * 12 * dir, cell.top + math.sin(f * math.pi) * 7, cell.z + oz
+        local bend = f < 0.4 and -1 or (f > 0.6 and 1 or 0)
+        list[#list + 1] = { z = z, draw = function() P.stamp(M.fish(bend, dir), x, y, z) end }
+    elseif t < LEAP + RINGS then
+        -- Two rings growing out from the splash, lifting the water a step.
+        local age = (t - LEAP) / RINGS
+        local cx, cz = cell.x + ox + 6 * dir, cell.z + oz
+        for _, r in ipairs({ 1 + age * 5, age * 3 }) do
+            if r > 0.5 then
+                local n = floor(r * 5) + 6
+                for k = 0, n - 1 do
+                    local a = k * 2 * math.pi / n
+                    local i, j = S.world:toImage(cx + math.cos(a) * r, cell.top, cz + math.sin(a) * r * 0.8)
+                    P.lift(1, floor(i), floor(j))
+                end
+            end
+        end
+    end
+end
+
 local function things(me)
     local g = S.game
     local list = {}
@@ -193,6 +232,8 @@ local function things(me)
                 local layout = M.farmLayout(cell.id)
                 furrows(cell, layout, me.visible[cell.id])
                 pic = M.farm(layout, farmOpen(cell))
+            elseif cell.improvement == "boats" then
+                pic = M.fishingBoats(lookOf(cell.owner or 1), me.visible[cell.id] and roll(cell.id) or 0)
             else
                 pic = M.mine(cell.elev == "hills")
             end
@@ -206,11 +247,15 @@ local function things(me)
             end }
         end
     end
+    for _, cell in ipairs(g.cells) do
+        if cell.resource == "fish" and cell.improvement ~= "boats" and me.visible[cell.id] then fish(cell, list) end
+    end
     for _, c in ipairs(g.cities) do
         local cell = g.cells[c.cell]
         if me.explored[cell.id] then
             list[#list + 1] = { z = cell.z, draw = function()
-                local pic = M.city(lookOf(c.owner), c.pop, c.capital, c.buildings)
+                local shore = Anim.shore(g, cell)
+                local pic = M.city(lookOf(c.owner), c.pop, c.capital, c.buildings, shore, shore and cell.top + 2)
                 P.stamp(pic, cell.x, cell.top, cell.z, c.flash and T.FLASH or nil)
                 if me.visible[cell.id] then Smoke.city(cell, c) end
             end }
@@ -220,18 +265,25 @@ local function things(me)
         if u.owner == 1 or me.visible[u.cell] then
             local x, y, z, face, pose = Anim.place(g, u)
             local a = Anim.of(u)
-            y = y + breath(u, a)
+            -- On the water (a ship, or a land unit in a boat, by where it is
+            -- drawn now): it heels on the swell rather than breathes.
+            local under = g:cell(H.at(x, z))
+            local afloat = u.def.sea or (under and g:isWater(under))
+            local boat = afloat and not u.def.sea
+            local heel = afloat and roll(u.id, a) or 0
+            if not afloat then y = y + breath(u, a) end
             list[#list + 1] = { z = z + 0.1, draw = function()
                 local remap = a.flash and floor(a.flash * 20) % 2 == 0 and T.FLASH or nil
                 if u.fortified and not remap then remap = nil end
-                P.stamp(M.unit(u.kind, lookOf(u.owner), face, pose), x, y, z, remap)
+                P.stamp(M.unit(u.kind, lookOf(u.owner), face, pose, heel, boat), x, y, z, remap)
             end }
         end
     end
     for _, e in ipairs(S.effects) do
         if e.kind == "death" and floor(e.t * 12) % 2 == 0 then
             list[#list + 1] = { z = e.z, draw = function()
-                P.stamp(M.unit(e.unit.kind, lookOf(e.unit.owner), e.face, 0), e.x, e.y, e.z, T.FLASH)
+                local boat = not e.unit.def.sea and g:isWater(g.cells[e.unit.cell])
+                P.stamp(M.unit(e.unit.kind, lookOf(e.unit.owner), e.face, 0, 0, boat), e.x, e.y, e.z, T.FLASH)
             end }
         end
     end

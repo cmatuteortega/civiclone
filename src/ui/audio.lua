@@ -194,6 +194,8 @@ function Audio.hear(game, e)
         elseif seen(e.cell) then at("taken", e.cell, 0.4, 0, 0.9) end
     elseif k == "eliminated" then
         at("gong")
+    elseif k == "embark" or k == "land" then
+        if seen(e.cell) then at("splash", e.cell, e.unit.owner == 1 and 1 or 0.6) end
     elseif k == "improve" then
         if seen(e.cell) then at("dig", e.cell) end
     -- The news of the turn, one after another.
@@ -213,6 +215,7 @@ end
 function Audio.step(u, cell)
     if not Audio.on or not seen(cell.id) then return end
     local name = u.kind == "horseman" and "hoof" or (cell.feature == "forest" and "rustle" or "step")
+    if S.game:isWater(cell) or u.def.sea then name = "oar" end
     at(name, cell.id, u.owner == 1 and 1 or 0.6)
 end
 

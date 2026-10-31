@@ -17,12 +17,13 @@ that is the file to edit to tune the game.
 11. [Borders and culture](#borders-and-culture)
 12. [Builders and improvements](#builders-and-improvements)
 13. [Science](#science)
-14. [Sight and fog of war](#sight-and-fog-of-war)
-15. [The rival civilizations](#the-rival-civilizations)
-16. [Winning and losing](#winning-and-losing)
-17. [How it is drawn](#how-it-is-drawn)
-18. [How it sounds](#how-it-sounds)
-19. [Developer notes](#developer-notes)
+14. [The sea](#the-sea)
+15. [Sight and fog of war](#sight-and-fog-of-war)
+16. [The rival civilizations](#the-rival-civilizations)
+17. [Winning and losing](#winning-and-losing)
+18. [How it is drawn](#how-it-is-drawn)
+19. [How it sounds](#how-it-sounds)
+20. [Developer notes](#developer-notes)
 
 ---
 
@@ -73,7 +74,7 @@ with your first idle unit (the settler) selected.
 | B | Settler: found a city |
 | F | Military unit: fortify, or wake |
 | Z | Civilian: sleep, or wake |
-| R / M | Builder: farm / mine |
+| R / M / N | Builder: farm / mine / fishing boats |
 | T | Open or close research |
 | H | Select your capital |
 | G | Show or hide the hex grid |
@@ -98,7 +99,7 @@ Each fades after 8 seconds.
 
 **Unit panel** (bottom left, when a unit is selected): its kind, strength,
 ranged strength and range, HP, moves left, builds left (builders), and status
-(FORTIFIED, ASLEEP, ON THE MOVE). Below that are its orders as buttons. They
+(FORTIFIED, ASLEEP, ON THE MOVE, EMBARKED). Below that are its orders as buttons. They
 grey out when the unit has no moves left.
 
 **City panel** (right, when a city is selected):
@@ -177,8 +178,8 @@ Water next to land is **coast**; the rest is **ocean**.
 | Grassland | 2 | 0 | 0 | 1 | 0 |
 | Plains | 1 | 1 | 0 | 1 | 0 |
 | Desert | 0 | 0 | 0 | 1 | 0 |
-| Coast | 1 | 0 | 1 | impassable | — |
-| Ocean | 1 | 0 | 0 | impassable | — |
+| Coast | 1 | 0 | 1 | 1 by sea (see [The sea](#the-sea)) | — |
+| Ocean | 1 | 0 | 0 | 1 by sea, after Cartography | — |
 | **+ Hills** | +0 | +1 | +0 | +1 | +3 |
 | **+ Forest** | +0 | +1 | +0 | +1 | +3 |
 | Mountains | 0 | 0 | 0 | impassable | — |
@@ -193,6 +194,7 @@ moves to enter, and gives +6 defence.
 | Wheat | 8% of flat, unforested grassland and plains | +1 food |
 | Stone | 14% of unforested hills | +1 production |
 | Gems | 6% of desert | +3 gold |
+| Fish | 12% of coast | +1 food |
 
 ### Height
 
@@ -243,6 +245,8 @@ then 20. Turn 1 is 4000 BC.
 | Spearman | 65 | 25 | — | 2 | 2 | Bronze Working |
 | Horseman | 80 | 36 | — | 4 | 2 | Horseback Riding |
 | Swordsman | 90 | 35 | — | 2 | 2 | Iron Working |
+| Galley | 65 | 25 | — | 3 | 2 | Sailing; a city on the water |
+| Quadrireme | 110 | 20 | 25 / 2 | 3 | 2 | Shipbuilding; a city on the water |
 
 - **Stacking:** one military and one civilian unit per hex, of any one civilization.
 - **HP:** every unit has 100 HP.
@@ -266,7 +270,7 @@ then 20. Turn 1 is 4000 BC.
 ## Movement
 
 - **Cost:** entering a hex costs 1, plus 1 for hills, plus 1 for forest.
-  Mountains and water cannot be entered.
+  Mountains cannot be entered, nor water until Sailing (see [The sea](#the-sea)).
 - **Full moves:** a unit with all its moves can always take one step,
   whatever the cost (so a warrior can climb a forested hill). After that, a
   step needs the moves for it.
@@ -389,9 +393,15 @@ below 1) and the store empties.
 | Library | 90 | +2 science | Writing |
 | Market | 100 | +4 gold | Currency |
 | Walls | 80 | +10 strength, +100 HP, the city shoots | Masonry |
+| Harbour | 90 | +1 food on each worked water hex | Shipbuilding; a city on the water |
+| Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a columned hall, market tents, a ring of walls with towers.
+A city on the water builds out over it on the side nearest the front of the
+screen: steps down the bank and a pier with a boat tied up; with a harbour a
+stone quay, a crane and goods; with a lighthouse a mole out to a striped tower
+whose lamp is lit at night. Its walls leave that side open.
 
 ## Production and gold
 
@@ -439,6 +449,7 @@ out, the builder is gone.
 | --- | --- | --- | --- |
 | Farm | Flat grassland or plains without forest | +1 food | — |
 | Mine | Hills, or a hex with stone or gems | +2 production | Mining |
+| Fishing boats | Fish, the builder rowed out onto it | +1 food | Sailing |
 
 Building a new improvement replaces the old one. A farm shows as furrows and
 a barn with a haystack; a mine shows as a spoil heap with a timbered adit and
@@ -462,13 +473,45 @@ waits for the next choice.
 | Horseback Riding | 60 | Archery | Horseman |
 | Currency | 80 | Writing | Market |
 | Iron Working | 100 | Bronze Working | Swordsman |
+| Sailing | 40 | Pottery | Galley, embarking, fishing boats |
+| Shipbuilding | 70 | Sailing | Quadrireme, Harbour |
+| Cartography | 90 | Shipbuilding | Ocean travel, Lighthouse |
+
+## The sea
+
+**Ships** (galley, quadrireme) are built only by a city beside water, and come
+out on the coast next to it. They sail the coast, and the ocean once their
+civilization knows Cartography. Out of the water they can only lie in one of
+their own cities on it.
+
+**Embarking:** once a civilization knows Sailing, its land units can step
+onto the coast (and the ocean, after Cartography) and row across it in a boat.
+
+- Stepping from the land onto the water, or back, can be done with any moves
+  left, and takes them all.
+- On the water a unit has 3 moves, whatever it had on land, and defends with
+  strength 10. It cannot attack.
+- Paths cross the water by themselves where that is the way; each step on or
+  off counts as a whole turn when the path is weighed.
+
+**Fighting at sea:**
+
+- A galley attacks ships and embarked units next to it, and any city beside
+  its water; it can take a city that has nothing left, and sails into it.
+- A quadrireme shoots like an archer: anything with a soldier or a city in it
+  within 2, on land or water.
+- A soldier on land cannot attack anything on the water; an archer can shoot it.
+- Walls shoot at ships as at anything else.
+
+**Fishing boats:** a builder rowed out onto a fish hex inside your borders
+builds them (N).
 
 ## Sight and fog of war
 
 **What you see:**
 
 - around each unit, as far as its sight (+1 when standing on hills)
-- 2 hexes around each city
+- 2 hexes around each city (4 with a lighthouse)
 - all of your own land
 
 **How the map shows it:**
@@ -495,9 +538,13 @@ technology.
 2. a settler, from turn 5, in a city of 2+ citizens, while it has fewer than
    5 cities and settlers and no settler already planned
 3. a builder, from turn 7, while it has fewer than (cities − 1) builders (at least 1)
-4. a building: monument, granary, walls (only after turn 30), library, then market
-5. more soldiers, up to 3 per city plus 1 per 15 turns
-6. otherwise a builder
+4. from turn 16, a ship in a city on the water, while it has fewer than one
+   for every two such cities (one more once it knows a rival's city on the
+   water, 3 at most)
+5. a building: monument, granary, walls (only after turn 30), library,
+   harbour, market, then lighthouse
+6. more soldiers, up to 3 per city plus 1 per 15 turns
+7. otherwise a builder
 
 **Buying:** a damaged city building a unit buys it at once if it can afford it.
 
@@ -507,8 +554,9 @@ by the yield of the land within 2 hexes, with +1 for coast and −1.6 per hex
 of distance, and must be at least 4 hexes from any city and not in foreign
 land.
 
-**Builders** improve the hexes their cities work: a farm on flat land, or a
-mine on hills once they have Mining. They fortify when there is nothing left
+**Builders** improve the hexes their cities work: a farm on flat land, a
+mine on hills once they have Mining, or fishing boats on fish once they have
+Sailing. They fortify when there is nothing left
 to do.
 
 **Soldiers**, in order of priority:
@@ -523,6 +571,10 @@ to do.
    counting scouts) than cities, march on the nearest enemy city they
    know (or the nearest enemy unit seen), attacking on arrival.
 7. **Explore:** otherwise.
+
+**Ships** strike what they can beat, go home under half HP, sail on the
+nearest rival city on the water when the army marches, and otherwise chart
+the coast.
 
 The rivals fight each other as well as you.
 
@@ -638,6 +690,12 @@ crown stands, how much fog darkens it, and its colour.
 - **Sheep**, after herding's: half the flat farms have two to four grazing
   across from the farmhouse, and on most of those a collie runs a lap round
   them now and then and sits to watch. Sheep don't run from anyone.
+- **Fish**: over each fish hex you can see, one leaps now and then and rings
+  spread where it fell.
+- **Boats**: ships, boats and fishing boats heel a little to one side and
+  the other on the swell, each in its own time. Their hulls go on down under
+  the water's top, and the board keeps a pixel only where it is nearer than
+  the map, so the sea hides them and they sit in it.
 - Neither deer nor sheep are part of the game or its save.
 - **Mines** wind their wheel for a few seconds, rest, and let it back down.
 - **Units** standing idle rise a pixel for a moment every few seconds, each
@@ -715,7 +773,8 @@ loud if the hex is off the edge.
 | Choosing a unit, a city | Two knocks on wood (lower for civilians); two bells |
 | A button, a panel opened or closed | A click; a page turned |
 | A right click a unit can't follow | Two low knocks |
-| A unit walking onto a hex | A footstep; hooves for a horseman; leaves in a forest |
+| A unit walking onto a hex | A footstep; hooves for a horseman; leaves in a forest; an oar's stroke on the water |
+| A unit taking to the water or landing | A thud on the planks and a splash |
 | Fortify, sleep | A thump on a shield; two falling lyre notes |
 | A melee attack | Bronze clashing as the lunge lands, and the blow |
 | A ranged attack (and a city's walls) | A bowstring and the arrow's rush, the blow when it lands |
@@ -775,6 +834,8 @@ and picks up where it left off.
 | `love . --play` | Skip the title |
 | `love . --play --shot out.png --turns 40 --select city` | Let the AI play your side for 40 turns, select your capital, screenshot into LÖVE's save folder, and quit (silently) |
 | `love . --play --shot night.png --turns 40 --hour 0` | The same at midnight: `--hour H` plays every turn at H o'clock |
+| `love . --play --shot port.png --turns 80 --select harbour --hour 11` | The player's city on the water (one founded on the nearest shore if there is none) given a harbour and a lighthouse, with a galley, a quadrireme, a warrior in a boat and fishing boats round it. `--select port` looks at the best city on the water you know, `--select fleet` at one of your ships |
+| `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |
 
 To change the game, start in `src/defs.lua`: the map size, last turn, terrain

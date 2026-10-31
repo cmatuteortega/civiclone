@@ -96,6 +96,66 @@ function Game:moveCost(cell)
     return 1 + (cell.elev == "hills" and 1 or 0) + (cell.feature == "forest" and 1 or 0)
 end
 
+-- Is the cell beside water (so a city on it can build ships)?
+function Game:coastal(cell)
+    for _, n in ipairs(self:neighbours(cell)) do
+        if self:isWater(n) then return true end
+    end
+    return false
+end
+
+-- Is unit u a land unit out on the water, in a boat?
+function Game:embarked(u)
+    return not u.def.sea and self:isWater(self.cells[u.cell])
+end
+
+-- Can unit u ever be on this cell, by what it is and what its people know?
+-- Ships keep to the water and their own cities on it; land units walk the
+-- land and, after Sailing, row out onto the coast. The ocean wants
+-- Cartography of either.
+function Game:canEnter(u, cell)
+    local water = self:isWater(cell)
+    local techs = self.players[u.owner].techs
+    if u.def.sea then
+        if not water then
+            return cell.city ~= nil and cell.city.owner == u.owner and self:coastal(cell)
+        end
+        return cell.terrain == "coast" or techs.cartography == true
+    end
+    if not water then return cell.elev ~= "mountain" end
+    if not techs.sailing then return false end
+    return cell.terrain == "coast" or techs.cartography == true
+end
+
+-- A step that takes every move the unit has left: onto the water or off it.
+Game.ALL = math.huge
+
+-- What it costs unit u to step from one cell into the next (nil: it cannot).
+-- Embarking or landing costs Game.ALL: it can be done with any moves left,
+-- and leaves none.
+function Game:stepCost(u, from, to)
+    if not self:canEnter(u, to) then return nil end
+    if u.def.sea then return 1 end
+    local fw, tw = self:isWater(from), self:isWater(to)
+    if fw ~= tw then return Game.ALL end
+    if tw then return 1 end
+    return self:moveCost(to)
+end
+
+-- Can a unit with `left` moves (of `full` a turn) take a step costing c?
+local function affords(left, full, c)
+    if left <= 0 then return false end
+    if c == Game.ALL then return true end
+    return left >= c or left == full
+end
+Game.affords = affords
+
+-- The moves u has in a turn where it stands: a boat's, out on the water.
+function Game:maxMoves(u)
+    if self:embarked(u) then return D.EMBARK.moves end
+    return u.def.moves
+end
+
 -- What a cell yields: food, production, gold. A city's own hex yields at
 -- least 2 food and 1 production.
 function Game:yield(cell)
@@ -172,11 +232,16 @@ end
 -- The slot a unit of this kind takes on a cell.
 function Game:slot(u) return u.def.civilian and self.civ or self.mil end
 
--- A free cell near `cellId` where a unit of that class can stand, nearest first.
-function Game:freeNear(cellId, civilian)
+-- A free cell near `cellId` where a unit of that class can stand, nearest
+-- first: on the land, or with `sea`, on water that `owner` may sail.
+function Game:freeNear(cellId, civilian, sea, owner)
     local here = self.cells[cellId]
+    local techs = owner and self.players[owner].techs or {}
     for _, cell in ipairs(self:within(here, 2)) do
-        if cell.id ~= cellId and self:passable(cell) and not (civilian and self.civ or self.mil)[cell.id]
+        local ok
+        if sea then ok = self:isWater(cell) and (cell.terrain == "coast" or techs.cartography)
+        else ok = self:passable(cell) end
+        if cell.id ~= cellId and ok and not (civilian and self.civ or self.mil)[cell.id]
             and not self:foreignAt(cell, nil) then
             return cell.id
         end
@@ -194,7 +259,7 @@ end
 
 -- Can unit u stop on this cell?
 function Game:canStand(u, cell)
-    if not self:passable(cell) then return false end
+    if not self:canEnter(u, cell) then return false end
     if self:slot(u)[cell.id] and self:slot(u)[cell.id] ~= u then return false end
     if self:foreignAt(cell, u.owner) then return false end
     return true
@@ -203,7 +268,7 @@ end
 -- Can unit u walk through this cell on its way somewhere? Its own side's
 -- units do not stop it; anyone else's do.
 function Game:canPass(u, cell)
-    if not self:passable(cell) then return false end
+    if not self:canEnter(u, cell) then return false end
     if self:foreignAt(cell, u.owner) then return false end
     return true
 end
@@ -224,9 +289,9 @@ function Game:reach(u)
         local left = best[cell.id].left
         if left > 0 then
             for _, n in ipairs(self:neighbours(cell)) do
-                local cost = self:moveCost(n)
-                if cost and self:canPass(u, n) and (left >= cost or left == u.def.moves) then
-                    local l = max(0, left - cost)
+                local cost = self:stepCost(u, cell, n)
+                if cost and self:canPass(u, n) and affords(left, self:maxMoves(u), cost) then
+                    local l = cost == Game.ALL and 0 or max(0, left - cost)
                     if not best[n.id] or best[n.id].left < l then
                         best[n.id] = { left = l, from = cell.id }
                         open[#open + 1] = n
@@ -262,7 +327,15 @@ function Game:path(u, goal, toAttack)
         if id == goal then break end
         local cell = self.cells[id]
         for _, n in ipairs(self:neighbours(cell)) do
-            local step = self:moveCost(n)
+            local step = self:stepCost(u, cell, n)
+            -- Onto the water or off it costs the rest of a turn.
+            if step == Game.ALL then step = u.def.moves end
+            -- What is attacked need not be somewhere the unit could go: a
+            -- ship strikes a city on the shore.
+            if not step and toAttack and n.id == goal
+                and (n.city or (u.def.sea and self:isWater(n)) or (not u.def.sea and self:passable(n))) then
+                step = 1
+            end
             local ok = step and self:canPass(u, n)
             if n.id == goal then
                 ok = step and (toAttack or self:canStand(u, n))
@@ -291,14 +364,17 @@ end
 -- Moves u one step to a neighbouring cell, if it can. Answers whether it did.
 function Game:step(u, toId)
     local to = self.cells[toId]
-    local cost = self:moveCost(to)
-    if not cost or u.moves <= 0 then return false end
-    if not (u.moves >= cost or u.moves == u.def.moves) then return false end
+    local from = self.cells[u.cell]
+    local cost = self:stepCost(u, from, to)
+    if not cost or not affords(u.moves, self:maxMoves(u), cost) then return false end
     if not self:canPass(u, to) then return false end
     local slot = self:slot(u)
     if slot[u.cell] == u then slot[u.cell] = nil end
     u.cell = toId
-    u.moves = max(0, u.moves - cost)
+    u.moves = cost == Game.ALL and 0 or max(0, u.moves - cost)
+    if cost == Game.ALL then
+        self:emit({ kind = self:isWater(to) and "embark" or "land", cell = toId, unit = u })
+    end
     u.fortified, u.acted = false, true
     u.trail[#u.trail + 1] = toId
     -- Stepping through a cell another of ours holds: pass on, but come back
@@ -335,10 +411,11 @@ function Game:walk(u, path)
         -- it carry us on.
         local cell = self.cells[id]
         if not self:canStand(u, cell) then
-            local cost = self:moveCost(cell)
+            local cost = self:stepCost(u, self.cells[u.cell], cell)
             local nextId = path[k + 1]
-            local nextCost = nextId and self:moveCost(self.cells[nextId])
-            if not cost or not nextCost or u.moves - cost < nextCost then break end
+            local nextCost = nextId and self:stepCost(u, cell, self.cells[nextId])
+            if not cost or not nextCost or cost == Game.ALL or nextCost == Game.ALL
+                or u.moves - cost < nextCost then break end
         end
         if not self:step(u, id) then break end
         k = k + 1
@@ -378,7 +455,8 @@ end
 -- How strong a unit stands defending its cell.
 function Game:defense(u)
     local cell = self.cells[u.cell]
-    local s = u.def.str - floor((100 - u.hp) / 10)
+    local base = self:embarked(u) and D.EMBARK.str or u.def.str
+    local s = base - floor((100 - u.hp) / 10)
     s = s + D.ELEV[cell.elev].defense + (cell.feature and D.FEATURE[cell.feature].defense or 0)
     if u.fortified then s = s + D.COMBAT.fortify end
     return s
@@ -404,7 +482,7 @@ end
 
 -- What u could hit from where it stands: the cell has an enemy and is in reach.
 function Game:canAttack(u, cell)
-    if u.def.civilian or u.moves <= 0 or u.attacked then return false end
+    if u.def.civilian or u.moves <= 0 or u.attacked or self:embarked(u) then return false end
     local target = self:foreignAt(cell, u.owner)
     if not target then return false end
     local d = self:dist(self.cells[u.cell], cell)
@@ -413,7 +491,12 @@ function Game:canAttack(u, cell)
         local m = self.mil[cell.id]
         return d <= u.def.range and ((m and m.owner ~= u.owner) or (cell.city and cell.city.owner ~= u.owner)) and true or false
     end
-    return d == 1 and self:passable(cell)
+    if d ~= 1 then return false end
+    -- Melee: a city from anywhere next to it; otherwise a ship fights on the
+    -- water and a soldier on the land.
+    if cell.city then return true end
+    if u.def.sea then return self:isWater(cell) end
+    return self:passable(cell)
 end
 
 -- What an attack would do: damage dealt, damage taken (a guess, no luck).
@@ -466,7 +549,7 @@ function Game:attack(u, cell)
 
     if not target then
         -- Only a civilian there: a melee attacker just walks in and takes it.
-        if not ranged and self.civ[cell.id] then self:relocate(u, cell.id) end
+        if not ranged and self.civ[cell.id] and self:canEnter(u, cell) then self:relocate(u, cell.id) end
         return true
     end
     local d = self:defense(target)
@@ -482,7 +565,7 @@ function Game:attack(u, cell)
     if target.hp <= 0 then self:kill(target, u.owner) end
     if u.hp <= 0 then
         self:kill(u, target.owner)
-    elseif target.hp <= 0 and not ranged then
+    elseif target.hp <= 0 and not ranged and self:canEnter(u, cell) then
         -- Into the hex it won.
         self:relocate(u, cell.id)
     end
@@ -567,7 +650,7 @@ function Game:assignWork(city)
     local choices = {}
     for _, cell in ipairs(self:within(home, D.CITY.workRadius)) do
         if cell.owner == city.owner and not cell.city and not cell.workedBy and cell.elev ~= "mountain" then
-            local f, p, g = self:yield(cell)
+            local f, p, g = self:workYield(city, cell)
             choices[#choices + 1] = { cell = cell, v = f * 2.2 + p * 2 + g + self.rng:random() * 0.01 }
         end
     end
@@ -579,11 +662,24 @@ function Game:assignWork(city)
     end
 end
 
+-- What a cell yields worked by this city: its own yield, and on the water
+-- what the city's harbour and lighthouse add.
+function Game:workYield(city, cell)
+    local f, p, g = self:yield(cell)
+    if self:isWater(cell) and not cell.city then
+        for b in pairs(city.buildings) do
+            local def = D.BUILDINGS[b]
+            f, g = f + (def.seaFood or 0), g + (def.seaGold or 0)
+        end
+    end
+    return f, p, g
+end
+
 -- What a city makes in a turn: food, production, gold, science, culture.
 function Game:cityYield(city)
     local f, p, g = self:yield(self.cells[city.cell])
     for _, id in ipairs(city.worked) do
-        local a, b, c = self:yield(self.cells[id])
+        local a, b, c = self:workYield(city, self.cells[id])
         f, p, g = f + a, p + b, g + c
     end
     local sci, cul = city.pop * 0.5, 1 + floor(city.pop / 3)
@@ -606,6 +702,8 @@ function Game:canBuild(city, kind, id)
     if not def then return false end
     if def.tech and not p.techs[def.tech] then return false end
     if kind == "building" and city.buildings[id] then return false end
+    -- Ships, harbours and lighthouses only by the water.
+    if (def.sea or def.coastal) and not self:coastal(self.cells[city.cell]) then return false end
     return true
 end
 
@@ -657,8 +755,18 @@ function Game:buy(city)
 end
 
 -- Where a new unit of this kind can come out: the city's hex, or next to it.
+-- A ship comes out on the water beside it, or in the city if there is no room.
 function Game:placeFor(city, def)
     local slot = def.civilian and self.civ or self.mil
+    if def.sea then
+        for _, n in ipairs(self:neighbours(self.cells[city.cell])) do
+            if self:isWater(n) and n.terrain == "coast" and not slot[n.id] and not self:foreignAt(n, nil) then
+                return n.id
+            end
+        end
+        if not slot[city.cell] then return city.cell end
+        return self:freeNear(city.cell, false, true, city.owner)
+    end
     if not slot[city.cell] then return city.cell end
     return self:freeNear(city.cell, def.civilian)
 end
@@ -810,7 +918,10 @@ function Game:look(p)
         end
     end
     for _, c in ipairs(self.cities) do
-        if c.owner == p.id then see(self.cells[c.cell], 2) end
+        if c.owner == p.id then
+            -- A lighthouse's beam carries further.
+            see(self.cells[c.cell], c.buildings.lighthouse and D.BUILDINGS.lighthouse.sight or 2)
+        end
     end
     for _, cell in ipairs(self.cells) do
         if cell.owner == p.id then vis[cell.id] = true end
@@ -838,7 +949,7 @@ function Game:beginTurn(p)
             if cell.city and cell.city.owner == p.id then heal = D.COMBAT.healCity end
             u.hp = min(100, u.hp + heal)
         end
-        u.moves, u.acted, u.attacked, u.skipped = u.def.moves, false, false, false
+        u.moves, u.acted, u.attacked, u.skipped = self:maxMoves(u), false, false, false
         u.trail = { u.cell }
     end
     for _, u in ipairs(self:unitsOf(p.id)) do
@@ -998,9 +1109,14 @@ end
 function Game:improvementsFor(u)
     if u.kind ~= "builder" or u.moves <= 0 then return {} end
     local cell = self.cells[u.cell]
-    if cell.owner ~= u.owner or cell.city or self:isWater(cell) or cell.elev == "mountain" then return {} end
+    if cell.owner ~= u.owner or cell.city or cell.elev == "mountain" then return {} end
     local p = self.players[u.owner]
     local out = {}
+    -- Out on the water, rowed there: only fishing boats, over the fish.
+    if self:isWater(cell) then
+        if cell.resource == "fish" and cell.improvement ~= "boats" and p.techs.sailing then out[1] = "boats" end
+        return out
+    end
     if cell.improvement ~= "farm" and cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert" then
         out[#out + 1] = "farm"
     end

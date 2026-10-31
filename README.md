@@ -53,6 +53,17 @@ four looks chosen in the settings: a turning dial (the default), the sun's
 arc over a horizon, a strip of sky in the top bar, or a little scene of hills, a town and
 the sea that the sun rises out of and sets into.
 
+And the sea is sailed. After Sailing, soldiers and settlers row across the
+coast in boats with sails in their colours, galleys with rams and shields
+along their sides and quadriremes with a bolt thrower forward put out from
+cities on the water, and those cities build out over it: a pier, a quay with
+a crane, a lighthouse lit at night. Fishing boats haul nets over the fish,
+and the fish leap.
+
+![The sea's models](shots/09-sea-designs.png)
+![A port](shots/11-port-close.png)
+![The same port at midnight, its lighthouse lit](shots/12-port-night.png)
+
 ## Running it
 
 ```

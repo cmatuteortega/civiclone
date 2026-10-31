@@ -245,6 +245,15 @@ local DEFS = {
         { dur = 0.03, wave = "noise", lp = { 1500 }, vol = 0.5 }, { at = 0.07, dur = 0.03, wave = "noise", lp = { 1500 }, vol = 0.4 }),
     rustle = sound({ vol = 0.1, gap = 0.08, poly = 3, wob = 0.12 },
         { dur = 0.2, wave = "noise", hp = { 900 }, lp = { 5000, 1500 }, a = 0.03, trem = { 28, 0.6 }, curve = 1.5 }),
+    -- An oar's stroke: the blade's wash, and the loom knocking in its pin.
+    oar = sound({ vol = 0.12, gap = 0.08, poly = 3, wob = 0.12 },
+        { dur = 0.28, wave = "noise", hp = { 300 }, lp = { 2200, 500 }, a = 0.05, curve = 1.6 },
+        wood(0.02, 210, 0.5)),
+    -- Into a boat or out of it: a thud on the planks and a splash.
+    splash = sound({ vol = 0.2, gap = 0.12, poly = 2, wob = 0.1 },
+        wood(0, 150, 0.8),
+        { at = 0.03, dur = 0.4, wave = "noise", hp = { 400 }, lp = { 5000, 700 }, a = 0.01, curve = 2 },
+        { at = 0.05, dur = 0.12, f0 = 260, f1 = 120, curve = 2, vol = 0.3 }),
     fortify = sound({ vol = 0.3, gap = 0.15 },
         { dur = 0.16, f0 = 170, f1 = 90, curve = 2.5 },
         { dur = 0.08, wave = "noise", lp = { 1000 }, vol = 0.5 },

@@ -3,6 +3,7 @@
 -- button that says what the turn still wants (a unit's orders, something to
 -- build, something to research) before it can end.
 
+local D = require "src.defs"
 local S = require "src.ui.state"
 local View = require "src.ui.view"
 local Anim = require "src.ui.anim"
@@ -48,13 +49,19 @@ end
 -- How many turns walking a path takes, this one being the first.
 function O.turnsAlong(u, path)
     local g = S.game
-    local m, full, turns = u.moves, u.def.moves, 1
+    local m, turns = u.moves, 1
+    local from = g.cells[u.cell]
+    local full = g:maxMoves(u)
     for _, id in ipairs(path) do
-        local c = g:moveCost(g.cells[id]) or 1
-        if m <= 0 or not (m >= c or m == full) then
+        local to = g.cells[id]
+        local c = g:stepCost(u, from, to) or 1
+        if not g.affords(m, full, c) then
             turns, m = turns + 1, full
         end
-        m = max(0, m - c)
+        m = c == g.ALL and 0 or max(0, m - c)
+        -- A boat's moves on the water, a walker's on the land.
+        if not u.def.sea then full = g:isWater(to) and D.EMBARK.moves or u.def.moves end
+        from = to
     end
     return turns
 end
@@ -185,6 +192,10 @@ function O.actions(u)
         for _, k in ipairs(g:improvementsFor(u)) do can[k] = true end
         out[#out + 1] = { label = "FARM", cmd = "farm", off = not can.farm, fn = function() g:improve(u, "farm") after(u) end }
         out[#out + 1] = { label = "MINE", cmd = "mine", off = not can.mine, fn = function() g:improve(u, "mine") after(u) end }
+        if g:isWater(g.cells[u.cell]) then
+            out[#out + 1] = { label = "BOATS", cmd = "boats", off = not can.boats,
+                fn = function() g:improve(u, "boats") after(u) end }
+        end
     end
     if not u.def.civilian then
         out[#out + 1] = { label = u.fortified and "WAKE" or "FORTIFY", cmd = "fortify", fn = function()

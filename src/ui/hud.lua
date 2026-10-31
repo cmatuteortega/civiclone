@@ -107,13 +107,16 @@ local function unitPanel(u)
             rect(team.fill, x + 4, y + 3, 7, 7)
             icon(u.kind, x + 5, y + 4, team.ink)
             local stats = {}
-            if def.str > 0 then stats[#stats + 1] = "STR " .. def.str end
+            local embarked = g:embarked(u)
+            if embarked then stats[#stats + 1] = "STR " .. D.EMBARK.str
+            elseif def.str > 0 then stats[#stats + 1] = "STR " .. def.str end
             if def.ranged then stats[#stats + 1] = "RNG " .. def.ranged .. "/" .. def.range end
             stats[#stats + 1] = "HP " .. max(0, u.hp)
-            stats[#stats + 1] = "MOVES " .. u.moves .. "/" .. def.moves
+            stats[#stats + 1] = "MOVES " .. u.moves .. "/" .. g:maxMoves(u)
             if def.charges then stats[#stats + 1] = "BUILDS " .. u.charges end
             text("c", table.concat(stats, "  "), x + 15, y + 4)
-            local status = u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP") or (u.dest and "ON THE MOVE") or nil
+            local status = u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP") or (u.dest and "ON THE MOVE")
+                or (embarked and "EMBARKED") or nil
             if status then text("s", status, x + w - Font.width(status) - 4, y + 18) end
             local bx = x + 3
             for _, a in ipairs(acts) do
@@ -166,11 +169,19 @@ function cityBody(c, x, y, w, h, mine, items)
     text("c", tostring(floor(sci * 10) / 10), x + 63, line)
     icon("culture", x + 86, line, "c")
     text("c", tostring(cul), x + 93, line)
-    local built = {}
-    for _, id in ipairs({ "monument", "granary", "library", "market", "walls" }) do
-        if c.buildings[id] then built[#built + 1] = D.BUILDINGS[id].name end
+    -- What it has built, in the build list's order; short names if the
+    -- long ones won't fit on a line.
+    local ids = {}
+    for id in pairs(c.buildings) do ids[#ids + 1] = id end
+    table.sort(ids, function(a, b) return D.BUILDINGS[a].order < D.BUILDINGS[b].order end)
+    local long, short = {}, {}
+    for _, id in ipairs(ids) do
+        long[#long + 1] = D.BUILDINGS[id].name
+        short[#short + 1] = D.BUILDINGS[id].short
     end
-    text("s", #built > 0 and table.concat(built, " ") or "NO BUILDINGS", x + 4, y + 36)
+    local line2 = table.concat(long, " ")
+    if Font.width(line2) > w - 8 then line2 = table.concat(short, " ") end
+    text("s", #ids > 0 and line2 or "NO BUILDINGS", x + 4, y + 36)
     if not mine then return end
     -- What it is building, and what it could.
     local yy = y + 45

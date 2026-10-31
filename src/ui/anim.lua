@@ -18,8 +18,24 @@ local Anim = {}
 
 local SPEED = 7 -- hexes a second
 
--- Where a unit on a hex stands: its middle, on top of the hill if it has one.
-local function home(cell)
+-- The way (0..5) a city on the water builds out to it: the water nearest
+-- the front of the screen, where its pier is seen. Nil inland.
+local SHORE = { 1, 2, 0, 3, 5, 4 }
+function Anim.shore(game, cell)
+    for _, k in ipairs(SHORE) do
+        local n = game:cell(H.step(cell.c, cell.r, k))
+        if n and game:isWater(n) then return k end
+    end
+end
+
+-- Where a unit on a hex stands: its middle, on top of the hill if it has
+-- one. A ship in port lies off the city's pier, on the water.
+local function home(cell, u)
+    if u and u.def.sea and cell.city then
+        local k = Anim.shore(S.game, cell) or 1
+        local a = math.rad(60 * k)
+        return cell.x + math.cos(a) * H.W * 0.82, -2, cell.z + math.sin(a) * H.W * 0.82
+    end
     return cell.x, cell.top + ((cell.elev == "hills" and not cell.city) and 3.2 or 0), cell.z
 end
 Anim.home = home
@@ -29,7 +45,7 @@ function Anim.of(u)
     local a = S.anim[u.id]
     if not a then
         local cell = S.game.cells[u.cell]
-        local x, y, z = home(cell)
+        local x, y, z = home(cell, u)
         a = { x = x, y = y, z = z, queue = {}, face = 1, pose = 0, walk = 0 }
         S.anim[u.id] = a
     end
@@ -98,7 +114,7 @@ function Anim.update(game, dt)
         end
         if #a.queue > 0 then
             local to = game.cells[a.queue[1]]
-            local tx, ty, tz = home(to)
+            local tx, ty, tz = home(to, u)
             local fc = game:cell(H.at(a.x, a.z))
             if fc and fc ~= to then a.face = face(fc, to) end
             local dx, dz = tx - a.x, tz - a.z
@@ -119,7 +135,7 @@ function Anim.update(game, dt)
             a.pose = 0
             -- Settle where the unit is, in case it was put there without a walk.
             local cell = game.cells[u.cell]
-            local x, y, z = home(cell)
+            local x, y, z = home(cell, u)
             if math.abs(a.x - x) > 0.01 or math.abs(a.z - z) > 0.01 then
                 a.queue[1] = u.cell
             else
@@ -159,7 +175,7 @@ function Anim.place(game, u)
             if u.def.civilian then x, z = x - 5, z - 4 else x, z = x + 4, z + 3 end
         end
         local cell = game.cells[u.cell]
-        if cell.city and not u.def.civilian then x, z = x + 7, z + 6 end
+        if cell.city and not u.def.civilian and not u.def.sea then x, z = x + 7, z + 6 end
     end
     local pose = a.pose
     if a.lunge then
