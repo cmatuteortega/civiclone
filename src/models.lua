@@ -577,7 +577,7 @@ function M.citySite(cell)
     return { biome = biome, hills = cell.elev == "hills", river = river, seed = cell.id % 4 }
 end
 
--- How a city at `pop` on `site`, with buildings `built` and maybe a shore
+-- How a city at `pop` on `site`, with buildings `built`,
 -- is laid out: its houses (x, z, size, storeys, how high its floor
 -- stands, turned or not) and what the empty plots hold.
 function M.cityLayout(pop, built, site)
