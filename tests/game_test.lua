@@ -1,6 +1,7 @@
 local Game = require "src.game"
 local AI = require "src.ai"
 local D = require "src.defs"
+local H = require "src.hex"
 
 local function newGame(seed) return Game.new({ seed = seed or 5 }) end
 
@@ -10,6 +11,18 @@ local function shore(g)
         if g:passable(cell) and not cell.city and not cell.owner then
             for _, n in ipairs(g:neighbours(cell)) do
                 if n.terrain == "coast" and not g.mil[n.id] then return cell, n end
+            end
+        end
+    end
+end
+
+-- Two land hexes with a river between and no one on them.
+local function fordable(g)
+    for _, cell in ipairs(g.cells) do
+        for _, n in ipairs(g:neighbours(cell)) do
+            if g:passable(cell) and g:passable(n) and g:riverBetween(cell, n) and not cell.city and not n.city
+                and not g.mil[cell.id] and not g.mil[n.id] and not g.civ[cell.id] and not g.civ[n.id] then
+                return cell, n
             end
         end
     end
@@ -52,10 +65,20 @@ return {
     { "a unit walks no further than its moves, and keeps on next turn", function()
         local g = newGame()
         local w = find(g, 1, "warrior")
-        -- The furthest hex it could reach in two turns or more.
+        -- The furthest hex it could reach in two turns or more, by a way
+        -- that fords no river (a ford takes all its moves).
+        local function dry(path)
+            local from = g.cells[w.cell]
+            for _, id in ipairs(path) do
+                if g:fords(from, g.cells[id]) then return false end
+                from = g.cells[id]
+            end
+            return true
+        end
         local goal
         for _, cell in ipairs(g:within(g.cells[w.cell], 5)) do
-            if g:canStand(w, cell) and g:dist(cell, g.cells[w.cell]) >= 4 and g:path(w, cell.id) then goal = cell break end
+            local path = g:canStand(w, cell) and g:dist(cell, g.cells[w.cell]) >= 4 and g:path(w, cell.id)
+            if path and dry(path) then goal = cell break end
         end
         assert(goal, "somewhere to go")
         g:moveTo(w, goal.id)
@@ -64,6 +87,58 @@ return {
         local before = w.cell
         g:beginTurn(g.players[1])
         assert(w.cell ~= before, "carried on")
+    end },
+    { "rivers run from the hills to the sea, and only ever down", function()
+        for _, seed in ipairs({ 5, 7, 11 }) do
+            local g = newGame(seed)
+            local edges, mouths = 0, 0
+            for _, cell in ipairs(g.cells) do
+                for k, e in pairs(cell.river or {}) do
+                    -- On both hexes of the edge, between two land hexes.
+                    local n = g:cell(H.step(cell.c, cell.r, k))
+                    assert(n and n.river and n.river[(k + 3) % 6] == e, "the same river on both sides")
+                    assert(not g:isWater(cell) and not g:isWater(n), "between land")
+                    assert(e.level < math.min(cell.top, n.top), "below its banks")
+                    edges = edges + 0.5
+                    if e.mouth then mouths = mouths + 0.5 end
+                end
+            end
+            assert(edges >= 15, "some rivers: " .. edges)
+            assert(mouths >= 1, "that reach the sea")
+            -- Each edge is at or below the one above it.
+            for _, cell in ipairs(g.cells) do
+                for _, e in pairs(cell.river or {}) do
+                    for _, other in ipairs(g:within(cell, 1)) do
+                        for _, f in pairs(other.river or {}) do
+                            if f.from[1] == e.to[1] and f.from[2] == e.to[2] then
+                                assert(f.level <= e.level + 1e-9, "no river runs uphill")
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end },
+    { "fording a river takes all a unit's moves, but not over a city's bridge", function()
+        local g = newGame(7)
+        local a, b = fordable(g)
+        assert(a, "a river to ford")
+        local w = g:addUnit("warrior", 1, a.id)
+        assert(g:stepCost(w, a, b) == Game.ALL)
+        assert(g:step(w, b.id) and w.moves == 0)
+        assert(g:onRiver(a) and g:describe(a):find("RIVER"))
+        local _, _, gold = g:yield(a)
+        assert(gold >= D.RIVER.gold, "gold for the river")
+        a.city = { owner = 1 }
+        assert(g:stepCost(w, b, a) ~= Game.ALL, "a bridge")
+        a.city = nil
+    end },
+    { "attacking across a river strikes weaker", function()
+        local g = newGame(7)
+        local a, b = fordable(g)
+        local w = g:addUnit("warrior", 1, a.id)
+        assert(g:attackStrength(w, false, b) == g:attackStrength(w, false) - D.RIVER.attack)
+        assert(g:attackStrength(w, true, b) == g:attackStrength(w, true), "a shot is not")
     end },
     { "a melee attack hurts both sides and can kill", function()
         local g = newGame()
@@ -130,7 +205,8 @@ return {
         if not b then return end
         local f0 = g:yield(g.cells[b.cell])
         assert(g:improve(b, "farm"))
-        assert(g:yield(g.cells[b.cell]) == f0 + 1)
+        -- A farm by a river yields a food more.
+        assert(g:yield(g.cells[b.cell]) == f0 + 1 + (g:onRiver(g.cells[b.cell]) and D.RIVER.farmFood or 0))
         assert(b.charges == 2)
     end },
     { "land units take to the water only after sailing, and it takes all their moves", function()

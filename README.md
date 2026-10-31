@@ -65,6 +65,23 @@ and the fish leap.
 ![The same port at midnight, its lighthouse lit](shots/12-port-night.png)
 ![A galley under way, its wake behind it](shots/13-wake.png)
 
+And rivers run over it. They rise in the hills and find their way down
+along the edges between the hexes to the sea, joining as they go, each with
+a name. Each is cut into the hexes beside it, a channel between banks of
+banded earth with a pale rim of mud, reeds along them leaning in the wind.
+The water runs downstream in streaks, falls white where the land steps down
+and pours into the sea at its mouth, and the moon glints on it at night.
+Herons stand in the shallows and flap off when anyone comes near, fish
+leap, deer come down to drink, and a soldier fording one wades through it
+knee-deep in a splash; a city on a river bridges it. In the rules, as in
+Civilization VI: a hex by a river yields a gold more and a farm there a food
+more, crossing one takes all a unit's moves unless a city's bridge carries it
+over, and attacking across one strikes weaker.
+
+![Rivers through the hills](shots/14-rivers.png)
+![A river running, a heron and a warrior wading](shots/16-river.gif)
+![A river at midnight](shots/17-river-night.png)
+
 ## Running it
 
 ```
@@ -73,8 +90,8 @@ love .
 
 Optional flags: `--seed N` plays the map made from seed N, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast]` lets the computer play your side for N turns, takes a screenshot into
-LÖVE's save folder, and quits. `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
+city|coast|river|ford|bridge]` lets the computer play your side for N turns, takes a screenshot into
+LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds
 

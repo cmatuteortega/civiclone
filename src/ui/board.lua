@@ -17,6 +17,7 @@ local Anim = require "src.ui.anim"
 local Font = require "src.font"
 local View = require "src.ui.view"
 local Sea = require "src.ui.sea"
+local World = require "src.world"
 local Daylight = require "src.ui.daylight"
 local Smoke = require "src.ui.smoke"
 local Wild = require "src.ui.wild"
@@ -67,9 +68,10 @@ local function furrows(cell, layout, seen)
     local w = S.world
     local a = math.rad(layout.rows)
     local ca, sa = math.cos(a), math.sin(a)
+    local kind, river = w.buf.kind, World.LAND.river
     P.eachTop(cell, function(i, j, n)
         local x, z = w.wx[n], w.wz[n]
-        if H.inset(x, z, cell.x, cell.z) > 2.5 then
+        if H.inset(x, z, cell.x, cell.z) > 2.5 and kind[n] ~= river then
             local band = floor((x * ca + z * sa) / 1.6) % 3
             local k = w.key[n]
             if band == 0 then k = T.LIGHTER[k] elseif band == 1 then k = T.DARKER[k] end
@@ -79,12 +81,12 @@ local function furrows(cell, layout, seen)
 end
 
 -- The edges of a farm that face another farm: left open, so they read as
--- one field.
+-- one field. And those along a river, which is its bound there.
 local function farmOpen(cell)
     local open = {}
     for e = 0, 5 do
         local n = S.game:cell(H.step(cell.c, cell.r, e))
-        if n and n.improvement == "farm" then open[e] = true end
+        if (n and n.improvement == "farm") or (cell.river and cell.river[e]) then open[e] = true end
     end
     return open
 end
@@ -92,9 +94,9 @@ end
 -- A hex's top a step lighter, every other pixel: where a unit can go. On
 -- the sea, a mark for the moving water to lighten itself by.
 local function lighten(cell, step)
-    local sea = Sea.shader and S.world.buf.sea
+    local sea, kind = Sea.shader and S.world.buf.sea, S.world.buf.kind
     P.eachTop(cell, function(i, j, n)
-        if (i + j) % step == 0 and sea and sea[n] ~= 0 then
+        if (i + j) % step == 0 and sea and (sea[n] ~= 0 or kind[n] == World.LAND.river) then
             P.lift(1, i, j)
         elseif (i + j) % step == 0 then
             local k = S.world.key[n]
@@ -222,6 +224,90 @@ local function fish(cell, list)
     end
 end
 
+-- Rings on the water at (x, y, z), growing with `age` (0..1), lifting it a
+-- step: a fish come down, a heron's strike, a soldier wading in.
+local function rings(x, y, z, age, size)
+    for _, r in ipairs({ (1 + age * 4) * size, age * 2.4 * size }) do
+        if r > 0.5 then
+            local n = floor(r * 5) + 6
+            for k = 0, n - 1 do
+                local a = k * 2 * math.pi / n
+                local i, j = S.world:toImage(x + math.cos(a) * r, y, z + math.sin(a) * r * 0.8)
+                P.lift(1, floor(i), floor(j))
+            end
+        end
+    end
+end
+
+-- The rivers' edges, each once, for the fish in them: found again when the
+-- game is a new one.
+local riverEdges, edgesOf
+local function edgesIn(g)
+    if edgesOf == g then return riverEdges end
+    riverEdges, edgesOf = {}, g
+    for _, cell in ipairs(g.cells) do
+        for k = 0, 5 do
+            local e = cell.river and cell.river[k]
+            local n = e and g:cell(H.step(cell.c, cell.r, k))
+            if n and n.id > cell.id then
+                local fx, fz = e.to[1] - e.from[1], e.to[2] - e.from[2]
+                local l = math.sqrt(fx * fx + fz * fz)
+                riverEdges[#riverEdges + 1] = { e = e, a = cell, b = n, id = cell.id * 6 + k,
+                    x = (e.from[1] + e.to[1]) / 2, z = (e.from[2] + e.to[2]) / 2, fx = fx / l, fz = fz / l }
+            end
+        end
+    end
+    return riverEdges
+end
+
+-- In a few of the rivers' edges, now and then a fish leaps upstream and
+-- falls back with a ring.
+local function riverFish(me, list)
+    if Sea.still() then return end
+    for _, r in ipairs(edgesIn(S.game)) do
+        if r.id % 4 == 1 and (me.visible[r.a.id] or me.visible[r.b.id]) and not r.a.city and not r.b.city then
+            local period = 7 + (r.id % 9) * 0.8
+            local t = (Sea.time() + r.id * 1.91) % period
+            local y0 = r.e.level
+            if t < LEAP * 0.8 then
+                local f = t / (LEAP * 0.8)
+                -- Against the stream.
+                local x = r.x - r.fx * (f - 0.5) * 6
+                local z = r.z - r.fz * (f - 0.5) * 6
+                local y = y0 + math.sin(f * math.pi) * 4.5
+                local bend = f < 0.4 and -1 or (f > 0.6 and 1 or 0)
+                local dir = r.fx > 0 and -1 or 1
+                list[#list + 1] = { z = z, draw = function() P.stamp(M.fish(bend, dir), x, y, z) end }
+            elseif t < LEAP * 0.8 + RINGS then
+                rings(r.x - r.fx * 3, y0, r.z - r.fz * 3, (t - LEAP * 0.8) / RINGS, 0.7)
+            end
+        end
+    end
+end
+
+-- A splash where someone wades into a river: drops thrown up and falling
+-- back, white, and rings going out.
+local function splash(e, list)
+    local f = e.t / e.life
+    rings(e.x, e.y, e.z, f, 0.9)
+    if f < 0.6 then
+        list[#list + 1] = { z = e.z + 0.2, draw = function()
+            for k = 0, 7 do
+                local a = k * 0.785 + e.seed
+                local sp = 2.2 + (k % 3) * 0.8
+                local tt = e.t * 1.6
+                local x = e.x + math.cos(a) * sp * tt * 2
+                local z = e.z + math.sin(a) * sp * tt * 1.4
+                local y = e.y + 0.5 + (4 + (k % 2) * 2) * tt - 14 * tt * tt
+                if y > e.y then
+                    local i, j, d = S.world:toImage(x, y, z)
+                    if P.visible(floor(i), floor(j), d) then P.put(k % 3 == 0 and T.IDX.c or T.IDX.w, i, j) end
+                end
+            end
+        end }
+    end
+end
+
 -- The wakes: from each mark the foam spreads out to either side as it ages,
 -- a V behind the boat, churned white close astern and thinning to a step of
 -- lightness, then to nothing, broken up the older it gets. Only on water
@@ -330,6 +416,10 @@ local function things(me)
     end
     for _, cell in ipairs(g.cells) do
         if cell.resource == "fish" and cell.improvement ~= "boats" and me.visible[cell.id] then fish(cell, list) end
+    end
+    riverFish(me, list)
+    for _, e in ipairs(S.effects) do
+        if e.kind == "splash" then splash(e, list) end
     end
     for _, c in ipairs(g.cities) do
         local cell = g.cells[c.cell]

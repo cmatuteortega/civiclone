@@ -7,6 +7,11 @@
 -- farmhouse, and on some a collie who runs a lap round them now and then and
 -- sits to watch. Tame: they don't mind who comes by.
 --
+-- On the rivers: deer that live by one go down to the bank to drink, and
+-- herons stand in the shallows, still, now and then striking down at a
+-- fish. Anyone coming near puts a heron up: it flaps off downriver and is
+-- gone, and is back in its place a while after.
+--
 -- Nothing of this is in the game's rules or its save: the deer are the
 -- screen's alone, and found again from the map whenever it changes.
 
@@ -14,6 +19,7 @@ local H = require "src.hex"
 local M = require "src.models"
 local S = require "src.ui.state"
 local Sea = require "src.ui.sea"
+local World = require "src.world"
 
 local floor, sin, sqrt, atan2 = math.floor, math.sin, math.sqrt, math.atan2
 
@@ -26,13 +32,16 @@ local QUIET = 12     -- seconds a hex must be left alone before they come back
 local ROAM = 4.5     -- how far from its spot a deer wanders
 local FOLDS = 0.5    -- of the farms, how many keep sheep
 local LAP, SIT = 5, 9 -- seconds the dog runs round them, and sits
+local HERONS = 0.1   -- of the rivers' edges, how many a heron stands in
+local DRINK = 0.4    -- how often a deer by a river goes down to it
+local FLY = 2.5      -- seconds a heron is seen flying off
 
 local function grain(a, b)
     local n = sin(a * 12.9898 + b * 78.233) * 43758.5453
     return n - floor(n)
 end
 
-local herds, flocks, foundAt, foundIn = {}, {}, -1, nil
+local herds, flocks, herons, foundAt, foundIn = {}, {}, {}, -1, nil
 
 -- The facing (0..5) nearest the way from (dx, dz).
 local function facing(dx, dz)
@@ -59,6 +68,17 @@ local function find(g)
                     local sx = cell.x + (woods.x - cell.x) * 0.3
                     local sz = cell.z + (woods.z - cell.z) * 0.3
                     local herd = { cell = cell, woods = woods, sx = sx, sz = sz, deer = {}, gone = false, quiet = 0 }
+                    -- By a river: a place on its bank to drink, facing it.
+                    for d = 0, 5 do
+                        local k = (d + floor(grain(cell.id, 12) * 6)) % 6
+                        local e = cell.river and cell.river[k]
+                        if e and not g:isWater(cell) then
+                            local a = math.rad(60 * k)
+                            local inset = H.APOTHEM - World.bankOf(e) - 2.2
+                            herd.drink = { x = cell.x + math.cos(a) * inset, z = cell.z + math.sin(a) * inset, face = k }
+                            break
+                        end
+                    end
                     for n = 1, 1 + floor(grain(cell.id, 5) * 2) do
                         herd.deer[n] = { x = sx + (n - 1.5) * 4, z = sz + (n - 1) * 2, face = floor(grain(cell.id, n) * 6),
                             pose = 1, wait = grain(n, cell.id) * 4, stag = grain(cell.id, n + 9) > 0.6 }
@@ -91,6 +111,34 @@ local function find(g)
         end
     end
     flocks = folds
+
+    -- The herons: in some of the rivers' edges, away from towns, standing in
+    -- the water a little off the middle of the edge.
+    local stands = {}
+    for _, cell in ipairs(g.cells) do
+        for k = 0, 5 do
+            local e = cell.river and cell.river[k]
+            local n = e and g:cell(H.step(cell.c, cell.r, k))
+            if n and n.id > cell.id and not cell.city and not n.city and grain(cell.id * 6 + k, 13) < HERONS then
+                local key = cell.id * 6 + k
+                local old = herons[key]
+                if old and old.edge == e then
+                    stands[key] = old
+                else
+                    local fx, fz = e.to[1] - e.from[1], e.to[2] - e.from[2]
+                    local l = sqrt(fx * fx + fz * fz)
+                    fx, fz = fx / l, fz / l
+                    local u = (grain(key, 14) - 0.5) * 6
+                    local side = (grain(key, 15) - 0.5) * 2
+                    local x = (e.from[1] + e.to[1]) / 2 + fx * u - fz * side
+                    local z = (e.from[2] + e.to[2]) / 2 + fz * u + fx * side
+                    stands[key] = { edge = e, cells = { cell, n }, x = x, z = z, hx = x, hz = z, y = e.level,
+                        fx = fx, fz = fz, face = floor(grain(key, 16) * 6), t = grain(key, 17) * 8, pose = 0, quiet = 0 }
+                end
+            end
+        end
+    end
+    herons = stands
 end
 
 -- Is anyone on the hex or next to it?
@@ -109,6 +157,7 @@ local function graze(herd, d, dt)
         if len <= step then
             d.x, d.z, d.tx, d.tz = d.tx, d.tz, nil, nil
             d.pose, d.wait = 1, 3 + grain(d.x, d.z) * 4
+            if d.drinking and herd.drink then d.face, d.wait = herd.drink.face, 6 + grain(d.z, d.x) * 4 end
         else
             d.x, d.z = d.x + dx / len * step, d.z + dz / len * step
             d.face = facing(dx, dz)
@@ -121,6 +170,15 @@ local function graze(herd, d, dt)
     if d.wait > 0 then
         -- Looks up now and then while it grazes.
         d.pose = (d.wait % 4 < 0.9) and 0 or 1
+        return
+    end
+    if d.drinking then
+        -- At the water: head down to it a long while.
+        d.drinking = nil
+    elseif herd.drink and grain(d.x + S.clock, d.z) < DRINK then
+        local w = herd.drink
+        d.tx, d.tz = w.x + (grain(d.z, S.clock) - 0.5) * 4, w.z + (grain(S.clock, d.x) - 0.5) * 2
+        d.drinking = true
         return
     end
     local a = grain(d.x * 3, d.z + S.clock) * math.pi * 2
@@ -152,9 +210,32 @@ function Wild.update(dt)
     if not g or Sea.still() then return end
     -- Found again each turn and whenever a hex changes.
     local stamp = g.turn * 1000 + (S.world.version or 0)
-    if g ~= foundIn then herds, flocks, foundIn = {}, {}, g end
+    if g ~= foundIn then herds, flocks, herons, foundIn = {}, {}, {}, g end
     if stamp ~= foundAt then find(g) foundAt = stamp end
     for _, flock in pairs(flocks) do tend(flock, dt) end
+    for _, h in pairs(herons) do
+        local near = disturbed(g, h.cells[1]) or disturbed(g, h.cells[2])
+        if near then h.quiet = 0 else h.quiet = h.quiet + dt end
+        if h.flying then
+            -- Off downriver, climbing, wings beating.
+            h.flying = h.flying + dt
+            h.x, h.z = h.x + h.fx * 22 * dt, h.z + h.fz * 22 * dt
+            h.y = h.y + 9 * dt
+            h.pose = 2 + floor(h.flying * 6) % 2
+            if h.flying > FLY then h.flying, h.gone = nil, true end
+        elseif h.gone then
+            if h.quiet > QUIET * 1.5 then
+                h.gone, h.x, h.z, h.y, h.pose = false, h.hx, h.hz, h.edge.level, 0
+            end
+        elseif near then
+            h.flying, h.face = 0, facing(h.fx, h.fz)
+        else
+            -- Still a long while, then a strike.
+            h.t = h.t + dt
+            local period = 7 + grain(h.hx, h.hz) * 6
+            h.pose = (h.t % period) > period - 0.5 and 1 or 0
+        end
+    end
     for _, herd in pairs(herds) do
         local near = disturbed(g, herd.cell)
         if near then herd.quiet = 0 else herd.quiet = herd.quiet + dt end
@@ -205,6 +286,11 @@ function Wild.things(list, me, stamp)
                     stamp(M.deer(d.face, d.pose, d.stag), d.x, y, d.z)
                 end }
             end
+        end
+    end
+    for _, h in pairs(herons) do
+        if not h.gone and (me.visible[h.cells[1].id] or me.visible[h.cells[2].id]) then
+            list[#list + 1] = { z = h.z, draw = function() stamp(M.heron(h.face, h.pose), h.x, h.y, h.z) end }
         end
     end
     for _, flock in pairs(flocks) do

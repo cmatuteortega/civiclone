@@ -96,6 +96,40 @@ function Game:moveCost(cell)
     return 1 + (cell.elev == "hills" and 1 or 0) + (cell.feature == "forest" and 1 or 0)
 end
 
+-- The river along the edge between two neighbouring cells, or nil.
+function Game:riverBetween(a, b)
+    if not a.river or not b.river then return nil end
+    local k = H.dirTo(a.c, a.r, b.c, b.r)
+    return k and a.river[k] or nil
+end
+
+-- Does a river run along any edge of the cell?
+function Game:onRiver(cell)
+    return cell.river ~= nil and next(cell.river) ~= nil and not self:isWater(cell)
+end
+
+-- The name of a river by the cell ("THE OSIER"), or nil: the one that runs
+-- along most of its edges, the first found breaking ties.
+function Game:riverName(cell)
+    if not self:onRiver(cell) then return nil end
+    local count, best = {}, nil
+    for k = 0, 5 do
+        local e = cell.river[k]
+        if e then
+            count[e.name] = (count[e.name] or 0) + 1
+            if not best or count[e.name] > count[best] then best = e.name end
+        end
+    end
+    return best
+end
+
+-- Must a step from one land cell to the next ford a river? Not where either
+-- is a city: a city bridges the rivers by it.
+function Game:fords(from, to)
+    if from.city or to.city then return false end
+    return self:riverBetween(from, to) ~= nil
+end
+
 -- Is the cell beside water (so a city on it can build ships)?
 function Game:coastal(cell)
     for _, n in ipairs(self:neighbours(cell)) do
@@ -127,7 +161,8 @@ function Game:canEnter(u, cell)
     return cell.terrain == "coast" or techs.cartography == true
 end
 
--- A step that takes every move the unit has left: onto the water or off it.
+-- A step that takes every move the unit has left: onto the water or off it,
+-- or across a river where there is no bridge.
 Game.ALL = math.huge
 
 -- What it costs unit u to step from one cell into the next (nil: it cannot).
@@ -139,6 +174,7 @@ function Game:stepCost(u, from, to)
     local fw, tw = self:isWater(from), self:isWater(to)
     if fw ~= tw then return Game.ALL end
     if tw then return 1 end
+    if self:fords(from, to) then return Game.ALL end
     return self:moveCost(to)
 end
 
@@ -174,6 +210,10 @@ function Game:yield(cell)
         local i = D.IMPROVEMENT[cell.improvement]
         f, p = f + i.food, p + i.prod
     end
+    if self:onRiver(cell) then
+        g = g + D.RIVER.gold
+        if cell.improvement == "farm" then f = f + D.RIVER.farmFood end
+    end
     if cell.city then f, p = max(f, 2), max(p, 1) end
     return f, p, g
 end
@@ -190,6 +230,7 @@ function Game:describe(cell)
     if cell.feature then parts[#parts + 1] = D.FEATURE[cell.feature].name end
     if cell.resource then parts[#parts + 1] = D.RESOURCE[cell.resource].name end
     if cell.improvement then parts[#parts + 1] = D.IMPROVEMENT[cell.improvement].name end
+    if self:onRiver(cell) then parts[#parts + 1] = "RIVER" end
     return table.concat(parts, " ")
 end
 
@@ -462,9 +503,13 @@ function Game:defense(u)
     return s
 end
 
-function Game:attackStrength(u, ranged)
+-- How hard u strikes: its strength, less its wounds; and, given the cell it
+-- strikes, less again for a melee attack across a river.
+function Game:attackStrength(u, ranged, cell)
     local base = ranged and u.def.ranged or u.def.str
-    return base - floor((100 - u.hp) / 10)
+    local s = base - floor((100 - u.hp) / 10)
+    if cell and not ranged and self:riverBetween(self.cells[u.cell], cell) then s = s - D.RIVER.attack end
+    return s
 end
 
 function Game:cityStrength(city)
@@ -502,7 +547,7 @@ end
 -- What an attack would do: damage dealt, damage taken (a guess, no luck).
 function Game:forecast(u, cell)
     local city = cell.city and cell.city.owner ~= u.owner and cell.city
-    local a = self:attackStrength(u, u.def.ranged)
+    local a = self:attackStrength(u, u.def.ranged, cell)
     local d
     if city then d = self:cityStrength(city)
     else
@@ -521,7 +566,7 @@ function Game:attack(u, cell)
     if not self:canAttack(u, cell) then return false end
     local from = self.cells[u.cell]
     local ranged = u.def.ranged ~= nil
-    local a = self:attackStrength(u, ranged)
+    local a = self:attackStrength(u, ranged, cell)
     local city = cell.city and cell.city.owner ~= u.owner and cell.city
     local target = self.mil[cell.id]
     if target and target.owner == u.owner then target = nil end

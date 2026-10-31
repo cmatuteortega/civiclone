@@ -116,13 +116,15 @@ or what it still needs. Click an available one to research it.
 
 **Tooltip** (bottom centre) for the hex under the pointer:
 
-- Its terrain and food, production and gold
+- Its terrain and food, production and gold, and RIVER if one runs by it
+- The river's name ("BY THE OSIER")
 - Its owner and city
 - Any enemy units on it, with their HP
-- With one of your units selected: an attack forecast ("DEALS ABOUT 28, TAKES ABOUT 19") or how many turns the walk takes
+- With one of your units selected: an attack forecast ("DEALS ABOUT 28, TAKES ABOUT 19", and ACROSS THE RIVER: -5 STRENGTH if it is) or how many turns the walk takes (and FORDING THE RIVER for a step across one)
 
 **Minimap** (bottom right): every hex you know, coloured by terrain, with
-owned land in each civilization's colour and cities marked. Unknown hexes
+owned land in each civilization's colour and cities marked, and a dark speck
+in each unowned hex along a river. Unknown hexes
 show as paper. A frame shows what the camera sees.
 
 **The turn button** (bottom right) says what the turn still needs, in order:
@@ -211,6 +213,34 @@ Every hex stands as tall as its ground:
 Steps show as cliffs with banded earth. Heights are visual only; they do not
 change the rules.
 
+### Rivers
+
+Rivers run along the **edges between hexes**, as in Civilization VI, from the
+hills down to the sea. A map has about one river per 65 land hexes (5–7 on
+the standard map), each with a name (THE OSIER, THE SEDGEWATER, ...), shown
+when you point at a hex beside it.
+
+- **Where they run:** each corner of the map is given a way down to the sea,
+  found by flooding inland from the shore, so a river finds its way out of a
+  hollow rather than ending in one. A river rises at a corner high among hills
+  or mountains, at least 4 edges from the sea, and follows that way down. One
+  that meets another joins it as a tributary, and below the join the river is
+  wider. A river never runs between two mountains or along the coast.
+- **Their water** lies 1.2 below the lower of its two banks and never rises
+  downstream. Where the land drops (off the upland terrace or down from the
+  hills) the river drops with it in a **waterfall**, and where it reaches the
+  coast it falls into the sea.
+- Rivers come from a roll of their own, so a seed's land is the same as it
+  was without them.
+
+| River rule | Effect |
+| --- | --- |
+| A hex beside a river | +1 gold |
+| A farm beside a river | +1 more food |
+| Crossing a river | Takes all the unit's moves (it fords), unless either hex is a city: a city bridges the rivers by it |
+| Attacking across a river | The melee attacker is −5 strength. Ranged attacks are not affected |
+| Founding a city beside a river | Starting positions and the computer's settlers count it as +2 when choosing a site |
+
 ### Starting positions
 
 All three starts are on the largest connected landmass and at least 8 hexes
@@ -271,6 +301,9 @@ then 20. Turn 1 is 4000 BC.
 
 - **Cost:** entering a hex costs 1, plus 1 for hills, plus 1 for forest.
   Mountains cannot be entered, nor water until Sailing (see [The sea](#the-sea)).
+- **Rivers:** a step across a river takes all the unit's remaining moves, as
+  embarking does, unless the hex on either side is a city, whose bridge
+  carries it over. The pointer's tooltip says FORDING THE RIVER on such a step.
 - **Full moves:** a unit with all its moves can always take one step,
   whatever the cost (so a warrior can climb a forested hill). After that, a
   step needs the moves for it.
@@ -308,6 +341,7 @@ formula reversed. Ranged attackers take nothing back.
 | +3 | Defender on hills |
 | +3 | Defender in forest |
 | +4 | Fortified defender (fortification is lost when attacked) |
+| −5 | Melee attacker striking across a river (the tooltip says so) |
 
 **Results:**
 
@@ -447,7 +481,7 @@ out, the builder is gone.
 
 | Improvement | Where | Bonus | Needs |
 | --- | --- | --- | --- |
-| Farm | Flat grassland or plains without forest | +1 food | — |
+| Farm | Flat grassland or plains without forest | +1 food (+2 beside a river) | — |
 | Mine | Hills, or a hex with stone or gems | +2 production | Mining |
 | Fishing boats | Fish, the builder rowed out onto it | +1 food | Sailing |
 
@@ -641,6 +675,27 @@ That is how a click finds a hex, how fog and the paper map are laid on
 is lit for highlights. When a city levels its hex, only that hex's solids
 are rebuilt and its corner of the picture traced again.
 
+**Rivers** are cut into the hexes beside them. A hex with a river along an
+edge has that edge of its prism pulled in by the bank (3.6 room units, 4.6
+below where two rivers join), and the strip left between the pulled-in plane
+and the edge is a second, lower hull at the water's level: still two convex
+hulls, so the tracer needs nothing new. The two hexes' strips meet at the
+edge as one channel. All the rivers' water is one part, so no ink runs down
+the middle where hexes meet; it is inked only against its banks.
+
+- The **banks** are the prism's cut sides, banded earth like any cliff, with
+  a pale rim of sand and dried mud along the top so the dark water reads.
+- Where a river **falls** to a lower stretch, or into the sea at its mouth,
+  the face it drops over is white water, and the stretch below churns at its
+  foot.
+- **Reeds** stand in clumps along some banks: tufts of light stems with dark
+  heads, that lean in the wind as the wheat does.
+- A **city** on a river bridges it: a deck of planks across each river by
+  it, railed and posted, on piles in the water.
+- Forest, boulders, crystals, wheat and the side mound of a hill are kept
+  out of the channel, a mountain's peaks are drawn in from it, and a farm
+  leaves its wall off along a river and its furrows off the water.
+
 **Models** (`src/models.lua`) are functions from a few numbers (kind,
 civilization, facing 0–5, pose: still, two walk steps, a blow) to a list of
 parts. Cities depend on population (one more house per citizen, up to 9),
@@ -662,6 +717,13 @@ crown stands, how much fog darkens it, and its colour.
 
 - **The sea:** a swell, rough and smooth patches, glints, sand in the
   shallows, breakers and their wash on the shore.
+- **The rivers** run. The mask keeps which way each river pixel flows (in
+  64ths of a turn) and whether it is falling water or the churn at a fall's
+  foot. Streaks of light and shade are carried downstream, drawn out along
+  the flow, with a glint now and then; falls pour white in strands and churn
+  where they land. The sun can take a river down a step but never up, so it
+  never goes the colour of the land, and at night the moon's path glints on
+  it as on the sea.
 - **The wind** blows from the west, in gusts that roll east. Tree crowns
   and wheat sheaves lean up to two pixels with a gust, by how high above the
   ground each pixel stands, and sway a little in a lull, slowly and only
@@ -691,7 +753,17 @@ crown stands, how much fog darkens it, and its colour.
   across from the farmhouse, and on most of those a collie runs a lap round
   them now and then and sits to watch. Sheep don't run from anyone.
 - **Fish**: over each fish hex you can see, one leaps now and then and rings
-  spread where it fell.
+  spread where it fell. In a quarter of the rivers' edges a fish leaps
+  upstream now and then, and falls back with a ring.
+- **Herons** stand in the shallows of about one river edge in ten, away from
+  towns: grey, still, now and then striking down at a fish. When anyone comes
+  within a hex of either bank, the heron flaps off downriver and is gone. It
+  is back 18 seconds after the place is left alone.
+- **Deer by a river** go down to the bank to drink now and then, and stand
+  with their heads down to the water a long while.
+- **Fording**: a unit crossing a river with no bridge wades through it,
+  knee-deep (the bank hides its legs), and throws up a splash of white drops
+  with rings going out, and a splash sounds.
 - **Wakes**: anything under way on the water leaves foam off its stern, a
   mark every 1.2 room units it goes, each kept 1.4 seconds. From each mark the
   foam spreads out to either side as it ages, a V behind the boat (wider
@@ -707,7 +779,7 @@ crown stands, how much fog darkens it, and its colour.
   the other on the swell, each in its own time. Their hulls go on down under
   the water's top, and the board keeps a pixel only where it is nearer than
   the map, so the sea hides them and they sit in it.
-- Neither deer nor sheep are part of the game or its save.
+- Neither deer, sheep nor herons are part of the game or its save.
 - **Mines** wind their wheel for a few seconds, rest, and let it back down.
 - **Units** standing idle rise a pixel for a moment every few seconds, each
   at its own time. Fortified units stand still.
@@ -839,13 +911,15 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, and every sound rendering (never silent, never clipping, the music's layers one length) |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, and every sound rendering (never silent, never clipping, the music's layers one length) |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
 | `love . --play --shot out.png --turns 40 --select city` | Let the AI play your side for 40 turns, select your capital, screenshot into LÖVE's save folder, and quit (silently) |
 | `love . --play --shot night.png --turns 40 --hour 0` | The same at midnight: `--hour H` plays every turn at H o'clock |
 | `love . --play --shot port.png --turns 80 --select harbour --hour 11` | The player's city on the water (one founded on the nearest shore if there is none) given a harbour and a lighthouse, with a galley, a quadrireme, a warrior in a boat and fishing boats round it. `--select port` looks at the best city on the water you know, `--select fleet` at one of your ships |
+| `love . --play --shot river.png --select river --hour 10` | The camera over the hex with the most river by it (a waterfall if there is one), with the land round it shown. `--select ford` adds a warrior who wades across it a moment later; `--select bridge` founds a city of yours where the most river runs by in open country near home, so its bridges show |
+| `love . --play --shot river.png --select ford --film 48` | `--film N`: N pictures three frames apart instead of one (`river-001.png` on), to see what moves; [shots/16-river.gif](shots/16-river.gif) was made so |
 | `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |
 

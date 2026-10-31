@@ -68,11 +68,34 @@ end
 local MAT = {}
 
 -- The kinds of land the moving picture knows (after 1 ocean and 2 coast).
-local LAND = { crown = 3, sheaf = 4, grass = 5, plains = 6, other = 7, desert = 8 }
+local LAND = { crown = 3, sheaf = 4, grass = 5, plains = 6, other = 7, desert = 8, river = 9 }
 World.LAND = LAND
+
+-- The pale rim of sand and dried mud along a river's bank, broken here and
+-- there, so the dark water reads against the land beside it.
+local function rim(s, x, z)
+    local pull = s.pull
+    if not pull then return end
+    local cell = s.cellRef
+    for k = 0, 5 do
+        if pull[k] then
+            local a = math.rad(60 * k)
+            local inside = H.APOTHEM - pull[k] - ((x - cell.x) * math.cos(a) + (z - cell.z) * math.sin(a))
+            if inside < 1.3 then
+                local g = grain(x * 2, z * 2, 59)
+                if inside < 0.7 then return g > 0.2 and IDX.c or IDX.s end
+                if g > 0.55 then return IDX.s end
+            end
+        end
+    end
+end
 
 MAT.grass = { id = 1, ramp = ramp("s", "k", "n", "u"), print = function(s, x, y, z, nx, ny, nz, lev)
     if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    if ny > 0.9 and s.pull then
+        local r = rim(s, x, z)
+        if r then return r end
+    end
     local g = grain(x, z, 1)
     if g > 0.93 then return IDX.n end           -- tufts
     if g < 0.04 then return IDX.t end           -- flowers
@@ -80,6 +103,10 @@ MAT.grass = { id = 1, ramp = ramp("s", "k", "n", "u"), print = function(s, x, y,
 end }
 MAT.plains = { id = 2, ramp = ramp("c", "t", "k", "n"), print = function(s, x, y, z, nx, ny, nz, lev)
     if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    if ny > 0.9 and s.pull then
+        local r = rim(s, x, z)
+        if r then return r end
+    end
     local g = grain(x, z, 3)
     if g > 0.94 then return IDX.k end
     if g < 0.03 then return IDX.s end
@@ -88,6 +115,10 @@ MAT.plains = { id = 2, ramp = ramp("c", "t", "k", "n"), print = function(s, x, y
 end }
 MAT.desert = { id = 3, ramp = ramp("w", "c", "s", "t"), print = function(s, x, y, z, nx, ny, nz, lev)
     if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    if ny > 0.9 and s.pull then
+        local r = rim(s, x, z)
+        if r then return r end
+    end
     -- Dunes: ripples running across.
     local d = sin(x * 0.35 + sin(z * 0.25) * 2.2 + z * 0.1)
     if ny > 0.9 and abs(d - 0.75) < 0.12 then return IDX.s end
@@ -157,6 +188,38 @@ MAT.plot = { id = 9, ramp = MAT.wheat.ramp, print = function(s, x, y, z, nx, ny,
 end }
 MAT.stone = { id = 10, ramp = ramp("w", "c", "k", "n") }
 MAT.gem = { id = 11, ramp = ramp("w", "w", "s", "k") }
+-- A river's water: ripples drawn along the way it runs, a glint now and
+-- then, white where the river above falls into it; its cut banks are the
+-- earth's strata, and where it falls over one the fall is white water.
+MAT.river = { id = 12, ramp = ramp("k", "n", "u", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 then
+        if s.falls then
+            local col = floor(x * 1.3 + z * 0.8)
+            return grain(col, floor(y * 0.7), 31) > 0.4 and IDX.w or IDX.c
+        end
+        return strata(x, y, z, lev)
+    end
+    local f = s.flow
+    if s.foot and (x - s.foot[1]) ^ 2 + (z - s.foot[2]) ^ 2 < s.churn then
+        return grain(x * 2, z * 2, 32) > 0.45 and IDX.c or IDX.s
+    end
+    local along, across = x * f[1] + z * f[2], z * f[1] - x * f[2]
+    -- Streaks drawn out along the stream.
+    if grain(floor(along / 3.5), floor(across * 1.4), 34) > 0.8 then return IDX.n end
+    if grain(x, z, 33) > 0.995 then return IDX.k end
+    return IDX.u
+end }
+-- Reeds along the banks, and their dark heads; the planks of a bridge.
+MAT.reed = { id = 13, ramp = ramp("c", "s", "t", "n"), print = function(s, x, y, z, nx, ny, nz, lev)
+    -- Stems, and their dark heads standing out of the top.
+    if y > s.heads and grain(floor(x * 1.6), floor(y * 0.8), 58) > 0.55 then return IDX.u end
+    if floor(x * 1.6 + z * 0.3) % 2 == 0 then return lev >= 3 and IDX.n or IDX.t end
+end }
+MAT.plank = { id = 15, ramp = ramp("c", "s", "t", "n"), print = function(s, x, y, z, nx, ny, nz, lev)
+    local a = s.across
+    if a and ny > 0.9 and floor((x * a[1] + z * a[2]) * 1.1) % 3 == 0 then return IDX.t end
+end }
+
 -- Hills are their ground's own stuff, but a material of their own, so no
 -- crease rings them where they meet the flat.
 local MOUND = {}
@@ -167,17 +230,67 @@ end
 --- building the solids --------------------------------------------------------------
 
 -- A hex prism in the room, standing from the map's bottom up to `top`.
-local function hexPrism(cx, cz, top)
+-- `pull`, if given, pulls edge k in by pull[k]: where a river runs.
+local function hexPrism(cx, cz, top, pull)
     local planes = {}
     for k = 0, 5 do
         local a = math.rad(60 * k)
         local nx, nz = math.cos(a), math.sin(a)
-        planes[#planes + 1] = { nx, 0, nz, nx * cx + nz * cz + H.APOTHEM }
+        planes[#planes + 1] = { nx, 0, nz, nx * cx + nz * cz + H.APOTHEM - (pull and pull[k] or 0) }
     end
     planes[#planes + 1] = { 0, 1, 0, top }
     planes[#planes + 1] = { 0, -1, 0, -BOTTOM }
     return { kind = "hull", planes = planes, prism = true,
         box = { cx - H.APOTHEM, cx + H.APOTHEM, BOTTOM, top, cz - H.R, cz + H.R } }
+end
+
+--- rivers ----------------------------------------------------------------------------
+
+-- How far a river cuts into each hex beside it: wider below where two join.
+local BANK = { 3.6, 4.6 }
+local function bankOf(e) return e.size >= 2 and BANK[2] or BANK[1] end
+World.bankOf = bankOf
+
+-- The water of river `e` along edge k of a hex: the hex's prism, only the
+-- strip of it within the bank of the edge, down at the water's level.
+local function riverStrip(cell, k, e)
+    local s = hexPrism(cell.x, cell.z, e.level)
+    local a = math.rad(60 * k)
+    local nx, nz = math.cos(a), math.sin(a)
+    local bank = bankOf(e)
+    table.insert(s.planes, { -nx, 0, -nz, -(nx * cell.x + nz * cell.z + H.APOTHEM - bank) })
+    s.prism = nil
+    local fx, fz = e.to[1] - e.from[1], e.to[2] - e.from[2]
+    local l = math.sqrt(fx * fx + fz * fz)
+    s.flow = { fx / l, fz / l }
+    s.falls = e.fall or e.mouth
+    if e.foot then s.foot, s.churn = e.from, (bank * 1.7) ^ 2 end
+    s.riverPart = true
+    return s
+end
+
+-- Where along a river edge k of a hex: the room point `inset` in from the
+-- edge's middle, `u` along it.
+local function alongEdge(cell, k, inset, u)
+    local a = math.rad(60 * k)
+    local nx, nz = math.cos(a), math.sin(a)
+    local d = H.APOTHEM - inset
+    return cell.x + nx * d - nz * u, cell.z + nz * d + nx * u
+end
+
+-- Is room point (x, z) on hex `cell` within `margin` of the water of a
+-- river along its edges?
+local function nearRiver(cell, x, z, margin)
+    if not cell.river then return false end
+    for k = 0, 5 do
+        local e = cell.river[k]
+        if e then
+            local a = math.rad(60 * k)
+            local inside = H.APOTHEM - ((x - cell.x) * math.cos(a) + (z - cell.z) * math.sin(a))
+            if inside < bankOf(e) + margin then return true end
+        end
+    end
+    return false
 end
 
 -- Points scattered over a hex, kept `inset` in from its edge: the same ones
@@ -189,7 +302,7 @@ local function scatter(cell, n, inset, k)
         tries = tries + 1
         local x = cell.x + (grain(cell.id, tries, k) * 2 - 1) * H.R
         local z = cell.z + (grain(tries, cell.id, k + 1) * 2 - 1) * H.R
-        if H.inset(x, z, cell.x, cell.z) > inset then
+        if H.inset(x, z, cell.x, cell.z) > inset and not nearRiver(cell, x, z, 2) then
             local ok = true
             for _, p in ipairs(out) do
                 if (p[1] - x) ^ 2 + (p[2] - z) ^ 2 < 20 then ok = false end
@@ -213,14 +326,35 @@ function World:hexSolids(cell)
     local t = D.TERRAIN[cell.terrain]
     local top = cell.top
     local base = cell.elev == "mountain" and MAT.rock or MAT[cell.terrain]
-    add(hexPrism(cell.x, cell.z, top), base)
+    local river = not t.water and cell.river
+    local pull
+    if river then
+        pull = {}
+        for k = 0, 5 do pull[k] = river[k] and bankOf(river[k]) or nil end
+    end
+    local ground = add(hexPrism(cell.x, cell.z, top, pull), base)
+    ground.pull = pull
     if t.water then return out end
+    if river then
+        for k = 0, 5 do
+            if river[k] then add(riverStrip(cell, k, river[k]), MAT.river) end
+        end
+    end
 
     if cell.elev == "hills" and not cell.city then
         -- One broad mound in the middle, a unit stands on it, and a smaller
         -- one off to a side. A city levels them.
-        add(Sh.ell(cell.x, top - 0.8, cell.z, 9.5, 4, 7.5), MOUND[cell.terrain])
+        local mound = river and 0.74 or 1
+        add(Sh.ell(cell.x, top - 0.8, cell.z, 9.5 * mound, 4, 7.5 * mound), MOUND[cell.terrain])
         local a = grain(cell.id, 7, 21) * math.pi * 2
+        if river then
+            -- Off towards an edge no river runs along.
+            local k0 = floor(grain(cell.id, 8, 21) * 6)
+            for d = 0, 5 do
+                local k = (k0 + d) % 6
+                if not river[k] and not river[(k + 1) % 6] and not river[(k + 5) % 6] then a = math.rad(60 * k) break end
+            end
+        end
         add(Sh.ell(cell.x + math.cos(a) * 7, top - 0.5, cell.z + math.sin(a) * 5, 4.5, 2.6, 3.5), MOUND[cell.terrain])
     elseif cell.elev == "mountain" then
         -- A ring of five to seven points round (cx, cz), each pushed in or out.
@@ -234,9 +368,11 @@ function World:hexSolids(cell)
             end
             return poly
         end
+        -- Kept back from a river below it.
+        local wide = river and 0.78 or 0.92
         local ox = (grain(cell.id, 1, 30) - 0.5) * 5
         local h = 13 + grain(cell.id, 2, 30) * 10
-        local main = add(Sh.peak(ring(cell.x + ox * 0.5, cell.z, H.R * 0.92, 31), top,
+        local main = add(Sh.peak(ring(cell.x + ox * 0.5, cell.z, H.R * wide, 31), top,
             { cell.x + ox, top + h, cell.z - 1 - grain(cell.id, 4, 30) * 2 }), MAT.rock)
         main.snow = top + h * 0.6
         local roll = grain(cell.id, 3, 30)
@@ -244,7 +380,7 @@ function World:hexSolids(cell)
             local side = roll > 0.65 and 1 or -1
             local sx, sz = cell.x - side * 6, cell.z + 3
             local h2 = h * (0.4 + grain(cell.id, 5, 30) * 0.25)
-            local second = add(Sh.peak(ring(sx, sz, H.R * 0.55, 32), top, { sx - side * 1.5, top + h2, sz }), MAT.rock)
+            local second = add(Sh.peak(ring(sx, sz, H.R * (wide - 0.37), 32), top, { sx - side * 1.5, top + h2, sz }), MAT.rock)
             second.snow = top + h2 * 0.7
         end
     end
@@ -262,6 +398,60 @@ function World:hexSolids(cell)
                 add(Sh.pyramid(6, x, g + 5 * tall, z, 3 * tall, 5 * tall, 0, 0.8), MAT.tree)
             else
                 add(Sh.ell(x, g + 5.5 * tall, z, 3.8 * tall, 3.6 * tall, 3.8 * tall), MAT.tree)
+            end
+        end
+    end
+
+    if river and cell.city then
+        -- A city bridges the rivers by it: a deck of planks across, railed,
+        -- on a trestle in the water.
+        for k = 0, 5 do
+            local e = river[k]
+            if e then
+                local n = self:cellAt(H.step(cell.c, cell.r, k))
+                local deck = max(top, n and n.top or top) + 0.4
+                local bank = bankOf(e)
+                local a = math.rad(60 * k)
+                local cx, cz = alongEdge(cell, k, 0, 0)
+                local span = bank * 2 + 3.4
+                local across = { math.cos(a), math.sin(a) }
+                local b = add(Sh.box(cx, deck - 0.6, cz, span, 3.6, 0.6, -a), MAT.plank)
+                b.across, b.join = across, "bridge" .. k
+                local tx, tz = -across[2], across[1]
+                for side = -1, 1, 2 do
+                    local rx, rz = cx + tx * side * 1.6, cz + tz * side * 1.6
+                    local rail = add(Sh.box(rx, deck + 0.6, rz, span - 1.2, 0.35, 0.35, -a), MAT.plank)
+                    rail.across, rail.join = across, "bridge" .. k
+                    -- Posts up to the rail at either end, and piles down
+                    -- into the water mid-stream.
+                    for along = -1, 1, 2 do
+                        local px, pz = rx + across[1] * along * (span / 2 - 0.8), rz + across[2] * along * (span / 2 - 0.8)
+                        add(Sh.seg(px, deck - 0.2, pz, px, deck + 1.2, pz, 0.35), MAT.plank).join = "bridge" .. k
+                    end
+                    add(Sh.seg(rx, e.level - 0.5, rz, rx, deck - 0.4, rz, 0.45), MAT.trunk).join = "bridge" .. k
+                end
+            end
+        end
+    end
+    if river and not cell.city and cell.elev ~= "mountain" and cell.feature ~= "forest" then
+        -- Reeds in clumps along some of the banks, their heads dark.
+        for k = 0, 5 do
+            local e = river[k]
+            if e then
+                local bank = bankOf(e)
+                for q = 1, 2 do
+                    if grain(cell.id, k * 7 + q, 50) > 0.45 then
+                        local u = (grain(cell.id, k * 7 + q, 51) - 0.5) * 9
+                        local bx, bz = alongEdge(cell, k, bank + 1.4, u)
+                        for m = 0, 1 + floor(grain(bx, bz, 52) * 2) do
+                            local x0 = bx + (m - 1) * 2.2 * -math.sin(math.rad(60 * k)) + (grain(bx, m, 53) - 0.5)
+                            local z0 = bz + (m - 1) * 2.2 * math.cos(math.rad(60 * k)) + (grain(bz, m, 54) - 0.5)
+                            local h = 1.8 + grain(bx + m, bz, 55) * 1.2
+                            local tuft = add(Sh.ell(x0, top + h * 0.35, z0, 1.3, h, 0.9), MAT.reed)
+                            tuft.heads, tuft.join = top + h * 1.05, "reeds"
+                        end
+                    end
+                end
             end
         end
     end
@@ -288,7 +478,7 @@ function World:hexSolids(cell)
                     if math.abs(u - q[1]) < q[3] / 2 + 1.1 and math.abs(v - q[2]) < 2.9 then clear = false end
                 end
                 local x, z = at(u, v)
-                if clear and H.inset(x, z, cell.x, cell.z) > 4 then
+                if clear and H.inset(x, z, cell.x, cell.z) > 4 and not nearRiver(cell, x, z, 1.4) then
                     add(Sh.ell(x, top + 0.3, z, 1.3, 1.4, 1.3), MAT.wheat).join = "wheat"
                 end
             end
@@ -337,7 +527,15 @@ function World:addCell(cell)
     -- Solids that `join` are one part, so not inked where they meet.
     local joined = {}
     for _, s in ipairs(list) do
-        s.part = s.join and joined[s.join]
+        -- All the rivers' water is one part, so no ink where hexes meet in it.
+        if s.riverPart then
+            if not self.riverPart then
+                self.riverPart = self.nextPart
+                self.nextPart = self.nextPart % 32000 + 1
+            end
+            s.join = nil
+        end
+        s.part = s.riverPart and self.riverPart or (s.join and joined[s.join])
         if not s.part then
             s.part = self.nextPart
             self.nextPart = self.nextPart % 32000 + 1
@@ -432,7 +630,17 @@ function World:trace(i0, j0, i1, j1, yield)
                 -- sixteenths; grass and dry grass ripple; the heat shimmers
                 -- over sand.
                 local kind, sway = LAND.other, 0
-                if m == MAT.tree or m.id == MAT.wheat.id then
+                if m == MAT.river then
+                    -- The river: which way it runs, in 64ths of a turn, and
+                    -- whether this is falling water (1) or the churn at a
+                    -- fall's foot (2). Its banks are only earth.
+                    local f = best.flow
+                    local turn = floor(math.atan2(f[2], f[1]) / (2 * math.pi) * 64 + 0.5) % 64
+                    local sub = 0
+                    if ny < 0.6 then sub = best.falls and 1 or -1
+                    elseif best.foot and (x - best.foot[1]) ^ 2 + (z - best.foot[2]) ^ 2 < best.churn then sub = 2 end
+                    if sub >= 0 then kind, sway = LAND.river, turn * 4 + sub end
+                elseif m == MAT.tree or m.id == MAT.wheat.id or m == MAT.reed then
                     local cell = best.cellRef
                     local ground = cell.top + ((m == MAT.tree and cell.elev == "hills") and 1 or 0)
                     kind = m == MAT.tree and LAND.crown or LAND.sheaf
@@ -634,6 +842,8 @@ function World:build(explored, visible, grid)
                 if not visible[c] then k, dark = DARK[k], dark + 1 end
                 -- Water, but not where the ink has drawn the map's edge over it.
                 if sea[n] ~= 0 then what = key[n] == raw[n] and sea[n] or 0 else what = kind[n] end
+                -- The river moves only where neither ink nor a crease is on it.
+                if what == LAND.river and key[n] ~= raw[n] then what = LAND.other end
             end
             local rgb = RGB8[k]
             local p = n * 4

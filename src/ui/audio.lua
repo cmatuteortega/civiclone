@@ -219,6 +219,12 @@ function Audio.step(u, cell)
     at(name, cell.id, u.owner == 1 and 1 or 0.6)
 end
 
+-- A unit wading into a river: a splash.
+function Audio.ford(u, cell)
+    if not Audio.on or not seen(cell.id) then return end
+    at("splash", cell.id, u.owner == 1 and 0.8 or 0.5)
+end
+
 --- each frame ------------------------------------------------------------------------
 
 -- What the camera is over: how much of the screen is sea, forest, high

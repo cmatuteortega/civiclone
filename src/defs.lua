@@ -31,6 +31,17 @@ D.RESOURCE = {
     gems = { name = "GEMS", food = 0, prod = 0, gold = 3 },
     fish = { name = "FISH", food = 1, prod = 0, gold = 0 },
 }
+-- Rivers run along the edges between hexes (src/mapgen.lua). Crossing one
+-- takes all a unit's moves, unless a city's bridge carries it over; one
+-- attacking across it strikes weaker. Every hex on a river yields a gold
+-- more, and a farm on one a food more.
+D.RIVER = { gold = 1, farmFood = 1, attack = 5 }
+-- Their names, given out at random.
+D.RIVERS = {
+    "ASHBURN", "SEDGEWATER", "OSIER", "FALLOW", "TAMBER", "WILLOWMERE", "BRACKEN", "SALLOW",
+    "RUSHMOOR", "LARKSPUR", "UMBER", "HOLLOWAY", "MARL", "TEASEL",
+}
+
 -- What a builder can make, and where.
 D.IMPROVEMENT = {
     farm = { name = "FARM", food = 1, prod = 0, key = "R" },

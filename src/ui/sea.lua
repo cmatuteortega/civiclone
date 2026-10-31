@@ -29,6 +29,11 @@
 -- Under all of it, land, sea and what stands on them, the shadows of clouds
 -- drift the same way, a step darker in a dither.
 --
+-- The rivers run too. Their water is drawn again each frame as the sea's is:
+-- streaks of light and shade carried down the way each one flows, faster
+-- where it is narrow, a glint now and then, white water tumbling down every
+-- fall and churning at its foot, and the moon's path on them at night.
+--
 -- Marks laid over water (the hexes a city works) are not printed over it
 -- still, which would stop the water under them: the overlay carries them as
 -- a step to lighten by (src/ui/pixels.lua, P.lift) and this applies them.
@@ -141,13 +146,13 @@ float dusk(float k, vec2 p) {
 ]]
 
 local SOURCE = COMMON .. [[
-uniform Image mask;      // r what (1 ocean, 2 coast, 3.. land), g land's distance x4 or height x16, b steps darker, a key
+uniform Image mask;      // r what (1 ocean, 2 coast, 3.. land, 9 river), g land's distance x4 or height x16 or a river's way x4, b steps darker, a key
 uniform Image overlay;   // the board's overlay: alpha 1..3 marks steps lighter
 uniform vec2 overlaySize;
 uniform float time;      // the sea's clock
 uniform float moonX;     // the canvas's column under the moon
 
-const float CROWN = 3.0, SHEAF = 4.0, GRASS = 5.0, PLAINS = 6.0, DESERT = 8.0;
+const float CROWN = 3.0, SHEAF = 4.0, GRASS = 5.0, PLAINS = 6.0, DESERT = 8.0, RIVER = 9.0;
 
 float what(vec4 m) { return floor(m.r * 255.0 + 0.5); }
 float keyOf(vec4 m) { return floor(m.a * 255.0 + 0.5); }
@@ -240,6 +245,53 @@ vec3 sea(vec4 m, vec2 p, vec2 w, vec2 sc) {
     return key(k);
 }
 
+// A river: g says which way it runs (in 64ths of a turn, times four) and
+// what this pixel is: 0 its water, 1 falling water, 2 the churn at a fall's
+// foot.
+vec3 river(vec4 m, vec2 p, vec2 w, vec2 sc) {
+    float code = floor(m.g * 255.0 + 0.5);
+    float sub = mod(code, 4.0);
+    float a = floor(code / 4.0) / 64.0 * 6.2831853;
+    vec2 f = vec2(cos(a), sin(a));
+    float dark = floor(m.b * 255.0 + 0.5);
+    float t = time;
+    float k = U;
+    if (sub > 0.5 && sub < 1.5) {
+        // Falling: white water in strands that pour down the face.
+        float v = noise(vec2(p.x * 0.8, p.y * 0.22 - t * 6.0));
+        k = v > 0.55 ? W : (v > 0.3 ? C : S);
+    } else {
+        float along = dot(w, f), across = dot(w, vec2(-f.y, f.x));
+        // Streaks carried down the stream, drawn out along it.
+        float s = noise(vec2(along * 0.16 - t * 1.4, across * 0.8 + 3.0 * noise(vec2(along * 0.03, across * 0.1))));
+        float s2 = noise(vec2(along * 0.35 - t * 2.3, across * 1.6 + 7.0));
+        if (s > 0.68) k = N;
+        else if (s < 0.22 && bayer4(p) < 0.375) k = O;
+        if (s2 > 0.78 && bayer4(p + vec2(floor(t * 4.0), 0.0)) < 0.5) k = K;
+        // A glint, for a moment.
+        if (hash(p, floor(t * 3.0 + hash(p) * 9.0)) > 0.996) k = S;
+        if (sub > 1.5) {
+            // The churn at a fall's foot: foam boiling up and going to holes.
+            float lace = noise(w * 1.1 + vec2(t * 1.3, -t * 0.7)) + 0.3 * noise(w * 2.6 - vec2(0.0, t * 2.0));
+            if (lace > 0.75) k = W;
+            else if (lace > 0.55) k = C;
+            else if (lace > 0.42 && bayer4(p) < 0.5) k = S;
+        }
+    }
+    // The sun takes the water down where it is turned from it, never up:
+    // lit by it, a river would go the land's colour and be lost in it.
+    k = min(daylight(k, p), k);
+    vec4 o = Texel(overlay, sc / overlaySize);
+    if (o.a > 0.0 && o.a < 0.5) k += floor(o.a * 255.0 + 0.5);
+    if (lit > 0.5 && night > 0.3 && dark < 0.5) {
+        float off = (sc.x - moonX) / 30.0;
+        float path = exp(-off * off);
+        if (hash(vec2(floor(p.x / 2.0), p.y), floor(t * 5.0)) > 1.0 - 0.3 * path * night) k = path > 0.6 ? W : S;
+    }
+    k = clamp(k - dark - cloud(p, w, air), 1.0, 8.0);
+    return key(k);
+}
+
 // Key k at p, darkened `dark` steps by the fog and the grid, in the light of
 // the hour: the light is laid on the key under the fog, and the fog again
 // after.
@@ -310,7 +362,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
         return vec4(key(dusk(keyOf(m), p)), 1.0) * color;
     }
     vec2 w = room(p + 0.5);
-    vec3 c = kind < 2.5 ? sea(m, p, w, sc) : land(m, p, w);
+    vec3 c = kind < 2.5 ? sea(m, p, w, sc) : (kind == RIVER ? river(m, p, w, sc) : land(m, p, w));
     return vec4(c, 1.0) * color;
 }
 ]]

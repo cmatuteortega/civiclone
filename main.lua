@@ -101,6 +101,9 @@ function love.load(args)
         if a == "--shot" then S.plan = { file = args[n + 1] or "shot.png", turns = 0, frames = 0 } end
         if a == "--turns" and S.plan then S.plan.turns = tonumber(args[n + 1]) or 0 end
         if a == "--select" and S.plan then S.plan.select = args[n + 1] end
+        -- `--film n`: n pictures a few frames apart instead of one, named
+        -- file-001.png on, to see what moves.
+        if a == "--film" and S.plan then S.plan.film = tonumber(args[n + 1]) or 24 end
         -- `--hour h`: every turn played at h o'clock (0..24), to see the light.
         if a == "--hour" and tonumber(args[n + 1]) then Daylight.force = tonumber(args[n + 1]) / 24 end
         -- `--clock look`: the clock drawn so (arc, dial, strip, scene, off).
@@ -230,6 +233,71 @@ local function followPlan()
         if S.selected and plan.select ~= "port" then
             View.lookAt(S.game.cells[(S.selected.unit or S.selected.city).cell], true)
         end
+        -- `--select bridge`: a city of the player's founded where the most
+        -- river runs by in open country near home, grown, its bridges over,
+        -- and the land round it shown, herons and all.
+        if plan.select == "bridge" then
+            local g, p = S.game, S.game.players[1]
+            local town
+            local cap = g:citiesOf(1)[1]
+            local from = cap and g.cells[cap.cell] or g.cells[g:unitsOf(1)[1].cell]
+            -- Where the most river runs by in open country, near home.
+            local best, bv
+            for _, cell in ipairs(g:within(from, 9)) do
+                if g:passable(cell) and g:onRiver(cell) and not g.mil[cell.id] and not g.civ[cell.id] then
+                    local st = g:addUnit("settler", 1, cell.id)
+                    local v = 0
+                    for _ in pairs(cell.river) do v = v + 2 end
+                    for _, n in ipairs(g:neighbours(cell)) do
+                        if n.feature == "forest" then v = v - 1 end
+                    end
+                    if g:canFound(st) and (not bv or v > bv) then best, bv = cell, v end
+                    g:removeUnit(st)
+                end
+            end
+            if best then
+                town = g:found(g:addUnit("settler", 1, best.id))
+                Anim.events(g)
+            end
+            if town then
+                town.pop = 6
+                local cell = g.cells[town.cell]
+                for _, n in ipairs(g:within(cell, 4)) do p.explored[n.id], p.visible[n.id] = true, true end
+                p.sightChanged = true
+                S.selected = nil
+                S.bordersDirty = true
+                View.lookAt(cell, true)
+            end
+        end
+        -- `--select river`: the camera over the hex with the most river by
+        -- it (a fall, if there is one), and the land round it shown, to look
+        -- at the rivers.
+        if plan.select == "ford" then plan.select, plan.ford = "river", true end
+        if plan.select == "river" then
+            local g, p = S.game, S.game.players[1]
+            local best, bv = nil, -1
+            for _, cell in ipairs(g.cells) do
+                local v = 0
+                for _, e in pairs(cell.river or {}) do v = v + 1 + (e.fall and 2 or 0) + (e.mouth and 1 or 0) end
+                if v > bv then best, bv = cell, v end
+            end
+            if best then
+                for _, cell in ipairs(g:within(best, 5)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+                p.sightChanged = true
+                S.selected = nil
+                View.lookAt(best, true)
+                -- `--select ford`: and a warrior set to wade across it a
+                -- moment later.
+                if plan.ford then
+                    for _, n in ipairs(g:neighbours(best)) do
+                        if g:passable(best) and g:passable(n) and g:fords(best, n) and not g.mil[best.id] and not g.mil[n.id] then
+                            plan.wader = { unit = g:addUnit("warrior", 1, best.id), to = n.id }
+                            break
+                        end
+                    end
+                end
+            end
+        end
         -- `--select coast`: the camera over the explored shore nearest the
         -- player's first unit or city, to look at the sea.
         if plan.select == "coast" and S.selected then
@@ -260,6 +328,17 @@ local function followPlan()
         local what, tab = plan.open:match("^(%a+):?(%a*)$")
         if what == "pause" then Menu.openPause() end
         if what == "settings" then Menu.openSettings(tab ~= "" and tab or nil) end
+    end
+    if plan.wader and plan.frames == 60 then
+        S.game:moveTo(plan.wader.unit, plan.wader.to)
+    end
+    if plan.film then
+        local k = (plan.frames - 30) / 3
+        if k >= 0 and k == math.floor(k) and k < plan.film then
+            S.shot = plan.file:gsub("%.png$", "") .. ("-%03d.png"):format(k + 1)
+        end
+        if k >= plan.film + 1 then love.event.quit() end
+        return
     end
     if plan.frames == 30 then S.shot = plan.file end
     if plan.frames == 32 then love.event.quit() end

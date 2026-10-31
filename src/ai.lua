@@ -120,7 +120,7 @@ local function siteFor(game, u)
                 local v = Mapgen.siteScore(game.cells, game.cols, game.rows, cell) - game:dist(here, cell) * 1.6
                 if game:isWater(cell) then v = -1 end
                 for _, n in ipairs(game:neighbours(cell)) do
-                    if n.terrain == "coast" then v = v + 1 break end
+                    if n.terrain == "coast" then v = v + 2 break end
                 end
                 if not bv or v > bv then best, bv = cell, v end
             end

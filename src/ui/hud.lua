@@ -257,6 +257,8 @@ local function tooltip()
     local head = g:describe(cell)
     if cell.elev ~= "mountain" then head = head .. "   " .. f .. "F " .. p .. "P " .. gold .. "G" end
     lines[1] = head
+    local river = g:riverName(cell)
+    if river then lines[#lines + 1] = "BY THE " .. river end
     if cell.owner then
         local owner = g.players[cell.owner]
         lines[#lines + 1] = (cell.city and cell.city.name or (cell.ownerCity and cell.ownerCity.name or "")) .. " - " .. owner.name
@@ -272,8 +274,16 @@ local function tooltip()
     if sel and sel.owner == 1 and g:canAttack(sel, cell) then
         local dealt, taken = g:forecast(sel, cell)
         lines[#lines + 1] = "ATTACK: DEALS ABOUT " .. dealt .. ", TAKES ABOUT " .. taken
+        if not sel.def.ranged and g:riverBetween(g.cells[sel.cell], cell) then
+            lines[#lines + 1] = "ACROSS THE RIVER: -" .. D.RIVER.attack .. " STRENGTH"
+        end
     elseif sel and sel.owner == 1 and S.hoverTurns and cell.id ~= sel.cell then
-        lines[#lines + 1] = "MOVE: " .. S.hoverTurns .. (S.hoverTurns == 1 and " TURN" or " TURNS")
+        local move = "MOVE: " .. S.hoverTurns .. (S.hoverTurns == 1 and " TURN" or " TURNS")
+        if g:dist(g.cells[sel.cell], cell) == 1 and not sel.def.sea and g:passable(g.cells[sel.cell]) and g:passable(cell)
+            and g:fords(g.cells[sel.cell], cell) then
+            move = move .. ", FORDING THE RIVER"
+        end
+        lines[#lines + 1] = move
     end
     local w = 0
     for _, l in ipairs(lines) do w = max(w, Font.width(l)) end
@@ -322,6 +332,8 @@ local function minimap()
             local k = cell.elev == "mountain" and "s" or MINI[cell.terrain]
             if cell.owner then k = Board.TEAM[g.players[cell.owner].civ.look].fill end
             rect(k, px, py, 2, 2)
+            -- A river's course, a dark speck in each hex along it.
+            if not cell.owner and g:onRiver(cell) then rect("u", px + 1, py + 1, 1, 1) end
             if cell.city then rect("o", px, py, 2, 1) end
         else
             rect((cell.c + cell.r) % 2 == 0 and "c" or "s", px, py, 2, 2)

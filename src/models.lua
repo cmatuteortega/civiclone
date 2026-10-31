@@ -904,6 +904,51 @@ function M.deer(face, pose, stag)
     end, M.UNIT_SCALE * 0.55)
 end
 
+-- A heron, grey and long-legged, facing `face` (0..5): pose 0 standing
+-- watch in the shallows of a river, 1 striking down at a fish, 2 and 3 the
+-- wings up and down as it flies off, legs trailed behind and neck drawn in.
+function M.heron(face, pose)
+    return kept(table.concat({ "heron", face, pose }, ":"), function()
+        local grey, dark, bill = R.stone, R.dark, R.straw
+        local parts = {}
+        local fly = pose >= 2
+        local by = fly and 6 or 7.6
+        parts[#parts + 1] = part(Sh.ell(0, by, 0, 3.2, 1.6, 1.5, A.rotZ(fly and 0 or 0.3)), grey, 1)
+        if fly then
+            for _, lz in ipairs({ -0.4, 0.4 }) do
+                parts[#parts + 1] = part(Sh.seg(-2.4, by - 0.3, lz, -6.2, by - 0.7, lz, 0.3), dark, 2)
+            end
+            for _, side in ipairs({ -1, 1 }) do
+                local tilt = pose == 2 and -side * 0.75 or side * 0.45
+                parts[#parts + 1] = part(Sh.ell(-0.2, by + (pose == 2 and 1.6 or -0.6), side * 3.6, 2.4, 0.3, 3.6, A.rotX(tilt)), grey, 3,
+                    function(ux) if ux < -0.45 then return IDX.n end end)
+            end
+            parts[#parts + 1] = part(Sh.seg(2.4, by + 0.3, 0, 4.2, by + 1.2, 0, 0.55), grey, 4)
+            parts[#parts + 1] = part(Sh.ell(5.0, by + 1.3, 0, 1.0, 0.75, 0.7), grey, 5)
+            parts[#parts + 1] = part(Sh.seg(5.6, by + 1.2, 0, 8.0, by + 1.0, 0, 0.25), bill, 6)
+        else
+            for _, lz in ipairs({ -0.6, 0.6 }) do
+                parts[#parts + 1] = part(Sh.seg(0.2, by - 1, lz, 0.5, -0.5, lz * 1.2, 0.3), dark, 2)
+            end
+            -- The wings folded along its back, a darker grey.
+            parts[#parts + 1] = part(Sh.ell(-0.6, by + 0.5, 0, 2.8, 1.1, 1.6, A.rotZ(0.3)), grey, 3,
+                function(ux, uy) if uy > 0.2 then return IDX.k end end)
+            local hx, hy, tx, ty
+            if pose == 1 then
+                hx, hy, tx, ty = 5.4, by - 3.6, 6.4, by - 6.4
+            else
+                hx, hy, tx, ty = 3.0, by + 5.4, 5.8, by + 5.0
+            end
+            parts[#parts + 1] = part(Sh.seg(2.0, by + 0.8, 0, hx - 0.3, hy - 0.4, 0, 0.55), grey, 4)
+            parts[#parts + 1] = part(Sh.ell(hx, hy, 0, 1.0, 0.8, 0.7), grey, 5)
+            parts[#parts + 1] = part(Sh.seg(hx + 0.6, hy - 0.1, 0, tx, ty, 0, 0.25), bill, 6)
+            -- Its black crest, trailing.
+            parts[#parts + 1] = part(Sh.seg(hx - 0.5, hy + 0.3, 0, hx - 2.2, hy + 0.1, 0, 0.2), dark, 7)
+        end
+        return place(parts, math.rad(60 * face))
+    end, M.UNIT_SCALE * 0.5)
+end
+
 --- the sea's harvest -------------------------------------------------------------
 
 -- Fishing boats over the fish: two small open boats, each with a fisher in

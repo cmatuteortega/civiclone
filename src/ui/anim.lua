@@ -11,6 +11,7 @@ local H = require "src.hex"
 local S = require "src.ui.state"
 local Audio = require "src.ui.audio"
 local M = require "src.models"
+local World = require "src.world"
 
 local max, min, floor = math.max, math.min, math.floor
 
@@ -125,6 +126,18 @@ function Anim.update(game, dt)
             local tx, ty, tz = home(to, u)
             local fc = game:cell(H.at(a.x, a.z))
             if fc and fc ~= to then a.face = face(fc, to) end
+            -- Fording a river: where the step crosses one with no bridge,
+            -- the edge's middle and the way across it, to wade through.
+            if fc and fc ~= to and a.fordTo ~= to.id then
+                a.fordTo, a.ford = to.id, nil
+                if not u.def.sea and not game:isWater(fc) and not game:isWater(to) and game:fords(fc, to) then
+                    local e = game:riverBetween(fc, to)
+                    local k = H.dirTo(fc.c, fc.r, to.c, to.r)
+                    local ang = math.rad(60 * k)
+                    a.ford = { e = e, nx = math.cos(ang), nz = math.sin(ang),
+                        mx = fc.x + math.cos(ang) * H.APOTHEM, mz = fc.z + math.sin(ang) * H.APOTHEM }
+                end
+            end
             local dx, dz = tx - a.x, tz - a.z
             local d = math.sqrt(dx * dx + dz * dz)
             local step = SPEED * H.W * dt
@@ -136,6 +149,23 @@ function Anim.update(game, dt)
                 a.x, a.z = a.x + dx / d * step, a.z + dz / d * step
                 -- Up or down the terraces halfway across.
                 a.y = (d < H.W * 0.5) and ty or a.y
+            end
+            -- In the river: down in the water to the knees, and a splash
+            -- going in.
+            local f = a.ford
+            a.wade = nil
+            if f then
+                local across = (a.x - f.mx) * f.nx + (a.z - f.mz) * f.nz
+                local bank = World.bankOf(f.e)
+                if math.abs(across) < bank + 0.5 then
+                    a.wade = f.e.level - 0.6
+                    if not f.splashed then
+                        f.splashed = true
+                        S.effects[#S.effects + 1] = { kind = "splash", t = 0, life = 0.9, x = a.x, y = f.e.level, z = a.z,
+                            seed = u.id }
+                        Audio.ford(u, to)
+                    end
+                end
             end
             -- Under way on the water: foam off the stern.
             local over = game:cell(H.at(a.x, a.z))
@@ -159,7 +189,7 @@ function Anim.update(game, dt)
             a.walk = a.walk + dt * 8
             a.pose = floor(a.walk) % 2 + 1
         else
-            a.pose = 0
+            a.pose, a.wade, a.ford, a.fordTo = 0, nil, nil, nil
             -- Settle where the unit is, in case it was put there without a walk.
             local cell = game.cells[u.cell]
             local x, y, z = home(cell, u)
@@ -200,7 +230,7 @@ end
 -- stand apart, the civilian behind.
 function Anim.place(game, u)
     local a = Anim.of(u)
-    local x, y, z = a.x, a.y, a.z
+    local x, y, z = a.x, a.wade or a.y, a.z
     if #a.queue == 0 then
         local other = u.def.civilian and game.mil[u.cell] or game.civ[u.cell]
         if other and other ~= u then
