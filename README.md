@@ -95,6 +95,22 @@ stretches of map traced by the game's own `World`.
 ![Cities growing, by land](shots/18-cities-growth.png)
 ![Cities in different places](shots/19-cities-sites.png)
 
+And the wild is in it (`src/beasts.lua`), and not just on the screen. Wolves come out of
+their dens in pairs and go for anyone near, stronger at night, when they
+throw their heads back and howl. Bears guard their caves under the
+mountains. Crocodiles lie in the rivers with only their eyes out and take
+whoever wades across. Sea serpents roll through the deep ocean before
+Cartography makes it safe. Boar and aurochs graze and root about, and fight back hard if hunted.
+Wild horses run from people until Horseback Riding lets a soldier tame them
+into a horseman. Wild bees swarm round their hives. Every beast is a unit
+that walks and fights by the rules and leaves its loot to whoever kills it:
+gold, food for the nearest city, culture. Walk a soldier into a den or cave
+no beast guards and it is cleared for a prize. The rival civilizations hunt
+too. Mountain goats on the hills and foxes in the forests are scenery only.
+
+![The wild: wolves at their den, a bear's cave, boar, aurochs, horses, a crocodile, a sea serpent](shots/20-wild.png)
+![Wolves howling at dusk by their den](shots/21-wild-night.gif)
+
 ## Running it
 
 ```
@@ -103,7 +119,7 @@ love .
 
 Optional flags: `--seed N` plays the map made from seed N, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge]` lets the computer play your side for N turns, takes a screenshot into
+city|coast|river|ford|bridge|wild|zoo] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds

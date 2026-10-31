@@ -14,11 +14,16 @@ local H = require "src.hex"
 local D = require "src.defs"
 local Rng = require "src.rng"
 local Mapgen = require "src.mapgen"
+local Beasts = require "src.beasts"
 
 local floor, ceil, max, min, exp = math.floor, math.ceil, math.max, math.min, math.exp
 
 local Game = {}
 Game.__index = Game
+
+-- The owner of the wild's beasts (src/beasts.lua): no civilization. Its
+-- player is players[0], out of the way of every ipairs over the players.
+Game.WILD = Beasts.WILD
 
 --- making one --------------------------------------------------------------------
 
@@ -33,6 +38,7 @@ function Game.new(opts)
     self.mil, self.civ = {}, {}
     self.units, self.cities = {}, {}
     self.events, self.log = {}, {}
+    self.lairs = {}
     self.turn = 1
     self.nextId = 1
     self.players = {}
@@ -50,6 +56,8 @@ function Game.new(opts)
         local near = self:freeNear(start.id, false)
         if near then self:addUnit("scout", k, near) end
     end
+    self.players[Game.WILD] = Beasts.player()
+    if opts.wild ~= false then Beasts.populate(self) end
     for _, p in ipairs(self.players) do self:look(p) end
     self.current = 1
     self:beginTurn(self.players[1])
@@ -148,6 +156,7 @@ end
 -- land and, after Sailing, row out onto the coast. The ocean wants
 -- Cartography of either.
 function Game:canEnter(u, cell)
+    if u.owner == Game.WILD then return Beasts.canEnter(self, u, cell) end
     local water = self:isWater(cell)
     local techs = self.players[u.owner].techs
     if u.def.sea then
@@ -231,6 +240,7 @@ function Game:describe(cell)
     if cell.resource then parts[#parts + 1] = D.RESOURCE[cell.resource].name end
     if cell.improvement then parts[#parts + 1] = D.IMPROVEMENT[cell.improvement].name end
     if self:onRiver(cell) then parts[#parts + 1] = "RIVER" end
+    if cell.lair then parts[#parts + 1] = "- " .. cell.lair.def.name end
     return table.concat(parts, " ")
 end
 
@@ -246,7 +256,7 @@ end
 --- units ---------------------------------------------------------------------------
 
 function Game:addUnit(kind, owner, cellId)
-    local def = assert(D.UNITS[kind], kind)
+    local def = assert(D.UNITS[kind] or D.BEASTS[kind], kind)
     local u = { id = self.nextId, kind = kind, def = def, owner = owner, cell = cellId,
         hp = 100, moves = def.moves, charges = def.charges, trail = { cellId } }
     self.nextId = self.nextId + 1
@@ -425,6 +435,7 @@ function Game:step(u, toId)
     local c = self.civ[toId]
     if not u.def.civilian and c and c.owner ~= u.owner then self:capture(u, c) end
     self:look(self.players[u.owner])
+    Beasts.arrive(self, u, to)
     return true
 end
 
@@ -440,6 +451,7 @@ function Game:relocate(u, toId)
     local c = self.civ[toId]
     if not u.def.civilian and c and c.owner ~= u.owner then self:capture(u, c) end
     self:look(self.players[u.owner])
+    Beasts.arrive(self, u, self.cells[toId])
 end
 
 -- Walks u along a path as far as its moves go this turn, never stopping on a
@@ -480,6 +492,7 @@ function Game:moveTo(u, goal)
 end
 
 function Game:capture(by, u)
+    if by.owner == Game.WILD then return self:kill(u, Game.WILD, by) end
     local cell = u.cell
     self:removeUnit(u)
     self:tell(u.owner, "A " .. u.def.name .. " WAS CAPTURED")
@@ -507,7 +520,7 @@ end
 -- strikes, less again for a melee attack across a river.
 function Game:attackStrength(u, ranged, cell)
     local base = ranged and u.def.ranged or u.def.str
-    local s = base - floor((100 - u.hp) / 10)
+    local s = base - floor((100 - u.hp) / 10) + Beasts.nightBonus(self, u)
     if cell and not ranged and self:riverBetween(self.cells[u.cell], cell) then s = s - D.RIVER.attack end
     return s
 end
@@ -537,6 +550,10 @@ function Game:canAttack(u, cell)
         return d <= u.def.range and ((m and m.owner ~= u.owner) or (cell.city and cell.city.owner ~= u.owner)) and true or false
     end
     if d ~= 1 then return false end
+    -- The wild leaves the towns alone, and itself.
+    if u.owner == Game.WILD and (cell.city or target.owner == Game.WILD) then return false end
+    -- A crocodile takes only what comes to the water: across its river.
+    if u.def.across and not self:riverBetween(self.cells[u.cell], cell) then return false end
     -- Melee: a city from anywhere next to it; otherwise a ship fights on the
     -- water and a soldier on the land.
     if cell.city then return true end
@@ -594,34 +611,54 @@ function Game:attack(u, cell)
 
     if not target then
         -- Only a civilian there: a melee attacker just walks in and takes it.
-        if not ranged and self.civ[cell.id] and self:canEnter(u, cell) then self:relocate(u, cell.id) end
+        local c = self.civ[cell.id]
+        if not ranged and c and u.owner == Game.WILD then
+            -- A beast does not take the people it falls on: it mauls them.
+            local dealt = damage(self.rng, a, self:defense(c))
+            c.hp = c.hp - dealt
+            self:emit({ kind = "hit", cell = cell.id, amount = dealt, unit = c })
+            if c.hp <= 0 then self:kill(c, Game.WILD, u) end
+        elseif not ranged and c and self:canEnter(u, cell) then self:relocate(u, cell.id) end
         return true
     end
     local d = self:defense(target)
     local dealt = damage(self.rng, a, d)
     target.hp = target.hp - dealt
     target.fortified = false
+    -- A beast that minds its own business minds whoever struck it now.
+    if target.owner == Game.WILD and target.def.temper == "neutral" then
+        target.angry, target.angryTurns = u.id, 3
+    end
     self:emit({ kind = "hit", cell = cell.id, amount = dealt, unit = target })
     if not ranged then
         local taken = damage(self.rng, d, a)
         u.hp = u.hp - taken
         self:emit({ kind = "hit", cell = from.id, amount = taken, unit = u })
     end
-    if target.hp <= 0 then self:kill(target, u.owner) end
+    if target.hp <= 0 then self:kill(target, u.owner, u) end
     if u.hp <= 0 then
-        self:kill(u, target.owner)
-    elseif target.hp <= 0 and not ranged and self:canEnter(u, cell) then
+        self:kill(u, target.owner, target)
+    elseif target.hp <= 0 and not ranged and u.owner ~= Game.WILD and self:canEnter(u, cell) then
         -- Into the hex it won.
         self:relocate(u, cell.id)
     end
     return true
 end
 
-function Game:kill(u, by)
+-- `by`: the owner of what killed it, and `killer` the unit, if one did.
+function Game:kill(u, by, killer)
     self:removeUnit(u)
     self:emit({ kind = "death", cell = u.cell, unit = u })
-    self:tell(u.owner, "OUR " .. u.def.name .. " WAS KILLED")
-    if by then self:tell(by, "ENEMY " .. u.def.name .. " DESTROYED") end
+    if u.owner == Game.WILD then
+        Beasts.slain(self, u, by)
+        return
+    end
+    if by == Game.WILD then
+        self:tell(u.owner, "OUR " .. u.def.name .. " WAS KILLED BY " .. (killer and ("A " .. killer.def.name) or "THE WILD"))
+    else
+        self:tell(u.owner, "OUR " .. u.def.name .. " WAS KILLED")
+        if by then self:tell(by, "ENEMY " .. u.def.name .. " DESTROYED") end
+    end
     self:checkAlive(self.players[u.owner])
 end
 
@@ -631,7 +668,7 @@ end
 function Game:canFound(u)
     if u.kind ~= "settler" or u.moves <= 0 then return false end
     local cell = self.cells[u.cell]
-    if not self:passable(cell) or cell.city then return false end
+    if not self:passable(cell) or cell.city or (cell.lair and cell.lair.def.beast) then return false end
     if cell.owner and cell.owner ~= u.owner then return false end
     for _, c in ipairs(self.cities) do
         if self:dist(self.cells[c.cell], cell) < 4 then return false end
@@ -919,7 +956,7 @@ end
 
 -- A player with no cities left and no settler to found one is out.
 function Game:checkAlive(p)
-    if not p.alive then return end
+    if not p.alive or p.wild then return end
     if #self:citiesOf(p.id) > 0 then return end
     for _, u in ipairs(self.units) do
         if u.owner == p.id and u.kind == "settler" then return end
@@ -952,6 +989,7 @@ end
 
 -- What a player sees now: round its units and cities, and all its land.
 function Game:look(p)
+    if p.wild then return end
     local vis = {}
     local function see(cell, n)
         for _, m in ipairs(self:within(cell, n)) do vis[m.id] = true end
@@ -1125,11 +1163,27 @@ function Game:endTurn(ai)
             self:finishTurn(p)
         end
     end
+    self:wildTurn()
     self.current = 1
     self.turn = self.turn + 1
     for _, p in ipairs(self.players) do self:checkAlive(p) end
     self:beginTurn(me)
     self:look(me)
+end
+
+-- The wild plays after the civilizations: its beasts heal and act, its
+-- lairs send out more.
+function Game:wildTurn()
+    local w = self.players[Game.WILD]
+    self.current = Game.WILD
+    for _, u in ipairs(self:unitsOf(Game.WILD)) do
+        if not u.acted and u.hp < 100 then u.hp = min(100, u.hp + D.WILD.heal) end
+        u.moves, u.acted, u.attacked = self:maxMoves(u), false, false
+        u.trail = { u.cell }
+    end
+    Beasts.play(self)
+    for _, p in ipairs(self.players) do self:look(p) end
+    return w
 end
 
 -- The first of the player's units still wanting orders, after `after`.

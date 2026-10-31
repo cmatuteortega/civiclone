@@ -15,6 +15,15 @@ local AI = {}
 
 local function military(u) return not u.def.civilian end
 
+-- Is a beast that would go for us, or its lair, within n of the cell?
+local function wild(game, cell, n)
+    for _, m in ipairs(game:within(cell, n)) do
+        local v = game.mil[m.id]
+        if v and v.owner == game.WILD and v.def.temper == "hostile" then return v end
+        if m.lair and m.lair.def.beast then return m end
+    end
+end
+
 -- The best unit of a class this city can build now: the strongest melee, or
 -- a ranged one.
 local function bestSoldier(game, city, ranged)
@@ -112,7 +121,7 @@ local function siteFor(game, u)
     local best, bv
     for _, cell in ipairs(game:within(here, 9)) do
         if game:passable(cell) and not cell.city and (not cell.owner or cell.owner == u.owner) then
-            local ok = true
+            local ok = not wild(game, cell, 2)
             for _, c in ipairs(game.cities) do
                 if game:dist(game.cells[c.cell], cell) < 4 then ok = false break end
             end
@@ -164,9 +173,9 @@ local function improve(game, u)
         if cell.workedBy and cell.owner == u.owner and not cell.improvement and not game.mil[cell.id]
             and not game.civ[cell.id] then
             local techs = game.players[u.owner].techs
-            local can = (cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert" and not game:isWater(cell))
+            local can = not wild(game, cell, 2) and ((cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert" and not game:isWater(cell))
                 or (cell.elev == "hills" and techs.mining)
-                or (cell.resource == "fish" and techs.sailing)
+                or (cell.resource == "fish" and techs.sailing))
             if can then
                 local d = game:dist(here, cell)
                 if not bd or d < bd then best, bd = cell, d end
@@ -300,6 +309,17 @@ local function soldier(game, p, u, attacking)
         if not game.mil[c.cell] and game:dist(game.cells[u.cell], game.cells[c.cell]) <= 6 then
             march(game, u, game.cells[c.cell])
             if u.cell == c.cell then u.fortified = true end
+            return
+        end
+    end
+    -- A beast that goes for people, near one of our cities and not too
+    -- strong for us: hunt it down (it pays). Not the city's own guard.
+    for _, c in ipairs(game:citiesOf(p.id)) do
+        local b = wild(game, game.cells[c.cell], 4)
+        if b and b.owner == game.WILD and game.mil[c.cell] ~= u and b.def.str <= u.def.str + 8
+            and game:dist(game.cells[u.cell], game.cells[b.cell]) <= 5 then
+            march(game, u, game.cells[b.cell])
+            strike(game, u)
             return
         end
     end

@@ -101,6 +101,8 @@ function love.load(args)
         if a == "--shot" then S.plan = { file = args[n + 1] or "shot.png", turns = 0, frames = 0 } end
         if a == "--turns" and S.plan then S.plan.turns = tonumber(args[n + 1]) or 0 end
         if a == "--select" and S.plan then S.plan.select = args[n + 1] end
+        -- `--zoom n`: the board n whole steps nearer than the window's own.
+        if a == "--zoom" and tonumber(args[n + 1]) then S.zoomStep = tonumber(args[n + 1]) end
         -- `--film n`: n pictures a few frames apart instead of one, named
         -- file-001.png on, to see what moves.
         if a == "--film" and S.plan then S.plan.film = tonumber(args[n + 1]) or 24 end
@@ -296,6 +298,61 @@ local function followPlan()
                         end
                     end
                 end
+            end
+        end
+        -- `--select wild`: the camera over the hex with the most of the wild
+        -- round it (beasts and lairs within three), and the land round it
+        -- shown. `--select wild:serpent` (or any beast's kind, or a lair's)
+        -- for the one with most of that.
+        -- `--select zoo`: one of every beast and lair the land near the
+        -- player's start allows, put round it, all of it shown.
+        if plan.select == "zoo" then
+            local g, p = S.game, S.game.players[1]
+            local Beasts = require "src.beasts"
+            local from = g.cells[g:unitsOf(1)[1].cell]
+            local spots = g:within(from, 5)
+            table.sort(spots, function(x, y) return g:dist(x, from) < g:dist(y, from) end)
+            local function free(cell) return not g.mil[cell.id] and not g.civ[cell.id] and not cell.lair and not cell.city end
+            for _, kind in ipairs({ "den", "cave", "hive" }) do
+                for _, cell in ipairs(spots) do
+                    if free(cell) and g:passable(cell) and g:dist(cell, from) >= 2 then
+                        Beasts.addLair(g, kind, cell.id)
+                        break
+                    end
+                end
+            end
+            for _, kind in ipairs({ "wolf", "bear", "boar", "aurochs", "horse", "croc", "serpent", "wolf" }) do
+                local probe = { def = require("src.defs").BEASTS[kind], owner = g.WILD }
+                for _, cell in ipairs(spots) do
+                    if free(cell) and g:dist(cell, from) >= 2 and Beasts.canEnter(g, probe, cell) then
+                        Beasts.spawn(g, kind, cell.id)
+                        break
+                    end
+                end
+            end
+            for _, cell in ipairs(g:within(from, 6)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+            p.sightChanged = true
+            S.selected = nil
+            View.lookAt(from, true)
+        end
+        local wildKind = plan.select and plan.select:match("^wild:?(%a*)$")
+        if wildKind then
+            local g, p = S.game, S.game.players[1]
+            local best, bv = nil, 0
+            for _, cell in ipairs(g.cells) do
+                local v = 0
+                for _, n in ipairs(g:within(cell, 3)) do
+                    local b = g.mil[n.id]
+                    if b and b.owner == g.WILD and (wildKind == "" or b.kind == wildKind) then v = v + 2 end
+                    if n.lair and (wildKind == "" or n.lair.kind == wildKind) then v = v + 3 end
+                end
+                if v > bv then best, bv = cell, v end
+            end
+            if best then
+                for _, cell in ipairs(g:within(best, 4)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+                p.sightChanged = true
+                S.selected = nil
+                View.lookAt(best, true)
             end
         end
         -- `--select coast`: the camera over the explored shore nearest the

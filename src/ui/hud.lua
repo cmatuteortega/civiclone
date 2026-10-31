@@ -8,6 +8,7 @@
 -- (src/ui/windows.lua): the player can drag them where they like.
 
 local D = require "src.defs"
+local Beasts = require "src.beasts"
 local H = require "src.hex"
 local T = require "src.tracer"
 local S = require "src.ui.state"
@@ -98,7 +99,7 @@ local function unitPanel(u)
     local def = u.def
     local acts = O.actions(u)
     local w, h = 168, Win.BAR + 1 + 28
-    local who = u.owner == 1 and def.name or (g.players[u.owner].name .. " " .. def.name)
+    local who = (u.owner == 1 or u.owner == g.WILD) and def.name or (g.players[u.owner].name .. " " .. def.name)
     Win.add({ id = "unit", title = who, w = w, h = h, x = 2, y = S.vh - h - 2,
         close = function() O.select(nil) end,
         draw = function(x, y)
@@ -259,13 +260,29 @@ local function tooltip()
     lines[1] = head
     local river = g:riverName(cell)
     if river then lines[#lines + 1] = "BY THE " .. river end
+    if cell.lair then
+        local l = cell.lair.def
+        lines[#lines + 1] = l.sting and "A SOLDIER CAN TAKE THEIR HONEY, AND BE STUNG"
+            or ("A SOLDIER WALKING IN CLEARS IT: +" .. l.prize.gold .. " GOLD")
+    end
     if cell.owner then
         local owner = g.players[cell.owner]
         lines[#lines + 1] = (cell.city and cell.city.name or (cell.ownerCity and cell.ownerCity.name or "")) .. " - " .. owner.name
     end
     if me().visible[cell.id] then
         for _, u in ipairs({ g.mil[cell.id], g.civ[cell.id] }) do
-            if u and u.owner ~= 1 then
+            if u and u.owner == g.WILD then
+                local d = u.def
+                local how = d.temper == "hostile" and "HOSTILE" or (d.temper == "neutral" and "FIGHTS IF HUNTED" or "SHY")
+                lines[#lines + 1] = d.name .. " - " .. how .. " - STR " .. (d.str + Beasts.nightBonus(g, u)) .. " " .. u.hp .. "HP"
+                if d.night then lines[#lines + 1] = D.night(g.turn) and "HUNTING BY NIGHT: +" .. d.night .. " STRENGTH"
+                    or "STRONGER AT NIGHT" end
+                if d.across then lines[#lines + 1] = "STRIKES WHAT CROSSES ITS RIVER" end
+                if d.tame then
+                    lines[#lines + 1] = me().techs[d.tame] and "COME NEXT TO THEM WITH A SOLDIER TO TAME THEM"
+                        or "HORSEBACK RIDING TAMES THEM"
+                end
+            elseif u and u.owner ~= 1 then
                 lines[#lines + 1] = g.players[u.owner].name .. " " .. u.def.name .. " " .. u.hp .. "HP"
             end
         end

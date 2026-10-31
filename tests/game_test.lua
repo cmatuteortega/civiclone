@@ -3,7 +3,8 @@ local AI = require "src.ai"
 local D = require "src.defs"
 local H = require "src.hex"
 
-local function newGame(seed) return Game.new({ seed = seed or 5 }) end
+-- The wild (src/beasts.lua) is left off: these are the civilizations' rules.
+local function newGame(seed) return Game.new({ seed = seed or 5, wild = false }) end
 
 -- A land hex beside the coast, and that coast hex: somewhere to sail from.
 local function shore(g)

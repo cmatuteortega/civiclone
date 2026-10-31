@@ -42,7 +42,7 @@ local Daylight = {}
 -- midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset): mostly daylight, a turn at
 -- sunset, at dusk, at midnight and at dawn. Past 1 is the next day, so the
 -- clock only ever goes forward.
-Daylight.HOURS = { 0.55, 0.66, 0.73, 0.775, 1.0, 1.235, 1.31, 1.43 }
+Daylight.HOURS = require("src.defs").HOURS
 
 -- How long the light takes to go on to the next turn's hour, in seconds.
 local CHANGE = 2.4

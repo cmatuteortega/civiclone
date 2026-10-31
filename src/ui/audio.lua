@@ -160,6 +160,13 @@ end
 
 local function seen(id) return S.game.players[1].visible[id] end
 
+-- Effect `name` from hex `id`, if the player can see it: for what the board
+-- sees happen (a wolf howling, a horse snorting).
+function Audio.call(name, id, vol)
+    if not Audio.on or not seen(id) then return end
+    at(name, id, vol or 1)
+end
+
 --- what happened -------------------------------------------------------------------
 
 local ranged -- whether the attack the hits being heard belong to was a shot
@@ -178,6 +185,7 @@ function Audio.hear(game, e)
         ranged = e.ranged
         if seen(e.from) or seen(e.to) then
             if ranged then at("loose", e.from) else at("clash", e.to, 1, LUNGE) end
+            if e.unit and e.unit.owner == game.WILD then at("growl", e.from, 1) end
         end
     elseif k == "hit" then
         if seen(e.cell) then at(e.unit and "hit" or "stone", e.cell, 1, ranged and FLIGHT or LUNGE) end
@@ -214,7 +222,8 @@ end
 -- A unit come onto a new hex: a footstep, a hoof, or leaves brushed past.
 function Audio.step(u, cell)
     if not Audio.on or not seen(cell.id) then return end
-    local name = u.kind == "horseman" and "hoof" or (cell.feature == "forest" and "rustle" or "step")
+    local hooves = u.kind == "horseman" or u.kind == "horse" or u.kind == "aurochs"
+    local name = hooves and "hoof" or (cell.feature == "forest" and "rustle" or "step")
     if S.game:isWater(cell) or u.def.sea then name = "oar" end
     at(name, cell.id, u.owner == 1 and 1 or 0.6)
 end
@@ -259,7 +268,8 @@ end
 local function danger(game)
     local vis, cities = game.players[1].visible, game:citiesOf(1)
     for _, u in ipairs(game.units) do
-        if u.owner ~= 1 and not u.def.civilian and vis[u.cell] then
+        if u.owner ~= 1 and not u.def.civilian and vis[u.cell]
+            and (u.owner ~= game.WILD or u.def.temper == "hostile") then
             local cell = game.cells[u.cell]
             if cell.owner == 1 then return true end
             for _, c in ipairs(cities) do

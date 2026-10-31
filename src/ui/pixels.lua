@@ -77,6 +77,31 @@ function P.stamp(pic, x, y, z, remap)
     end
 end
 
+-- A picture laid down as P.stamp does, and where the map stands in front of
+-- it (a beast in the trees, behind a hill), seen through: every other pixel
+-- of it, a step darker, as through leaves.
+function P.stampThrough(pic, x, y, z, remap)
+    remap = remap or T.SAME
+    local si, sj, d = S.world:toImage(x, y, z)
+    local bi, bj = floor(si) - pic.oi, floor(sj) - pic.oj
+    if not onScreen(bi, bj, pic.w + pic.h) then return end
+    local w = pic.w
+    for pj = 0, pic.h - 1 do
+        for pi = 0, w - 1 do
+            local n = pj * w + pi
+            local k = pic.key[n]
+            if k ~= 0 then
+                local i, j = bi + pi, bj + pj
+                if visible(i, j, d + pic.dep[n]) then
+                    put(remap[k], i, j)
+                elseif (i + j) % 2 == 0 then
+                    put(remap[T.DARKER[k]], i, j)
+                end
+            end
+        end
+    end
+end
+
 -- A one-pixel line in the room, from (x0, y0, z0) to (x1, y1, z1), in key k
 -- (or a function of how far along, answering a key or nothing), kept behind
 -- whatever stands in front of it.

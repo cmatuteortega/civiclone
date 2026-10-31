@@ -37,9 +37,30 @@ function Anim.shore(game, cell)
     end
 end
 
+-- Where on a hex's river a crocodile lies: in the water along one of its
+-- edges with a river (which, by the seed), and the way along it it faces.
+function Anim.riverSpot(cell, seed)
+    if not cell.river then return nil end
+    for d = 0, 5 do
+        local k = (d + seed) % 6
+        local e = cell.river[k]
+        if e then
+            local a = math.rad(60 * k)
+            local inset = H.APOTHEM - World.bankOf(e) * 0.35
+            return { x = cell.x + math.cos(a) * inset, y = e.level, z = cell.z + math.sin(a) * inset,
+                face = (k + 2) % 6 }
+        end
+    end
+end
+
 -- Where a unit on a hex stands: its middle, on top of the hill if it has
 -- one. A ship in port lies off the city's pier, on the water.
 local function home(cell, u)
+    -- A crocodile lies in its river, at the edge it keeps to.
+    if u and u.def.across then
+        local spot = Anim.riverSpot(cell, u.id)
+        if spot then return spot.x, spot.y, spot.z end
+    end
     if u and u.def.sea and cell.city then
         local k = Anim.shore(S.game, cell) or 1
         local a = math.rad(60 * k)
@@ -106,6 +127,21 @@ function Anim.events(game)
             S.anim[e.unit.id] = nil
         elseif e.kind == "terrain" then
             S.world:refresh(e.cell)
+        elseif (e.kind == "loot" or e.kind == "cleared") and e.text then
+            -- What it brought, rising after the blow.
+            local cell = game.cells[e.cell]
+            S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = e.text,
+                x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.7 }
+            if e.kind == "cleared" then
+                S.effects[#S.effects + 1] = { kind = "dust", t = 0, life = 1.0, x = cell.x, y = cell.top, z = cell.z,
+                    seed = e.cell }
+            end
+        elseif e.kind == "tame" then
+            -- The wild horses gone over to their new people.
+            S.anim[e.unit.id] = nil
+            local cell = game.cells[e.cell]
+            S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = "TAMED",
+                x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.2 }
         end
         if e.kind ~= "attack" and e.kind ~= "hit" then S.bordersDirty = true end
     end

@@ -20,10 +20,11 @@ that is the file to edit to tune the game.
 14. [The sea](#the-sea)
 15. [Sight and fog of war](#sight-and-fog-of-war)
 16. [The rival civilizations](#the-rival-civilizations)
-17. [Winning and losing](#winning-and-losing)
-18. [How it is drawn](#how-it-is-drawn)
-19. [How it sounds](#how-it-sounds)
-20. [Developer notes](#developer-notes)
+17. [The wild](#the-wild)
+18. [Winning and losing](#winning-and-losing)
+19. [How it is drawn](#how-it-is-drawn)
+20. [How it sounds](#how-it-sounds)
+21. [Developer notes](#developer-notes)
 
 ---
 
@@ -256,7 +257,9 @@ A turn goes:
 2. **You end the turn**, and your cities, research and gold are worked out.
 3. **Each rival in turn** starts its turn, plays it, and has its own
    cities, research and gold worked out.
-4. **A new turn begins for you.** Moves come back, the wounded heal, and
+4. **The wild moves** (see [The wild](#the-wild)): its beasts heal and act,
+   and its lairs send out more.
+5. **A new turn begins for you.** Moves come back, the wounded heal, and
    units with orders to go somewhere carry on.
 
 **The calendar:** each turn is 40 years up to turn 50, 25 years to turn 100,
@@ -638,6 +641,90 @@ the coast.
 
 The rivals fight each other as well as you.
 
+They hunt too: a soldier of theirs goes after a beast that goes for people
+when it comes within 4 hexes of one of their cities and is not too strong
+for it (strength no more than 8 above the soldier's). Their settlers won't
+pick a site, and their builders won't pick a hex, within 2 of such a beast
+or of a den or cave.
+
+## The wild
+
+Beasts live on the map as units of their own (`src/beasts.lua`). They belong
+to no civilization (owner 0, "the wild"). They walk, fight and heal by the
+same rules as everyone else and play their turn after the last rival's. They
+never enter or strike a city, and never fight each other. Every number below
+is in `src/defs.lua` (`D.BEASTS`, `D.LAIRS`, `D.WILD`).
+
+**Where they start.** At the start of a game, for every 100 land hexes the map gets about 1.4
+wolf dens, 0.8 bear caves and 1 wild bees' nest, 1.6 boar, 0.9 herds of
+aurochs, 1 herd of wild horses and 1.2 crocodiles. It also gets 1.2 sea serpents for every 100
+ocean hexes. Nothing wild starts within 4 hexes of any civilization's first
+units. Dens go in forests or on hills, caves on hills under a mountain, bees
+in forests. Boar go in or beside forests, aurochs on flat grassland, horses
+on flat plains, crocodiles on hexes by a river, serpents on the ocean.
+
+| Beast | Temper | Str | Moves | Strays | Notices | Loot |
+| --- | --- | --- | --- | --- | --- | --- |
+| **Wolf** (in twos, from a den) | Hostile | 16, **22 at night** | 2 | 3 | 2 (3 at night) | 15 gold |
+| **Bear** (from a cave) | Hostile | 30 | 1 | 2 | 2 | 25 gold, 5 culture |
+| **Crocodile** | Hostile, strikes only **across its river** | 22 | 1 | 2 (river hexes only) | 1 | 20 gold |
+| **Sea serpent** | Hostile | 38 | 3 | 5 (ocean only) | 3 | 60 gold |
+| **Wild boar** | Neutral | 18 | 2 | 2 | – | 10 food, 5 gold |
+| **Aurochs** (in twos) | Neutral | 28 | 1 | 2 | – | 25 food, 4 culture |
+| **Wild horses** (in twos) | Shy | 8 | 3 | 3 | 2 | 6 food, or tame them |
+
+"Strays" is how far a beast goes from home (its lair, or where it first
+stood), a little further when it is chasing someone. "Notices" is how near
+one of the civilizations' units must be before a hostile beast goes for it.
+
+**Tempers:**
+
+- **Hostile** beasts strike whoever is next to them, civilians first, then
+  the weakest. Otherwise they go after the nearest unit they notice, if it
+  is near enough to home. They don't take civilians: they maul them for
+  normal damage and kill them only if that runs out their HP. A beast that wins a fight
+  stays where it is. Below 35 HP a beast goes home.
+- **Neutral** beasts (boar, aurochs) mind their own business. Once struck,
+  they go for whoever struck them for 3 turns, if that unit is within 3 hexes.
+- **Shy** beasts (wild horses) run from anyone within 2 hexes.
+- Left alone, a beast wanders a step about its home now and then and keeps
+  2 hexes from any city.
+
+**Night:** in the turns played in the dark (dusk, midnight and dawn: three
+of every eight), wolves strike 6 stronger and notice from a hex further.
+
+**Loot:** killing a beast, by any means (a melee or ranged attack, or a
+city's walls), gives its loot to the killer. Gold goes to the treasury. Food and
+culture go to the killer's city nearest the place it died. The amount
+rises off the hex, and the news says what it was ("WOLF SLAIN: +15 GOLD").
+
+**Taming:** once you know Horseback Riding, a soldier of yours (not a
+civilian) that comes onto a hex next to wild horses tames them. The horses
+become a horseman of yours, with no moves left that turn.
+
+**Lairs:**
+
+| Lair | Sends out | Prize for clearing it |
+| --- | --- | --- |
+| **Wolf den** | A wolf every 10 turns, up to 2 about | 40 gold |
+| **Bear cave** | A bear every 14 turns, up to 1 about | 50 gold, 10 culture |
+| **Wild bees** | Nothing | 15 gold, 15 food (honey), and the soldier is stung for 20 (never below 1 HP) |
+
+A lair only sends a beast out while none of the civilizations' units is
+within 3 hexes. A soldier walking onto a lair's hex clears it, but a beast
+standing on it has to be killed first. A lair's beasts outlive it, staying where they are. No
+city can be founded on a den or cave.
+
+**Herds come back:** every 12 turns, for each kind of boar, aurochs, horses,
+crocodiles and serpents there are fewer of than at the start, one more
+wanders in, somewhere no civilization can see and at least 4 hexes from any
+city.
+
+**On the screen:** a beast's banner shows its kind. Hostile beasts have an
+ink banner, the rest khaki. The tooltip shows what it is, its temper and
+strength, and what to know about it (stronger at night, strikes across its
+river, how to tame it). Over a lair it says how to clear it.
+
 ## Winning and losing
 
 | Outcome | How |
@@ -805,7 +892,26 @@ crown stands, how much fog darkens it, and its colour.
   the other on the swell, each in its own time. Their hulls go on down under
   the water's top, and the board keeps a pixel only where it is nearer than
   the map, so the sea hides them and they sit in it.
-- Neither deer, sheep nor herons are part of the game or its save.
+- **Mountain goats** graze about a third of the hills under a mountain, one
+  to three of them. When anyone comes within a hex they bound off up the
+  mountain and are gone, and come back as the deer do.
+- **Foxes**: in about one forest in eight, a fox sleeps curled up by day
+  with its brush round its nose. In the dark it trots round its hex. It hides
+  while anyone is within a hex.
+- **The wild's beasts** (see [The wild](#the-wild)) are drawn in poses,
+  each keeping its own time. They walk in steps and lunge when they strike. A
+  wolf by day lies down, stands, and puts its nose to the ground. At night
+  it throws its head back and howls, and a howl sounds. A bear stands, roots
+  with its head down and now and then rears up, and rears more often when
+  anyone is near. Boar root about. Aurochs graze, look up and snort. Wild
+  horses graze and toss their heads, and rear and snort when anyone comes
+  near. A crocodile lies in the water along its river with only its eyes and
+  snout out, and climbs onto the bank now and then. A sea serpent's coils roll
+  through the waves, and then it dives with only a fin showing. Where trees
+  or a hill stand in front of a beast it shows through them, every other
+  pixel a step darker. Bees swarm about a hive and hum. A cleared lair throws
+  up stones and dust.
+- Neither deer, sheep, herons, goats nor foxes are part of the game or its save.
 - **Mines** wind their wheel for a few seconds, rest, and let it back down.
 - **Units** standing idle rise a pixel for a moment every few seconds, each
   at its own time. Fortified units stand still.
@@ -937,7 +1043,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, and every sound rendering (never silent, never clipping, the music's layers one length) |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, and every sound rendering (never silent, never clipping, the music's layers one length) |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
@@ -946,6 +1052,7 @@ and picks up where it left off.
 | `love . --play --shot port.png --turns 80 --select harbour --hour 11` | The player's city on the water (one founded on the nearest shore if there is none) given a harbour and a lighthouse, with a galley, a quadrireme, a warrior in a boat and fishing boats round it. `--select port` looks at the best city on the water you know, `--select fleet` at one of your ships |
 | `love . --play --shot river.png --select river --hour 10` | The camera over the hex with the most river by it (a waterfall if there is one), with the land round it shown. `--select ford` adds a warrior who wades across it a moment later; `--select bridge` founds a city of yours where the most river runs by in open country near home, so its bridges show |
 | `love . --play --shot river.png --select ford --film 48` | `--film N`: N pictures three frames apart instead of one (`river-001.png` on), to see what moves; [shots/16-river.gif](shots/16-river.gif) was made so |
+| `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
 | `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |
 

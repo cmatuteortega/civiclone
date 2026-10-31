@@ -1342,6 +1342,57 @@ function M.deer(face, pose, stag)
     end, M.UNIT_SCALE * 0.55)
 end
 
+-- A mountain goat, pale and shaggy, a beard and horns swept back. `pose`
+-- as a deer's: 0 head up, 1 grazing, 2 and 3 the two bounds of a run.
+function M.goat(face, pose)
+    return kept(table.concat({ "goat", face, pose }, ":"), function()
+        local wool = R.skin
+        local p = {}
+        local run = pose >= 2
+        local lift = run and 0.9 or 0
+        p[#p + 1] = part(Sh.ell(0, 4.8 + lift, 0, 3.2, 2.0, 1.6), wool, 1)
+        local hx, hy = 3.8, 7.4
+        if pose == 1 then hx, hy = 4.2, 2.6 end
+        p[#p + 1] = part(Sh.seg(2.0, 5.4 + lift, 0, hx - 0.4, hy - 0.4 + lift, 0, 0.9), wool, 2)
+        p[#p + 1] = part(Sh.ell(hx + 0.4, hy + lift, 0, 1.3, 0.9, 0.85, A.rotZ(-0.4)), wool, 3)
+        p[#p + 1] = part(Sh.seg(hx + 0.6, hy - 0.8 + lift, 0, hx + 0.4, hy - 2.0 + lift, 0, 0.35), R.stone, 4)
+        local reach = pose == 2 and 1.2 or (pose == 3 and -0.9 or 0)
+        for _, z in ipairs({ -0.5, 0.5 }) do
+            p[#p + 1] = part(Sh.seg(hx, hy + 0.6 + lift, z, hx - 1.6, hy + 2.2 + lift, z * 1.4, 0.35, 0.2), R.dark, 5)
+            p[#p + 1] = part(Sh.seg(2.0, 3.6 + lift, z * 1.4, 2.0 + reach, 0.3 + lift * 0.6, z * 1.4, 0.45), R.dark, 6)
+            p[#p + 1] = part(Sh.seg(-2.0, 3.6 + lift, z * 1.4, -2.0 - reach, 0.3 + lift * 0.6, z * 1.4, 0.45), R.dark, 6)
+        end
+        p[#p + 1] = part(Sh.ell(-3.2, 5.8 + lift, 0, 0.6, 0.8, 0.5), wool, 7)
+        return place(p, math.rad(60 * face))
+    end, M.UNIT_SCALE * 0.42)
+end
+
+-- A fox, red-brown with a white tip to its brush: 0 standing, 1 and 2 the
+-- steps of a trot, 3 curled up asleep with its tail round its nose.
+function M.fox(face, pose)
+    return kept(table.concat({ "fox", face, pose }, ":"), function()
+        local coat = ramp("s", "t", "k", "n")
+        local tip = function(ux) if ux > 0.6 then return IDX.w end end
+        local p = {}
+        if pose == 3 then
+            p[#p + 1] = part(Sh.ell(0, 1.6, 0, 3.0, 1.6, 2.4), coat, 1)
+            p[#p + 1] = part(Sh.ell(2.0, 2.0, 1.4, 1.3, 1.1, 1.1), coat, 2)
+            p[#p + 1] = part(Sh.seg(-2.4, 1.0, -1.2, 2.4, 1.0, 2.8, 1.0, 0.6), coat, 3, tip)
+            return place(p, math.rad(60 * face))
+        end
+        p[#p + 1] = part(Sh.ell(0, 3.6, 0, 2.8, 1.2, 1.1), coat, 1)
+        p[#p + 1] = part(Sh.ell(3.0, 4.6, 0, 1.2, 1.0, 0.9), coat, 2)
+        p[#p + 1] = part(Sh.seg(3.8, 4.4, 0, 5.4, 4.0, 0, 0.45, 0.2), coat, 3)
+        for _, z in ipairs({ -0.5, 0.5 }) do p[#p + 1] = part(Sh.seg(2.6, 5.2, z, 2.4, 6.6, z, 0.35, 0.15), R.dark, 4) end
+        local s = pose == 1 and 1.0 or (pose == 2 and -1.0 or 0)
+        for _, l in ipairs({ { 1.8, 0.6, 1 }, { 1.8, -0.6, -1 }, { -1.8, 0.6, -1 }, { -1.8, -0.6, 1 } }) do
+            p[#p + 1] = part(Sh.seg(l[1], 3.0, l[2], l[1] + s * l[3], 0.3, l[2], 0.32), R.dark, 5)
+        end
+        p[#p + 1] = part(Sh.seg(-2.4, 3.8, 0, -6.0, 3.4 + s * 0.3, 0, 1.0, 0.6), coat, 6, tip)
+        return place(p, math.rad(60 * face))
+    end, M.UNIT_SCALE * 0.4)
+end
+
 -- A heron, grey and long-legged, facing `face` (0..5): pose 0 standing
 -- watch in the shallows of a river, 1 striking down at a fish, 2 and 3 the
 -- wings up and down as it flies off, legs trailed behind and neck drawn in.
@@ -1385,6 +1436,333 @@ function M.heron(face, pose)
         end
         return place(parts, math.rad(60 * face))
     end, M.UNIT_SCALE * 0.5)
+end
+
+--- the wild's beasts ------------------------------------------------------------
+--
+-- The beasts that are units (src/beasts.lua), each facing `face` (0..5) in a
+-- pose: 0 standing, 1 and 2 the two steps of a walk, 3 its strike, and from
+-- 4 on what it does standing about (see M.BEAST_POSES). Built at the size of
+-- the people and painted smaller, each by its own scale.
+
+local GREY = ramp("c", "s", "k", "n")
+local BONE = ramp("w", "w", "c", "s")
+local BLACK = ramp("n", "u", "o", "o")
+local FUR = ramp("t", "n", "u", "o")
+local DUN = ramp("c", "t", "k", "n")
+local SCALY = ramp("t", "k", "n", "u")
+local DEEP = ramp("k", "n", "u", "o")
+
+-- The four legs of a beast, front pair at fx and hind at hx, `w` apart,
+-- hip at `hy`, swung by `s` (front and hind opposite, left and right
+-- opposite) for the walk.
+local function legs(parts, rmp, id, fx, hx, w, hy, s, r, foot)
+    for _, l in ipairs({ { fx, w, 1 }, { fx, -w, -1 }, { hx, w, -1 }, { hx, -w, 1 } }) do
+        parts[#parts + 1] = part(Sh.seg(l[1], hy, l[2], l[1] + s * l[3], 0.3, l[2], r), rmp, id, foot)
+    end
+end
+local function stride(pose, n) return pose == 1 and n or (pose == 2 and -n or 0) end
+
+local BEAST = {}
+
+-- A peak of rock (Sh.peak) as a part: its planes in its own space like any
+-- other, so it can be turned and scaled with the rest.
+local function crag(poly, y, apex)
+    local s = Sh.peak(poly, y, apex)
+    s.reach, s.box, s.at = s.box, nil, A.id()
+    return s
+end
+
+-- A grey wolf, a dark saddle and a brush of a tail. 4 howling at the sky,
+-- 5 nose down to a scent, 6 lying down.
+function BEAST.wolf(pose)
+    local p = {}
+    local lunge = pose == 3 and 1 or 0
+    local lie = pose == 6
+    local by = lie and 2.6 or (5.6 - lunge * 0.8)
+    p[#p + 1] = part(Sh.ell(0, by, 0, 4.2, 1.9, 1.6, A.rotZ(lunge * -0.12)), GREY, 1, function(ux, uy)
+        if uy > 0.55 then return IDX.n end end)
+    p[#p + 1] = part(Sh.ell(2.6, by + 0.6, 0, 2.2, 2.3, 1.9), GREY, 2)
+    local hx, hy, tilt = 5.2, by + 2.4, 0
+    if pose == 4 then hx, hy, tilt = 4.4, by + 4.8, 0.9
+    elseif pose == 3 then hx, hy = 6.4, by
+    elseif pose == 5 then hx, hy, tilt = 5.8, 1.6, -0.6
+    elseif lie then hx, hy = 5.6, by + 1.2 end
+    p[#p + 1] = part(Sh.ell(hx, hy, 0, 1.7, 1.3, 1.2, A.rotZ(tilt)), GREY, 3)
+    local mx, my = 1.6, -0.6
+    if pose == 4 then mx, my = 1.0, 2.0 elseif pose == 5 then mx, my = 1.0, -1.6 end
+    p[#p + 1] = part(Sh.seg(hx + 0.8, hy, 0, hx + 0.8 + mx, hy + my, 0, 0.6), GREY, 4)
+    if pose == 3 then -- the jaw, dropped
+        p[#p + 1] = part(Sh.seg(hx + 0.6, hy - 0.6, 0, hx + 2.2, hy - 1.6, 0, 0.4), GREY, 4)
+    end
+    for _, z in ipairs({ -0.7, 0.7 }) do
+        p[#p + 1] = part(Sh.seg(hx - 0.6, hy + 0.8, z, hx - 0.9 - (pose == 4 and 0.8 or 0), hy + 2.4, z * 1.1, 0.4, 0.3),
+            R.dark, 5)
+    end
+    if lie then
+        for _, z in ipairs({ -1, 1 }) do
+            p[#p + 1] = part(Sh.seg(3.0, 1.0, z, 6.2, 0.6, z * 0.8, 0.5), GREY, 6)
+            p[#p + 1] = part(Sh.ell(-2.4, 1.6, z * 1.5, 2.0, 1.2, 0.7), GREY, 6)
+        end
+    else
+        local s = pose == 3 and 1.6 or stride(pose, 1.5)
+        legs(p, GREY, 6, 2.6, -2.8, 0.9, by - 1, s, 0.55)
+    end
+    local ty = pose == 3 and by + 1.6 or (lie and 1.2 or by - 1.4)
+    local tz = lie and 2.4 or 0
+    p[#p + 1] = part(Sh.seg(-3.8, by + 0.4, 0, -7.0, ty, tz, 1.0, 0.9), GREY, 7, function(ux)
+        if ux > 0.6 then return IDX.n end end)
+    return p
+end
+
+-- A brown bear, round and heavy. 3 and 4 reared up on its hind legs (3 the
+-- paws coming down), 5 head down at a root.
+function BEAST.bear(pose)
+    local p = {}
+    if pose == 3 or pose == 4 then
+        local swipe = pose == 3 and 1 or 0
+        p[#p + 1] = part(Sh.ell(-0.4, 8.4, 0, 3.0, 5.4, 3.0, A.rotZ(0.25 + swipe * 0.3)), FUR, 1)
+        local hx, hy = 0.6 + swipe * 1.8, 14.0 - swipe * 1.2
+        p[#p + 1] = part(Sh.ell(hx, hy, 0, 2.2, 2.0, 2.0), FUR, 2)
+        p[#p + 1] = part(Sh.ell(hx + 2.0, hy - 0.4, 0, 1.0, 0.9, 0.9), R.wood, 3)
+        for _, z in ipairs({ -1.4, 1.4 }) do
+            p[#p + 1] = part(Sh.ell(hx - 0.6, hy + 1.8, z, 0.7, 0.7, 0.5), FUR, 4)
+            local px, py = 3.6 + swipe * 2.4, 13.4 - swipe * 4.4
+            p[#p + 1] = part(Sh.seg(0.8, 11.4, z * 1.9, px, py, z * 2.3, 1.0, 0.9), FUR, 5)
+            p[#p + 1] = part(Sh.seg(-0.6, 4.0, z, 0.0, 0.4, z * 1.1, 1.2), FUR, 6)
+            for c = -1, 1 do
+                p[#p + 1] = part(Sh.seg(px + 0.2, py + c * 0.4, z * 2.3, px + 1.0, py + 0.6 + c * 0.5 - swipe * 1.2, z * 2.3, 0.15),
+                    BONE, 7)
+            end
+        end
+        return p
+    end
+    p[#p + 1] = part(Sh.ell(0, 6.6, 0, 6.0, 3.8, 3.2), FUR, 1)
+    p[#p + 1] = part(Sh.ell(-1.4, 9.0, 0, 3.2, 2.0, 2.6), FUR, 2) -- the hump
+    local hx, hy = 6.4, 7.2
+    if pose == 5 then hx, hy = 7.0, 3.2 end
+    p[#p + 1] = part(Sh.ell(hx, hy, 0, 2.3, 2.1, 2.1), FUR, 3)
+    p[#p + 1] = part(Sh.ell(hx + 2.0, hy - 0.6, 0, 1.1, 0.9, 0.9), R.wood, 4)
+    for _, z in ipairs({ -1.4, 1.4 }) do p[#p + 1] = part(Sh.ell(hx - 0.8, hy + 2.0, z, 0.7, 0.7, 0.5), FUR, 5) end
+    local s = stride(pose, 1.3)
+    for _, l in ipairs({ { 3.6, 1.6, 1 }, { 3.6, -1.6, -1 }, { -3.8, 1.6, -1 }, { -3.8, -1.6, 1 } }) do
+        p[#p + 1] = part(Sh.seg(l[1], 5.0, l[2] * 1.6 / 1.6, l[1] + s * l[3], 0.5, l[2], 1.3), FUR, 6)
+    end
+    return p
+end
+
+-- A wild boar: a bristled hump, tusks, short legs. 3 a charge, head down;
+-- 4 rooting in the ground.
+function BEAST.boar(pose)
+    local p = {}
+    local charge = pose == 3 and 1 or 0
+    p[#p + 1] = part(Sh.ell(0, 4.6, 0, 4.4, 2.8, 2.4), R.dark, 1, function(ux, uy, uz)
+        if (floor(ux * 14) + floor(uz * 9)) % 5 == 0 and uy > 0 then return IDX.u end end)
+    p[#p + 1] = part(Sh.seg(1.2, 7.0, 0, -2.6, 6.4, 0, 0.7), BLACK, 2)
+    local hx, hy = 4.4 + charge, 5.0 - charge * 1.4
+    if pose == 4 then hx, hy = 4.6, 2.4 end
+    p[#p + 1] = part(Sh.ell(hx, hy, 0, 2.6, 2.0, 1.9, A.rotZ(-0.35)), R.dark, 3)
+    p[#p + 1] = part(Sh.ell(hx + 2.2, hy - 1.0, 0, 0.9, 1.0, 1.0), R.wood, 4)
+    for _, z in ipairs({ -0.9, 0.9 }) do
+        p[#p + 1] = part(Sh.seg(hx + 1.6, hy - 1.2, z, hx + 2.2, hy + 0.4, z * 1.5, 0.3, 0.2), BONE, 5)
+        p[#p + 1] = part(Sh.ell(hx - 0.8, hy + 2.0, z * 1.2, 0.5, 1.0, 0.6), R.dark, 6)
+    end
+    legs(p, BLACK, 7, 2.4, -2.6, 1.3, 3.0, charge == 1 and 1.4 or stride(pose, 1.1), 0.6)
+    local wag = pose == 4 and 0.8 or 0
+    p[#p + 1] = part(Sh.seg(-4.2, 5.4, 0, -5.2, 4.0, wag, 0.3), BLACK, 8)
+    return p
+end
+
+-- An aurochs: a great black ox with a pale stripe down its back and pale
+-- horns sweeping forward. 3 a charge, horns low; 4 grazing.
+function BEAST.aurochs(pose)
+    local p = {}
+    local charge = pose == 3 and 1 or 0
+    p[#p + 1] = part(Sh.ell(0, 6.4, 0, 5.4, 3.0, 2.6), BLACK, 1, function(ux, uy, uz)
+        if uy > 0.7 and math.abs(uz) < 0.2 then return IDX.t end end)
+    p[#p + 1] = part(Sh.ell(3.2, 7.6, 0, 2.6, 2.8, 2.4), BLACK, 2)
+    local hx, hy = 6.6 + charge, 6.6 - charge * 1.8
+    if pose == 4 then hx, hy = 6.8, 2.6 end
+    p[#p + 1] = part(Sh.ell(hx, hy, 0, 2.0, 1.6, 1.4, A.rotZ(-0.5)), BLACK, 3)
+    p[#p + 1] = part(Sh.ell(hx + 1.2, hy - 1.0, 0, 0.9, 0.8, 0.9), BLACK, 4, function() return IDX.t end)
+    local fwd = charge * 1.2
+    for _, z in ipairs({ -1, 1 }) do
+        p[#p + 1] = part(Sh.seg(hx - 0.4, hy + 1.2, z * 1.0, hx - 0.4 + fwd, hy + 2.4 - fwd, z * 3.2, 0.45, 0.35), BONE, 5)
+        p[#p + 1] = part(Sh.seg(hx - 0.4 + fwd, hy + 2.4 - fwd, z * 3.2, hx + 1.2 + fwd * 1.6, hy + 3.6 - fwd * 1.8, z * 2.8, 0.35, 0.2),
+            BONE, 5)
+    end
+    legs(p, BLACK, 6, 3.6, -3.6, 1.4, 4.4, charge == 1 and 1.2 or stride(pose, 1.2), 0.75,
+        function(ux) if ux > 0.6 then return IDX.c end end)
+    local swish = (pose == 4 or pose == 0) and 0 or 0.8
+    p[#p + 1] = part(Sh.seg(-5.2, 7.2, 0, -6.0, 3.0, swish, 0.3), BLACK, 7)
+    return p
+end
+
+-- Wild horses: dun, a dark mane, tail and stockings. 3 and 5 rearing, 4
+-- grazing.
+function BEAST.horse(pose)
+    local p = {}
+    local up = pose == 3 or pose == 5
+    local q = {}
+    local stock = function(ux) if ux > 0.3 then return IDX.u end end
+    q[#q + 1] = part(Sh.ell(0, 5.6, 0, 4.2, 2.1, 1.8), DUN, 1)
+    local nx, ny = 4.8, 9.4
+    if pose == 4 then nx, ny = 5.6, 2.2 end
+    q[#q + 1] = part(Sh.seg(3.0, 6.4, 0, nx, ny, 0, 1.2), DUN, 1)
+    q[#q + 1] = part(Sh.seg(2.6, 7.6, 0, nx - 0.4, ny + 1.0, 0, 0.5), BLACK, 2)
+    q[#q + 1] = part(Sh.ell(nx + 1.0, ny - 0.3, 0, 1.9, 0.95, 0.95, A.rotZ(pose == 4 and -1.2 or 0)), DUN, 3,
+        function(ux) if ux > 0.5 then return IDX.n end end)
+    local tail = (pose == 1 or pose == 2) and 4.2 or 2.6
+    q[#q + 1] = part(Sh.seg(-3.8, 6.4, 0, -5.6, tail, 0, 0.7), BLACK, 4)
+    local s = stride(pose, 1.4)
+    for _, lz in ipairs({ -1.0, 1.0 }) do
+        if up then
+            q[#q + 1] = part(Sh.seg(2.8, 4.6, lz, 4.4, 3.4 + lz * (pose == 3 and 1 or 0.5), lz, 0.55), DUN, 5, stock)
+        else
+            q[#q + 1] = part(Sh.seg(2.8, 4.6, lz, 2.8 + s * lz, 0.3, lz, 0.55), DUN, 5, stock)
+        end
+    end
+    local rot = up and A.mul(A.move(-2.6, 0.4, 0), A.mul(A.rotZ(0.6), A.move(2.6, 0, 0))) or A.id()
+    for _, x in ipairs(q) do
+        x.at = A.mul(rot, x.at)
+        p[#p + 1] = x
+    end
+    for _, lz in ipairs({ -1.0, 1.0 }) do
+        p[#p + 1] = part(Sh.seg(-2.8, 4.6 + (up and 1 or 0), lz, up and -1.8 or (-2.8 - s * lz), 0.3, lz, 0.6), DUN, 6,
+            stock)
+    end
+    return p
+end
+
+-- A crocodile: low and long, banded scutes, its pivot at the water's top.
+-- 0 basking on the bank, 4 lying in the water with only its eyes and snout
+-- out, 3 jaws wide.
+function BEAST.croc(pose)
+    local p = {}
+    local sunk = pose == 4 and -1.6 or 0
+    local scutes = function(ux, uy) if uy > 0.5 and floor(ux * 6) % 2 == 0 then return IDX.u end end
+    local sway = stride(pose, 0.9)
+    p[#p + 1] = part(Sh.ell(0, 0.8 + sunk, 0, 5.0, 1.3, 2.2), SCALY, 1, scutes)
+    p[#p + 1] = part(Sh.seg(-4.0, 0.8 + sunk, 0, -10.0, 0.4 + sunk, 1.6 - sway * 2, 1.4, 0.4), SCALY, 2, scutes)
+    local open = pose == 3 and 0.45 or 0
+    p[#p + 1] = part(Sh.seg(4.2, 1.0 + sunk * 0.6, sway * 0.4, 9.6, 1.0 + open * 3 + sunk * 0.6, sway, 1.0, 0.5), SCALY, 3)
+    p[#p + 1] = part(Sh.seg(4.2, 0.6 + sunk, sway * 0.4, 9.4, 0.4 - open * 1.2 + sunk, sway, 0.9, 0.45), SCALY, 4)
+    if open > 0 then
+        for k = 0, 4 do p[#p + 1] = part(Sh.ell(5.4 + k, 0.9 + open * (k + 1) * 0.5, 0, 0.18, 0.35, 0.6), BONE, 6) end
+    end
+    for _, z in ipairs({ -0.7, 0.7 }) do
+        p[#p + 1] = part(Sh.ell(4.6, 2.0 + sunk * 0.5, z, 0.5, 0.5, 0.5), R.straw, 5)
+    end
+    if pose ~= 4 then
+        for _, l in ipairs({ { 2.6, 1, 1 }, { 2.6, -1, -1 }, { -2.6, 1, -1 }, { -2.6, -1, 1 } }) do
+            local s = stride(pose, 1.0) * l[3]
+            p[#p + 1] = part(Sh.seg(l[1], 0.6, l[2] * 1.8, l[1] + 0.8 + s, -0.2, l[2] * 3.2, 0.5), SCALY, 7)
+        end
+    end
+    return p
+end
+
+-- A sea serpent, its pivot at the sea's top: coils breaking the water and a
+-- frilled head held high. 0, 1, 2 and 4 the coils rolling on as it swims,
+-- 5 under with only a fin showing, 3 rearing with its jaws open.
+function BEAST.serpent(pose)
+    local p = {}
+    local belly = function(ux, uy, uz, l, nx, ny)
+        if ny < -0.2 then return IDX.s end
+        if (floor(ux * 8) + floor(uz * 8)) % 3 == 0 then return IDX.u end
+    end
+    if pose == 5 then
+        p[#p + 1] = part(crag({ { -2, -0.4 }, { 2, -0.4 }, { 0, 0.4 } }, -0.5, { -1.2, 3.4, 0 }), DEEP, 1)
+        p[#p + 1] = part(Sh.ell(4, -0.2, 0, 2.2, 0.6, 1.2), DEEP, 2)
+        return p
+    end
+    local phase = ({ [0] = 0, [1] = 0.5, [2] = 1.5, [4] = 1, [3] = 0 })[pose] or 0
+    for k, c in ipairs({ { -9, 0 }, { -3.5, 1.5 } }) do
+        local cx = c[1] + phase * 1.2
+        local h = 3.4 + math.sin(phase * math.pi / 2 + k) * 0.8
+        p[#p + 1] = part(Sh.seg(cx - 2.2, -1, c[2], cx, h, c[2], 1.3), DEEP, k, belly)
+        p[#p + 1] = part(Sh.seg(cx, h, c[2], cx + 2.2, -1, c[2], 1.3), DEEP, k, belly)
+        p[#p + 1] = part(crag({ { cx - 1.2, c[2] - 0.3 }, { cx + 1.2, c[2] - 0.3 }, { cx, c[2] + 0.3 } }, h + 0.8,
+            { cx - 0.4, h + 2.6, c[2] }), R.dark, 10 + k)
+    end
+    local rise = pose == 3 and 13 or 10
+    local bob = math.sin(phase * math.pi / 2) * 0.6
+    p[#p + 1] = part(Sh.seg(2.2, -1, 2.4, 3.4, rise - 2 + bob, 2.0, 1.5, 1.1), DEEP, 5, belly)
+    p[#p + 1] = part(Sh.seg(3.4, rise - 2 + bob, 2.0, 5.2, rise + bob, 1.6, 1.1), DEEP, 5, belly)
+    p[#p + 1] = part(Sh.ell(6.6, rise + 0.2 + bob, 1.6, 2.2, 1.2, 1.2, A.rotZ(pose == 3 and 0.35 or -0.15)), DEEP, 6)
+    if pose == 3 then
+        p[#p + 1] = part(Sh.ell(7.0, rise - 1.4, 1.6, 1.8, 0.5, 1.0, A.rotZ(-0.4)), DEEP, 7)
+        for k = 0, 2 do p[#p + 1] = part(Sh.seg(6.2 + k * 0.8, rise - 0.7, 1.6, 6.3 + k * 0.8, rise - 1.4, 1.6, 0.18), BONE, 9) end
+    end
+    for _, z in ipairs({ 0.6, 2.6 }) do
+        p[#p + 1] = part(Sh.seg(5.6, rise + 1.0 + bob, z, 4.0, rise + 2.8 + bob, z + (z - 1.6) * 0.8, 0.5, 0.15), R.dark, 8)
+    end
+    return p
+end
+
+local BEAST_SCALE = { wolf = 0.74, bear = 0.74, boar = 0.68, aurochs = 0.7, horse = 0.82, croc = 0.66, serpent = 0.8 }
+-- What each beast's poses past 3 are, for the board to choose among.
+M.BEAST_POSES = {
+    wolf = { howl = 4, sniff = 5, lie = 6 }, bear = { rear = 4, root = 5 }, boar = { root = 4 },
+    aurochs = { graze = 4 }, horse = { graze = 4, rear = 5 }, croc = { sunk = 4 }, serpent = { roll = 4, sunk = 5 },
+}
+
+function M.beast(kind, face, pose)
+    face, pose = face or 1, pose or 0
+    return kept(table.concat({ "beast", kind, face, pose }, ":"), function()
+        return place(BEAST[kind](pose), math.rad(60 * face))
+    end, M.UNIT_SCALE * BEAST_SCALE[kind])
+end
+
+-- Lairs: a wolf den (boulders round a dark hole, bones before it), a bear's
+-- cave (a crag with a black mouth) and a wild bees' nest (a hollow stump and
+-- a hive of straw-coloured comb on it).
+local LAIR = {}
+function LAIR.den()
+    local p = {}
+    p[#p + 1] = part(Sh.ell(0, 0.6, -0.6, 3.2, 3.0, 1.2), BLACK, 1)
+    for k, b in ipairs({ { -4.6, 0, 3.4, 3.0 }, { 4.4, -0.4, 3.0, 2.6 }, { 0, -3.6, 4.2, 3.4 }, { -6.4, 3.4, 1.8, 1.4 },
+        { 6.2, 3.0, 2.0, 1.6 }, { -2.6, -5.8, 2.4, 2.0 } }) do
+        p[#p + 1] = part(Sh.ell(b[1], b[4] * 0.55, b[2], b[3], b[4], b[3] * 0.9), R.stone, 2 + k, function(ux, uy, uz)
+            if (floor(ux * 5 + uz * 3) % 4 == 0) and uy > 0.3 then return IDX.t end end)
+    end
+    p[#p + 1] = part(Sh.seg(2.4, 0.3, 4.2, 4.8, 0.3, 5.4, 0.28), BONE, 20)
+    p[#p + 1] = part(Sh.seg(-1.6, 0.3, 5.6, 0.8, 0.3, 4.6, 0.28), BONE, 21)
+    p[#p + 1] = part(Sh.ell(-3.4, 0.6, 5.0, 0.8, 0.6, 0.7), BONE, 22)
+    return p
+end
+function LAIR.cave()
+    local p = {}
+    p[#p + 1] = part(crag({ { -9, -6 }, { 7, -7 }, { 10, 1 }, { 2, 4 }, { -8, 3 } }, 0, { -1, 13, -3 }), R.stone, 1,
+        function(ux, uy, uz, l, nx, ny) if ny > 0.75 then return IDX.c end end)
+    p[#p + 1] = part(Sh.ell(1.6, 1.0, 2.6, 2.8, 3.6, 1.2), BLACK, 2) -- the mouth
+    for k, b in ipairs({ { 6.4, 4.0, 1.8 }, { -5.6, 4.4, 1.4 }, { 8.6, 0, 1.6 } }) do
+        p[#p + 1] = part(Sh.ell(b[1], b[3] * 0.5, b[2], b[3], b[3] * 0.8, b[3]), R.stone, 3 + k)
+    end
+    p[#p + 1] = part(Sh.seg(-1.0, 0.3, 6.0, 1.6, 0.3, 5.6, 0.3), BONE, 10)
+    return p
+end
+function LAIR.hive()
+    local p = {}
+    p[#p + 1] = part(Sh.prism(7, 0, 0, 0, 3.4, 4.0, 0, 0), R.wood, 1, function(ux, uy, uz, l, nx, ny)
+        if ny > 0.6 then
+            if floor(math.sqrt(ux * ux + uz * uz) * 6) % 2 == 0 then return IDX.t end
+            return IDX.s
+        end
+        if floor((math.atan2(uz, ux) + 4) * 4) % 3 == 0 then return IDX.n end
+    end)
+    p[#p + 1] = part(Sh.ell(0, 4.2, 0, 2.6, 4.2, 2.6), R.straw, 2, function(ux, uy)
+        if floor((uy + 1) * 6) % 2 == 0 then return IDX.t end end)
+    p[#p + 1] = part(Sh.ell(1.6, 4.8, 1.8, 0.7, 0.9, 0.5), BLACK, 3)
+    return p
+end
+function M.lair(kind)
+    return kept("lair:" .. kind, LAIR[kind], M.UNIT_SCALE * 0.62)
+end
+
+-- A bee, or a few: a speck of ink, for the board to swarm about a hive.
+function M.bee()
+    return kept("bee", function() return { part(Sh.ell(0, 0, 0, 0.5, 0.4, 0.4), BLACK, 1) } end, 1)
 end
 
 --- the sea's harvest -------------------------------------------------------------

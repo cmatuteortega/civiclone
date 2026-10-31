@@ -303,6 +303,29 @@ local DEFS = {
         { dur = 0.5, f0 = 300, f1 = 70, bend = 0.6, curve = 1.5, vol = 0.7 },
         { dur = 0.3, wave = "noise", lp = { 1200, 150 }, curve = 1.5, vol = 0.5 },
         pluck(0.12, N.F4, 0.6, 0.5), pluck(0.32, N.D4, 1, 0.5)),
+    --- the wild
+    -- A wolf's howl: a soft voice sliding up, held, falling away; a second
+    -- answering under it.
+    howl = sound({ vol = 0.2, gap = 3, echo = { 0.3, 0.35 }, wob = 0.06 },
+        { dur = 2.2, wave = "soft", f0 = 330, f1 = 520, bend = 0.25, a = 0.5, vib = { 5, 0.012 }, curve = 1.2 },
+        { at = 1.6, dur = 1.0, wave = "soft", f0 = 500, f1 = 300, bend = 2, a = 0.05, vib = { 5, 0.012 }, curve = 1.5,
+            vol = 0.6 },
+        { at = 0.5, dur = 1.8, wave = "soft", f0 = 260, f1 = 410, bend = 0.3, a = 0.6, vib = { 4.5, 0.01 }, curve = 1.3,
+            vol = 0.35 }),
+    -- A beast going for someone: a low rasping snarl.
+    growl = sound({ vol = 0.28, gap = 0.2, poly = 2, wob = 0.12 },
+        { dur = 0.55, wave = "grit", f0 = 85, f1 = 70, lp = { 900, 500 }, a = 0.05, trem = { 26, 0.6 }, curve = 1.4 },
+        { dur = 0.4, wave = "noise", lp = { 700, 300 }, a = 0.04, trem = { 30, 0.5 }, curve = 1.5, vol = 0.5 }),
+    -- A horse's snort, or an ox's: a breath blown out hard.
+    snort = sound({ vol = 0.18, gap = 1, wob = 0.15 },
+        { dur = 0.32, wave = "noise", hp = { 300 }, lp = { 2500, 700 }, a = 0.02, trem = { 18, 0.4 }, curve = 1.6 },
+        { dur = 0.2, wave = "grit", f0 = 120, f1 = 90, lp = { 600 }, curve = 2, vol = 0.4 }),
+    -- Bees about their nest.
+    buzz = sound({ vol = 0.08, gap = 2, wob = 0.1 },
+        { dur = 1.4, wave = "saw", f0 = 220, f1 = 235, lp = { 1400 }, a = 0.2, vib = { 9, 0.02 }, trem = { 7, 0.4 },
+            curve = 1.2 },
+        { dur = 1.2, wave = "saw", f0 = 330, f1 = 318, lp = { 1600 }, a = 0.3, vib = { 11, 0.02 }, curve = 1.2,
+            vol = 0.5 }),
     capture = sound({ vol = 0.25, gap = 0.3, echo = { 0.15, 0.25 } }, pluck(0, N.A3, 0.6), pluck(0.16, N.F3, 1)),
     horn = sound({ vol = 0.3, gap = 4, echo = { 0.3, 0.4 } },
         { dur = 1.5, wave = "saw", f0 = N.D3, lp = { 300, 900 }, a = 0.3, vib = { 4, 0.006 }, curve = 1.5 },

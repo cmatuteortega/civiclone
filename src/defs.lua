@@ -69,6 +69,61 @@ D.UNITS = {
         tech = "shipbuilding", order = 11 },
 }
 
+-- The wild: animals that are on the map for the rules, not only the screen
+-- (src/beasts.lua). They belong to no civilization (owner 0, Game.WILD),
+-- fight as units do and leave something to whoever kills them.
+--
+-- `temper`: "hostile" goes for anyone near, "neutral" minds its own business
+-- until it is struck and then goes for whoever struck it, "shy" runs from
+-- anyone near. `lives`: where it walks -- "land", "river" (land on a
+-- river, never leaving it) or "ocean". `leash`: how far from its home it
+-- strays. `sense`: how near someone must be for it to notice. `loot`: what
+-- killing it brings, to the killer (gold) or to their city nearest (food,
+-- culture). `night`: strength added in the turns played in the dark, and a
+-- hex more it notices from. `across`: strikes only across a river.
+D.BEASTS = {
+    wolf = { name = "WOLF", str = 16, moves = 2, sight = 2, temper = "hostile", lives = "land", leash = 3, sense = 2,
+        night = 6, loot = { gold = 15 }, beast = true },
+    bear = { name = "BEAR", str = 30, moves = 1, sight = 2, temper = "hostile", lives = "land", leash = 2, sense = 2,
+        loot = { gold = 25, culture = 5 }, beast = true },
+    croc = { name = "CROCODILE", str = 22, moves = 1, sight = 1, temper = "hostile", lives = "river", leash = 2, sense = 1,
+        across = true, loot = { gold = 20 }, beast = true },
+    serpent = { name = "SEA SERPENT", str = 38, moves = 3, sight = 2, temper = "hostile", lives = "ocean", leash = 5,
+        sense = 3, sea = true, loot = { gold = 60 }, beast = true },
+    boar = { name = "WILD BOAR", str = 18, moves = 2, sight = 2, temper = "neutral", lives = "land", leash = 2, sense = 1,
+        loot = { food = 10, gold = 5 }, beast = true },
+    aurochs = { name = "AUROCHS", str = 28, moves = 1, sight = 2, temper = "neutral", lives = "land", leash = 2, sense = 1,
+        loot = { food = 25, culture = 4 }, beast = true },
+    horse = { name = "WILD HORSES", str = 8, moves = 3, sight = 2, temper = "shy", lives = "land", leash = 3, sense = 2,
+        loot = { food = 6 }, tame = "horses", beast = true },
+}
+-- Lairs: a den, a cave or a hive on a hex, which the beasts come out of
+-- (one every `every` turns, up to `keep` of them about) until someone walks
+-- in with no beast there to stop them and clears it, for `prize`. A hive
+-- stings whoever comes in (`sting` damage, never to death) and gives honey.
+D.LAIRS = {
+    den = { name = "WOLF DEN", beast = "wolf", keep = 2, every = 10, prize = { gold = 40 } },
+    cave = { name = "BEAR CAVE", beast = "bear", keep = 1, every = 14, prize = { gold = 50, culture = 10 } },
+    hive = { name = "WILD BEES", sting = 20, prize = { gold = 15, food = 15 } },
+}
+-- How many of each the map starts with, per 100 hexes of land (or of ocean,
+-- for the serpents), and how near a civilization's start any may be.
+D.WILD = {
+    dens = 1.4, caves = 0.8, hives = 1.0,
+    boar = 1.6, aurochs = 0.9, horse = 1.0, croc = 1.2, serpent = 1.2,
+    clear = 4,      -- no lair or beast this near a start or a city
+    herds = 12,     -- turns between new herds wandering in where there are too few
+    heal = 10,
+}
+-- The hour each turn is played at (src/ui/daylight.lua draws by it): part of
+-- a day, 0 midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset. Past 1 is the
+-- next day. The dark is before 0.24 and after 0.76.
+D.HOURS = { 0.55, 0.66, 0.73, 0.775, 1.0, 1.235, 1.31, 1.43 }
+function D.night(turn)
+    local h = D.HOURS[(turn - 1) % #D.HOURS + 1] % 1
+    return h < 0.24 or h > 0.76
+end
+
 -- A land unit on the water rows across it in a boat: embarked. It moves as
 -- far as this, stands this strong whatever it is, and cannot attack.
 -- Stepping from the land onto the water, or back, takes all its moves.

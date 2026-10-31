@@ -22,6 +22,7 @@ local Daylight = require "src.ui.daylight"
 local Smoke = require "src.ui.smoke"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
+local Audio = require "src.ui.audio"
 
 local floor, min = math.floor, math.min
 local IDX = T.IDX
@@ -34,6 +35,9 @@ Board.TEAM = {
     dark = { fill = "u", ink = "w", line = function() return IDX.o end },
     stripe = { fill = "t", ink = "o", band = "u",
         line = function(f) return floor(f * 6) % 2 == 0 and IDX.w or IDX.o end },
+    -- The wild: what goes for people under ink, the rest on khaki.
+    wild = { fill = "k", ink = "o", line = function() return IDX.n end },
+    hostile = { fill = "o", ink = "s", line = function() return IDX.n end },
 }
 
 local function lookOf(owner) return S.game.players[owner].civ.look end
@@ -388,6 +392,117 @@ local function fishing(cell, me, list)
     end
 end
 
+--- the wild ------------------------------------------------------------------
+
+-- What a beast standing about is doing now, by the time and what it is: a
+-- pose of M.BEAST_POSES, or 0 standing. Each keeps its own time. Walking and
+-- striking are the anim's (1, 2 and 3), and win.
+local function idlePose(u, a, near)
+    local P_ = M.BEAST_POSES[u.kind]
+    local t = Sea.air() + u.id * 1.37
+    local k = u.kind
+    if k == "wolf" then
+        if D.night(S.game.turn) then
+            local f = t % 9
+            return f > 7.2 and P_.howl or 0, f > 7.2 and f < 7.2 + S.dt * 1.5
+        end
+        local f = t % 16
+        if near then return f % 4 < 2.5 and 0 or P_.sniff end
+        return (f < 4 and P_.lie) or (f < 11 and 0) or (f < 13.5 and P_.sniff) or 0
+    elseif k == "bear" then
+        local f = t % 11
+        if near then return f % 3 < 1.2 and P_.rear or 0 end
+        return (f < 6 and 0) or (f < 9 and P_.root) or (f < 10.2 and P_.rear) or 0
+    elseif k == "boar" then
+        return t % 6 < 3.8 and P_.root or 0
+    elseif k == "aurochs" then
+        local f = t % 9
+        return f < 6.5 and P_.graze or 0, f > 6.5 and f < 6.5 + S.dt * 1.5 and "snort"
+    elseif k == "horse" then
+        if near then
+            local f = t % 3
+            return f < 0.9 and P_.rear or 0, f < S.dt * 1.5 and "snort"
+        end
+        return t % 8 < 5.5 and P_.graze or 0
+    elseif k == "croc" then
+        -- In the water with its eyes out, up onto the bank now and then.
+        return t % 14 < 10 and P_.sunk or 0
+    elseif k == "serpent" then
+        local f = t % 10
+        if f > 6.5 then return P_.sunk end
+        return ({ [0] = 0, 1, P_.roll, 2 })[floor(f * 2) % 4]
+    end
+    return 0
+end
+
+-- Is one of the civilizations' people within a hex of the cell?
+local function peopleNear(g, cellId)
+    for _, n in ipairs(g:within(g.cells[cellId], 1)) do
+        local v = g.mil[n.id] or g.civ[n.id]
+        if v and v.owner ~= g.WILD then return true end
+    end
+    return false
+end
+
+local function beast(u, list)
+    local g = S.game
+    local x, y, z, face, pose = Anim.place(g, u)
+    local a = Anim.of(u)
+    if pose == 0 and #a.queue == 0 and not Sea.still() then
+        local cue
+        pose, cue = idlePose(u, a, peopleNear(g, u.cell))
+        if cue == true then Audio.call("howl", u.cell, 0.8) elseif cue then Audio.call(cue, u.cell, 0.7) end
+        if u.def.across then
+            local spot = Anim.riverSpot(g.cells[u.cell], u.id)
+            if spot then face = spot.face end
+        end
+    end
+    list[#list + 1] = { z = z + 0.1, draw = function()
+        local remap = a.flash and floor(a.flash * 20) % 2 == 0 and T.FLASH or nil
+        P.stampThrough(M.beast(u.kind, face, pose), x, y, z, remap)
+    end }
+end
+
+-- The lairs, set back on their hexes so a beast at home stands before them;
+-- bees about a hive, and its hum.
+local function lairs(me, list)
+    local g = S.game
+    for _, l in ipairs(g.lairs) do
+        local cell = g.cells[l.cell]
+        if me.explored[cell.id] then
+            local _, y = Anim.home(cell)
+            local x, z = cell.x - 3, cell.z - 5
+            list[#list + 1] = { z = z, draw = function() P.stamp(M.lair(l.kind), x, y, z) end }
+            if l.kind == "hive" and me.visible[cell.id] and not Sea.still() then
+                local t = Sea.air()
+                for k = 1, 5 do
+                    local w = t * (2.2 + k * 0.37) + k * 1.9
+                    local bx = x + math.cos(w) * (2.5 + k % 3) + math.sin(w * 2.3) * 0.8
+                    local bz = z + math.sin(w) * (2 + k % 2)
+                    local by = y + 5 + math.sin(w * 1.7 + k) * 2 + k * 0.4
+                    list[#list + 1] = { z = bz + 0.2, draw = function() P.stamp(M.bee(), bx, by, bz) end }
+                end
+                if (t + cell.id) % 9 < S.dt * 1.5 then Audio.call("buzz", cell.id, 0.6) end
+            end
+        end
+    end
+end
+
+-- Stones and dust thrown up where a lair was cleared.
+local function dust(e, list)
+    local f = e.t / e.life
+    for k = 1, 8 do
+        local a = k * 0.785 + e.seed
+        local r = 2 + f * 9
+        local x, z = e.x + math.cos(a) * r, e.z + math.sin(a) * r * 0.8
+        local y = e.y + math.sin(f * math.pi) * (4 + k % 3)
+        list[#list + 1] = { z = z, draw = function()
+            local i, j = S.world:toImage(x, y, z)
+            P.put(k % 2 == 0 and IDX.s or IDX.t, floor(i), floor(j))
+        end }
+    end
+end
+
 local function things(me)
     local g = S.game
     wakes(me)
@@ -433,8 +548,14 @@ local function things(me)
             end }
         end
     end
+    lairs(me, list)
+    for _, e in ipairs(S.effects) do
+        if e.kind == "dust" then dust(e, list) end
+    end
     for _, u in ipairs(g.units) do
-        if u.owner == 1 or me.visible[u.cell] then
+        if u.owner == g.WILD then
+            if me.visible[u.cell] then beast(u, list) end
+        elseif u.owner == 1 or me.visible[u.cell] then
             local x, y, z, face, pose = Anim.place(g, u)
             local a = Anim.of(u)
             -- On the water (a ship, or a land unit in a boat, by where it is
@@ -454,6 +575,10 @@ local function things(me)
     for _, e in ipairs(S.effects) do
         if e.kind == "death" and floor(e.t * 12) % 2 == 0 then
             list[#list + 1] = { z = e.z, draw = function()
+                if e.unit.owner == g.WILD then
+                    P.stamp(M.beast(e.unit.kind, e.face, 0), e.x, e.y, e.z, T.FLASH)
+                    return
+                end
                 local boat = not e.unit.def.sea and g:isWater(g.cells[e.unit.cell])
                 P.stamp(M.unit(e.unit.kind, lookOf(e.unit.owner), e.face, 0, 0, boat), e.x, e.y, e.z, T.FLASH)
             end }
@@ -485,6 +610,7 @@ local function unitBanner(u)
         end
     end
     local team = Board.TEAM[lookOf(u.owner)]
+    if u.owner == g.WILD and u.def.temper == "hostile" then team = Board.TEAM.hostile end
     local bx, by = sx - 4, sy - 9
     local sel = selectedUnit() == u
     Draw.rect(sel and "w" or "o", bx - 1, by - 1, 9, 9)

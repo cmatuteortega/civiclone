@@ -12,6 +12,13 @@
 -- fish. Anyone coming near puts a heron up: it flaps off downriver and is
 -- gone, and is back in its place a while after.
 --
+-- Mountain goats graze the hills under the peaks, and bound off up the
+-- mountain when anyone comes near. A fox sleeps curled in a forest by day and
+-- trots its rounds there in the dark.
+--
+-- (The wild beasts that are in the rules -- wolves, bears, boar, horses and
+-- the rest -- are units, src/beasts.lua, drawn by the board.)
+--
 -- Nothing of this is in the game's rules or its save: the deer are the
 -- screen's alone, and found again from the map whenever it changes.
 
@@ -20,6 +27,7 @@ local M = require "src.models"
 local S = require "src.ui.state"
 local Sea = require "src.ui.sea"
 local World = require "src.world"
+local D = require "src.defs"
 
 local floor, sin, sqrt, atan2 = math.floor, math.sin, math.sqrt, math.atan2
 
@@ -35,13 +43,16 @@ local LAP, SIT = 5, 9 -- seconds the dog runs round them, and sits
 local HERONS = 0.1   -- of the rivers' edges, how many a heron stands in
 local DRINK = 0.4    -- how often a deer by a river goes down to it
 local FLY = 2.5      -- seconds a heron is seen flying off
+local GOATS = 0.35   -- of the hills under a mountain, how many have goats
+local FOXES = 0.12   -- of the forests, how many a fox lives in
+local TROT = 0.8     -- radians a second round its hex, a fox at night
 
 local function grain(a, b)
     local n = sin(a * 12.9898 + b * 78.233) * 43758.5453
     return n - floor(n)
 end
 
-local herds, flocks, herons, foundAt, foundIn = {}, {}, {}, -1, nil
+local herds, flocks, herons, foxes, foundAt, foundIn = {}, {}, {}, {}, -1, nil
 
 -- The facing (0..5) nearest the way from (dx, dz).
 local function facing(dx, dz)
@@ -53,7 +64,7 @@ local function find(g)
     local found = {}
     for _, cell in ipairs(g.cells) do
         if (cell.terrain == "grass" or cell.terrain == "plains") and cell.elev == "flat" and not cell.feature
-            and not cell.city and not cell.improvement and grain(cell.id, 3) < SHARE then
+            and not cell.city and not cell.improvement and not cell.lair and grain(cell.id, 3) < SHARE then
             local woods
             for k = 0, 5 do
                 local n = g:cell(H.step(cell.c, cell.r, (k + floor(grain(cell.id, 4) * 6)) % 6))
@@ -88,7 +99,46 @@ local function find(g)
             end
         end
     end
+    -- Goats: on hills under a mountain, the mountain where they run to.
+    for _, cell in ipairs(g.cells) do
+        if cell.elev == "hills" and not g:isWater(cell) and not cell.city and not cell.improvement and not cell.lair
+            and grain(cell.id, 21) < GOATS then
+            local peak
+            for k = 0, 5 do
+                local n = g:cell(H.step(cell.c, cell.r, k))
+                if n and n.elev == "mountain" then peak = n break end
+            end
+            local key = -cell.id
+            if peak then
+                local old = herds[key]
+                if old and old.woods == peak then
+                    found[key] = old
+                else
+                    local sx = cell.x + (peak.x - cell.x) * 0.15
+                    local sz = cell.z + (peak.z - cell.z) * 0.15
+                    local herd = { cell = cell, woods = peak, sx = sx, sz = sz, deer = {}, gone = false, quiet = 0,
+                        goat = true, y = cell.top + 3.2 }
+                    for n = 1, 1 + floor(grain(cell.id, 22) * 3) do
+                        herd.deer[n] = { x = sx + (n - 2) * 3.5, z = sz + (n % 2) * 2.5, face = floor(grain(cell.id, n + 22) * 6),
+                            pose = 1, wait = grain(n, cell.id + 22) * 4 }
+                    end
+                    found[key] = herd
+                end
+            end
+        end
+    end
     herds = found
+
+    -- Foxes: one to some forests, its earth a little off the middle.
+    local earths = {}
+    for _, cell in ipairs(g.cells) do
+        if cell.feature == "forest" and not cell.city and not cell.lair and grain(cell.id, 31) < FOXES then
+            earths[cell.id] = foxes[cell.id] or { cell = cell, a = grain(cell.id, 32) * 6.28, walk = 0, quiet = 99,
+                sx = cell.x + (grain(cell.id, 33) - 0.5) * 6, sz = cell.z + 5 + grain(cell.id, 34) * 3,
+                face = floor(grain(cell.id, 35) * 6) }
+        end
+    end
+    foxes = earths
 
     -- The sheep: on farms, across from the farmhouse.
     local folds = {}
@@ -210,7 +260,7 @@ function Wild.update(dt)
     if not g or Sea.still() then return end
     -- Found again each turn and whenever a hex changes.
     local stamp = g.turn * 1000 + (S.world.version or 0)
-    if g ~= foundIn then herds, flocks, herons, foundIn = {}, {}, {}, g end
+    if g ~= foundIn then herds, flocks, herons, foxes, foundIn = {}, {}, {}, {}, g end
     if stamp ~= foundAt then find(g) foundAt = stamp end
     for _, flock in pairs(flocks) do tend(flock, dt) end
     for _, h in pairs(herons) do
@@ -234,6 +284,22 @@ function Wild.update(dt)
             h.t = h.t + dt
             local period = 7 + grain(h.hx, h.hz) * 6
             h.pose = (h.t % period) > period - 0.5 and 1 or 0
+        end
+    end
+    -- The foxes: asleep by day, trotting round by night; gone while anyone is
+    -- near, back a while after.
+    local night = D.night(g.turn)
+    for _, f in pairs(foxes) do
+        if disturbed(g, f.cell) then f.quiet = 0 else f.quiet = f.quiet + dt end
+        f.gone = f.quiet < QUIET
+        if night then
+            f.a = f.a + dt * TROT
+            f.walk = f.walk + dt * 7
+            f.pose = 1 + floor(f.walk) % 2
+            f.x, f.z = f.cell.x + math.cos(f.a) * 6, f.cell.z + math.sin(f.a) * 4.5
+            f.face = facing(-math.sin(f.a) * 6, math.cos(f.a) * 4.5)
+        else
+            f.x, f.z, f.pose = f.sx, f.sz, 3
         end
     end
     for _, herd in pairs(herds) do
@@ -281,11 +347,18 @@ function Wild.things(list, me, stamp)
     for _, herd in pairs(herds) do
         if not herd.gone and me.visible[herd.cell.id] then
             for _, d in ipairs(herd.deer) do
-                local y = herd.cell.top
+                local y = herd.y or herd.cell.top
                 list[#list + 1] = { z = d.z, draw = function()
-                    stamp(M.deer(d.face, d.pose, d.stag), d.x, y, d.z)
+                    if herd.goat then stamp(M.goat(d.face, d.pose), d.x, y, d.z)
+                    else stamp(M.deer(d.face, d.pose, d.stag), d.x, y, d.z) end
                 end }
             end
+        end
+    end
+    for _, f in pairs(foxes) do
+        if not f.gone and f.x and me.visible[f.cell.id] then
+            local y = f.cell.top
+            list[#list + 1] = { z = f.z, draw = function() stamp(M.fox(f.face, f.pose), f.x, y, f.z) end }
         end
     end
     for _, h in pairs(herons) do
