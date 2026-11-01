@@ -39,6 +39,7 @@ local Birds = require "src.ui.birds"
 local Rain = require "src.ui.rain"
 local Snow = require "src.ui.snow"
 local SkyFx = require "src.ui.sky"
+local QuakeFx = require "src.ui.quake"
 local Sky = require "src.skyfall"
 local Frost = require "src.frost"
 local D = require "src.defs"
@@ -63,7 +64,7 @@ function love.quit() Audio.stop() end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
 -- bar fills, then the first turn. The world ends by the cataclysm chosen in
--- the new game window (or `--cataclysm heat|flood|sky|demons|sun|plague|none`), or by none.
+-- the new game window (or `--cataclysm heat|flood|sky|demons|sun|plague|quake|none`), or by none.
 function S.newGame(seed)
     seed = seed or S.seedArg or (os.time() % 100000)
     S.seedArg = nil
@@ -112,7 +113,7 @@ function love.load(args)
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
-        -- `--cataclysm heat|flood|sky|demons|sun|plague|none`: how the world ends, whatever the new game
+        -- `--cataclysm heat|flood|sky|demons|sun|plague|quake|none`: how the world ends, whatever the new game
         -- window last had.
         if a == "--cataclysm" and args[n + 1] then S.cataclysmArg = args[n + 1] end
         -- `--touch` lays out the screen as for a phone.
@@ -123,6 +124,8 @@ function love.load(args)
         if a == "--shot" then S.plan = { file = args[n + 1] or "shot.png", turns = 0, frames = 0 } end
         if a == "--turns" and S.plan then S.plan.turns = tonumber(args[n + 1]) or 0 end
         if a == "--select" and S.plan then S.plan.select = args[n + 1] end
+        -- `--at N`: the camera over hex N once the selection is made.
+        if a == "--at" and S.plan then S.plan.at = tonumber(args[n + 1]) end
         -- `--skip n`: the developer tools' skip, up to turn n, as its
         -- buttons do it.
         if a == "--skip" and S.plan then S.plan.skip = tonumber(args[n + 1]) end
@@ -172,6 +175,7 @@ local function followPlan()
         if plan.skip then O.skipTo(plan.skip) end
         Anim.events(S.game)
         SkyFx.flush()
+        QuakeFx.flush()
         S.anim, S.effects, S.wakes = {}, {}, {}
         for _, u in ipairs(S.game.units) do u.trail = { u.cell } end
         local cap = S.game:citiesOf(1)[1]
@@ -585,6 +589,125 @@ local function followPlan()
                 View.lookAt(from, true)
             end
         end
+        -- `--select sundering`: the sundering round the player's first unit
+        -- (src/quake.lua): faults open between the hexes, the rift torn
+        -- across the land a few hexes off at every step of it (cracked, a
+        -- chasm, the sea pouring in, sea), a range risen, a volcano
+        -- erupting with its lava, black rock and ash about it, the sea's
+        -- floor come up, a quake and a wave coming, all of it shown.
+        if plan.select == "sundering" or plan.select == "rift" then
+            local Quake = require "src.quake"
+            local Cat = require "src.cataclysm"
+            local H = require "src.hex"
+            local g, p = S.game, S.game.players[1]
+            g.cataclysm.kind = "quake"
+            local from = g.cells[g:unitsOf(1)[1].cell]
+            if g.turn < D.QUAKE.rift then g.turn = D.QUAKE.fire + 2 end
+            g.cataclysm.stage = Cat.stage(g)
+            -- The rift, planned as the game would, and torn every step of
+            -- the way: the sea end done, the far end only cracked.
+            local path = Quake.planRift(g)
+            if path then
+                g.cataclysm.rift = {}
+                for i, cell in ipairs(path) do
+                    g.cataclysm.rift[i] = cell.id
+                    cell.riftLine = i
+                    local a, b = path[i - 1], path[i + 1]
+                    if not a or not b then
+                        for _, n in ipairs(g:neighbours(cell)) do
+                            if g:isWater(n) then
+                                if not a then a = { x = 2 * cell.x - n.x, z = 2 * cell.z - n.z } end
+                                if not b then b = n end
+                                break
+                            end
+                        end
+                    end
+                    cell.riftAngle = math.atan2((b or cell).z - (a or cell).z, (b or cell).x - (a or cell).x)
+                end
+                local n = #path
+                for i, cell in ipairs(path) do
+                    if not cell.city then
+                        local steps = math.max(0, 4 - math.floor((i - 1) * 5 / n))
+                        for _ = 1, steps do Quake.tear(g, cell) end
+                    end
+                end
+                if plan.select == "rift" then from = path[math.floor(n / 4) + 1] end
+            end
+            local spots = g:within(from, 4)
+            table.sort(spots, function(x, y) return g:dist(x, from) < g:dist(y, from) end)
+            local used = {}
+            local function take(f)
+                for _, cell in ipairs(spots) do
+                    if not used[cell.id] and not cell.city and not cell.riftLine and not g.mil[cell.id] and not g.civ[cell.id]
+                        and g:dist(cell, from) >= 1 and f(cell) then
+                        used[cell.id] = true
+                        return cell
+                    end
+                end
+            end
+            -- Faults: a line of a few edges by the start.
+            local c0 = take(function(c) return g:passable(c) end)
+            if c0 then
+                print("faults from hex " .. c0.id)
+                local k, cell = 0, c0
+                for _ = 1, 5 do
+                    if Quake.canFault(g, cell, k) then Quake.openFault(g, cell, k) end
+                    local nb = g:cell(H.step(cell.c, cell.r, (k + 1) % 6))
+                    if not nb then break end
+                    cell, k = nb, (k + 5) % 6
+                end
+            end
+            if plan.select == "sundering" then
+                local v = take(function(c) return g:passable(c) and c.elev ~= "flat" end)
+                    or take(function(c) return g:passable(c) end)
+                if v then
+                    g.cataclysm.volcanoes = {}
+                    v.elev, v.top = "mountain", D.TERRAIN.grass.top + D.ELEV.mountain.rise
+                    v.feature, v.improvement = nil, nil
+                    v.volcano = true
+                    g.cataclysm.volcanoes[1] = v.id
+                    g.cataclysm.marks = g.cataclysm.marks or {}
+                    -- With `--next`, it erupts as the next turn begins, to
+                    -- watch.
+                    if plan.next then g.cataclysm.marks[v.id] = "erupt" else Quake.erupt(g, v) end
+                    print("volcano at hex " .. v.id)
+                    -- And older flows, cooled, and the ash's soil.
+                    for _, n in ipairs(plan.next and {} or g:within(v, 2)) do
+                        if g:dist(n, v) == 2 and not n.lava and not n.city and g:passable(n) and n.id % 3 == 0 then
+                            n.basalt, n.ashfall = true, nil
+                        elseif g:dist(n, v) == 2 and n.ashfall and n.id % 3 == 1 then
+                            n.ashfall, n.soil = nil, true
+                        end
+                        used[n.id] = true
+                    end
+                end
+                local up = take(function(c) return c.elev == "flat" and g:passable(c) end)
+                if up then Quake.raise(g, up); Quake.raise(g, up) end
+                local up2 = take(function(c) return c.elev == "flat" and g:passable(c) end)
+                if up2 then Quake.raise(g, up2) end
+                local shoal = take(function(c)
+                    if c.terrain ~= "coast" then return false end
+                    for _, n in ipairs(g:neighbours(c)) do if g:passable(n) then return true end end
+                end)
+                if shoal then Quake.raise(g, shoal) end
+                local slid = take(function(c) return c.elev == "hills" and c.feature == "forest" end)
+                if slid then slid.feature, slid.slid = nil, true end
+                print("risen", up and up.id, up2 and up2.id, "shoal", shoal and shoal.id, "slid", slid and slid.id)
+            end
+            g.cataclysm.marks = g.cataclysm.marks or {}
+            local q = take(function(c) return g:passable(c) end)
+            if q then g.cataclysm.marks[q.id] = "quake" end
+            local sea = take(function(c) return g:isWater(c) end)
+            if sea then Quake.heave(g, sea, 3) end
+            for _, cell in ipairs(g:within(from, 7)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+            p.sightChanged = true
+            S.selected = nil
+            Anim.events(g)
+            SkyFx.flush()
+            QuakeFx.flush()
+            S.effects = {}
+            View.lookAt(plan.at and g.cells[plan.at] or from, true)
+        end
         -- `--select bigfall`: a great stone coming on open land beside a
         -- forest near the player's capital, the only one this turn, the
         -- camera on it (with `--next`, to watch it come down).
@@ -779,6 +902,7 @@ function love.update(dt)
     Rain.update(dt)
     Snow.update(dt)
     SkyFx.update(dt)
+    QuakeFx.update(dt)
     Input.findHover()
     if not S.over then
         local result, why = S.game:outcome()
@@ -887,7 +1011,10 @@ function love.draw()
     love.graphics.setCanvas()
     love.graphics.setColor(1, 1, 1)
     love.graphics.clear(T.RGB[T.IDX.o])
-    if S.mode == "play" then love.graphics.draw(S.canvas, 0, 0, 0, S.zoom, S.zoom) end
+    -- The board shaking under a quake (src/ui/quake.lua), whole pixels of it.
+    local shake = S.mode == "play" and S.shake
+    local sx, sy = shake and shake[1] * S.zoom or 0, shake and shake[2] * S.zoom or 0
+    if S.mode == "play" then love.graphics.draw(S.canvas, sx, sy, 0, S.zoom, S.zoom) end
     love.graphics.draw(S.ui, 0, 0, 0, S.uz, S.uz)
     if S.shot then
         local file = S.shot

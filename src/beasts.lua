@@ -49,7 +49,7 @@ function Beasts.canEnter(game, u, cell)
         for _, n in ipairs(game:neighbours(cell)) do if not game:isWater(n) then return true end end
         return false
     end
-    if game:isWater(cell) or cell.elev == "mountain" then return false end
+    if not game:passable(cell) then return false end
     if lives == "river" then return game:onRiver(cell) end
     return true
 end

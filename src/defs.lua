@@ -50,6 +50,9 @@ D.RESOURCE = {
     -- Only the sky's falling leaves it (D.SKY): the iron of a fallen star,
     -- black and heavy, in the crater it made.
     iron = { name = "STAR IRON", food = 0, prod = 2, gold = 1 },
+    -- Only the sundering leaves it (D.QUAKE): black glass where the lava
+    -- cooled fast, for blades and for trade.
+    obsidian = { name = "OBSIDIAN", food = 0, prod = 1, gold = 2 },
 }
 -- Rivers run along the edges between hexes (src/mapgen.lua). Crossing one
 -- takes all a unit's moves, unless a city's bridge carries it over; one
@@ -252,6 +255,11 @@ D.BUILDINGS = {
     -- by it. Fewer of the city's sick die, they mend sooner, the well stay
     -- well longer after, and its people go hungry less.
     lazaret = { name = "LAZARET", short = "LAZAR.", cost = 70, ward = "plague", tech = "writing", order = 13 },
+    -- Against the sundering (D.QUAKE): the city's walls and halls shored up
+    -- with stone buttresses and braced with timber. A quake does it half
+    -- the harm and never brings a building down nor kills its people, no
+    -- fault opens on its land, and its people fear the shaking less.
+    buttress = { name = "BUTTRESS", short = "BUTTR.", cost = 70, ward = "quake", tech = "masonry", order = 14 },
 }
 
 -- The shelter, against whatever ends the world: a city with one takes only
@@ -527,12 +535,69 @@ D.PLAGUE = {
     warn = 144, great = 150, greatLoss = 1 / 3, lazaretLoss = 1 / 5,
 }
 
+-- The sundering: the seventh way the world can end (src/quake.lua), on the
+-- same turns as the others and to the same last turn. The land itself
+-- breaks: quakes, faults that open between the hexes, a rift the sea comes
+-- in by, mountains thrown up, volcanoes and the waves.
+D.QUAKE = {
+    omen = 90,         -- the ground trembles; on turn 99 the great rift is seen
+    tremors = 100,     -- quakes, and faults open between the hexes
+    rift = 120,        -- the rift tears the land apart and the sea comes in; ranges rise
+    fire = 140,        -- the volcanoes wake, and the waves come
+    -- Quakes: how many strike a turn, in each stage (each seen coming the
+    -- turn before, its hex marked), how far each reaches, and what it does:
+    -- to a unit within its reach (`hit` at its heart, `near` round it), to
+    -- a city (`city` at its heart, `nearCity` round it), the chance it
+    -- brings one of a city's buildings down (`fall`) or kills one of its
+    -- people (`kill`), and the chance it wrecks a mine or a farm (`wreck`)
+    -- or brings a forest down on a hill (`slide`).
+    quakes = { omen = 0, tremors = 1, rift = 2, fire = 2 },
+    reach = { tremors = 1, rift = 2, fire = 2 },
+    hit = 30, near = 12, city = 30, nearCity = 12,
+    fall = 0.35, kill = 0.4, wreck = 0.35, slide = 0.3,
+    -- Faults: how many edges each quake cracks open between the hexes near
+    -- it, and how many more open a turn anywhere along the lines already
+    -- open. No one walks across an open fault.
+    faults = { tremors = 2, rift = 1, fire = 1 },
+    spread = { tremors = 1, rift = 1, fire = 1 },
+    -- The rift: told on the omen's last turn, from the sea across the land.
+    -- Each turn of the rift and the fire it opens `riftStep` hexes further,
+    -- and every hex of it goes cracked, then a chasm, then the sea comes
+    -- in, then it is sea (`riftTurns` turns at each step).
+    riftLen = { 7, 13 }, riftStep = { rift = 1, fire = 2 }, riftTurns = 2,
+    -- The ranges: two places where the land is pressed together, told as
+    -- the rift begins. Each turn `uplift` hexes along them rise a step
+    -- (shallows to new land, flat to hills, hills to mountains).
+    ranges = 2, rangeLen = { 4, 7 }, uplift = { rift = 2, fire = 3 },
+    -- Volcanoes: how many wake as the fire begins (the mountains likeliest),
+    -- the chance each erupts a turn (seen coming the turn before), how far
+    -- its lava runs, and how long a hex of it burns and lies hot. Ash falls
+    -- `ashReach` round it and lies `ashTurns`: a farm under it yields
+    -- `ashFarm` less, and the ash leaves the land richer (`soil`).
+    volcanoes = 3, erupt = 0.4, flow = 2, lavaTurns = 3, lavaHit = 40, lavaCity = 25,
+    ashReach = 2, ashTurns = 4, ashFarm = 1, soil = 1, obsidian = 0.3,
+    -- The waves: the chance a turn, in each stage, the sea far out heaves
+    -- (seen coming the turn before: the sea draws back), how many hexes of
+    -- the shore each takes, what it does to a unit on them or a ship by
+    -- them, and to a city by the shore (`levee` spares it); the water lies
+    -- `waveTurns`.
+    waves = { rift = 0.25, fire = 0.5 }, waveLen = { 4, 8 },
+    waveHit = 40, waveCity = 30, waveTurns = 2,
+    -- Fear: food every city loses a turn, in each stage; a buttress spares
+    -- it `ward`.
+    fear = { tremors = 1, rift = 2, fire = 4 }, ward = 2,
+    -- The great quake: told on `warn`, on `great` the whole rift opens to
+    -- the sea at once, every city shakes and a great wave runs round
+    -- every shore.
+    warn = 144, great = 150, greatCity = 40,
+}
+
 -- Technologies, in the order the list shows them.
 D.TECHS = {
     { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY, HEARTH" },
     { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES, SHELTER" },
     { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "ARCHER" },
-    { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN, LEVEE" },
+    { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN, LEVEE, BUTTRESS" },
     { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY, SANCTUM, LAZARET" },
     { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, gives = "SPEARMAN" },
     { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, gives = "HORSEMAN" },

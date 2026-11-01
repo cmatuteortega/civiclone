@@ -326,6 +326,8 @@ function Daylight.lamps(w)
     require("src.ui.abyss").lamps(w, me, list, sig)
     -- The plague's pyres (src/ui/pestilence.lua).
     require("src.ui.pestilence").lamps(w, me, list, sig)
+    -- The sundering's lava and volcanoes (src/ui/quake.lua).
+    require("src.ui.quake").lamps(w, me, list, sig)
     return list, table.concat(sig, ",")
 end
 

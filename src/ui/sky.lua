@@ -59,6 +59,8 @@ local function game() return S.game end
 
 -- How much dust there should be now.
 function SkyFx.want(g)
+    -- The sundering's ash (src/ui/quake.lua) hides the sun as the dust does.
+    if g and Cat.is(g, "quake") then return require("src.ui.quake").dust(g) end
     if not g or not Cat.is(g, "sky") then return 0 end
     local s = Cat.stage(g)
     return s and SkyFx.DUST[s] or 0

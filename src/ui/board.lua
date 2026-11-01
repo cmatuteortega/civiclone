@@ -26,6 +26,7 @@ local Birds = require "src.ui.birds"
 local Rain = require "src.ui.rain"
 local Snow = require "src.ui.snow"
 local SkyFx = require "src.ui.sky"
+local QuakeFx = require "src.ui.quake"
 local Abyss = require "src.ui.abyss"
 local Pest = require "src.ui.pestilence"
 local Audio = require "src.ui.audio"
@@ -621,6 +622,7 @@ local function things(me)
     end
     Wild.things(list, me, P.stamp)
     SkyFx.things(me, list)
+    QuakeFx.things(me, list)
     Abyss.things(me, list)
     Pest.ruins(me, list)
     Pest.things(me, list)

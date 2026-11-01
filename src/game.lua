@@ -17,6 +17,7 @@ local Mapgen = require "src.mapgen"
 local Beasts = require "src.beasts"
 local Cat = require "src.cataclysm"
 local Frost = require "src.frost"
+local Quake = require "src.quake"
 
 local floor, ceil, max, min, exp = math.floor, math.ceil, math.max, math.min, math.exp
 
@@ -97,9 +98,10 @@ function Game:dist(a, b) return H.distance(a.c, a.r, b.c, b.r) end
 
 function Game:isWater(cell) return D.TERRAIN[cell.terrain].water end
 
--- Can a land unit stand here at all?
+-- Can a land unit stand here at all? Not on the water, a mountain, nor a
+-- chasm the sundering has torn (src/quake.lua).
 function Game:passable(cell)
-    return not self:isWater(cell) and cell.elev ~= "mountain"
+    return not self:isWater(cell) and cell.elev ~= "mountain" and (cell.rift or 0) < 2
 end
 
 -- What it costs to walk into a cell: 1, and one more each for hills and forest.
@@ -172,7 +174,7 @@ function Game:canEnter(u, cell)
         end
         return cell.terrain == "coast" or techs.cartography == true
     end
-    if not water then return cell.elev ~= "mountain" end
+    if not water then return self:passable(cell) end
     if not techs.sailing then return false end
     return cell.terrain == "coast" or techs.cartography == true
 end
@@ -193,6 +195,8 @@ function Game:stepCost(u, from, to)
     local fw, tw = self:isWater(from), self:isWater(to)
     if fw ~= tw then return Game.ALL end
     if tw then return 1 end
+    -- An open fault (src/quake.lua): no one walks across.
+    if from.fault and Quake.faultBetween(self, from, to) then return nil end
     if self:fords(from, to) then return Game.ALL end
     return self:moveCost(to)
 end
@@ -216,7 +220,7 @@ end
 function Game:yield(cell)
     local t, e = D.TERRAIN[cell.terrain], D.ELEV[cell.elev]
     local f, p, g = t.food + e.food, t.prod + e.prod, t.gold
-    if cell.elev == "mountain" or cell.fire or cell.flood then return 0, 0, 0 end
+    if cell.elev == "mountain" or cell.fire or cell.flood or cell.lava or (cell.rift or 0) >= 2 then return 0, 0, 0 end
     if cell.feature then
         local ft = D.FEATURE[cell.feature]
         f, p = f + ft.food, p + ft.prod
@@ -261,6 +265,19 @@ function Game:describe(cell)
     elseif cell.crater then parts[#parts + 1] = "- CRATER" end
     if cell.blight then parts[#parts + 1] = "- BLIGHTED" end
     if cell.fallow then parts[#parts + 1] = "- FALLOW" end
+    -- The sundering's (src/quake.lua).
+    if cell.volcano then parts[#parts + 1] = cell.erupting and "- ERUPTING VOLCANO" or "- VOLCANO" end
+    if cell.rift == 1 then parts[#parts + 1] = "- CRACKED"
+    elseif cell.rift == 2 then parts[#parts + 1] = "- CHASM"
+    elseif cell.rift == 3 then parts[#parts + 1] = "- CHASM, THE SEA POURING IN"
+    elseif cell.riftLine and not cell.sundered then parts[#parts + 1] = "- ON THE RIFT" end
+    if cell.sundered then parts[#parts + 1] = "- THE RIFT" end
+    if cell.raised then parts[#parts + 1] = "- RISEN SEABED" end
+    if cell.lava then parts[#parts + 1] = "- LAVA"
+    elseif cell.basalt then parts[#parts + 1] = "- BLACK ROCK" end
+    if cell.ashfall then parts[#parts + 1] = "- ASH"
+    elseif cell.soil then parts[#parts + 1] = "- VOLCANIC SOIL" end
+    if cell.fault and next(cell.fault) then parts[#parts + 1] = "- FAULT" end
     if cell.fire then parts[#parts + 1] = "- BURNING"
     elseif cell.scorched then parts[#parts + 1] = "- SCORCHED"
     elseif cell.burnt then parts[#parts + 1] = "- BURNT" end

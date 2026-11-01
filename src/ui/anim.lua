@@ -13,6 +13,7 @@ local Audio = require "src.ui.audio"
 local M = require "src.models"
 local World = require "src.world"
 local SkyFx = require "src.ui.sky"
+local QuakeFx = require "src.ui.quake"
 
 local max, min, floor = math.max, math.min, math.floor
 
@@ -112,6 +113,18 @@ function Anim.events(game)
                 for _, n in ipairs(game:within(game.cells[e.cell], reach)) do
                     falling[n.id] = max(falling[n.id] or 0, wait)
                 end
+            end
+        elseif e.kind == "tremor" or e.kind == "erupt" or e.kind == "wave" or e.kind == "sunder" or e.kind == "uplift"
+            or e.kind == "greatquake" then
+            -- The sundering (src/ui/quake.lua): what it changes waits for
+            -- it to be played.
+            local wait, reach = QuakeFx.event(game, e)
+            if wait > 0 and e.cell then
+                for _, n in ipairs(game:within(game.cells[e.cell], reach)) do
+                    falling[n.id] = max(falling[n.id] or 0, wait)
+                end
+                -- And everywhere the lava runs.
+                for _, id in ipairs(e.lava or {}) do falling[id] = max(falling[id] or 0, wait) end
             end
         elseif e.kind == "attack" then
             local from, to = game.cells[e.from], game.cells[e.to]

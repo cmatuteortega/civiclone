@@ -169,10 +169,132 @@ local function blast(s, x, z)
     if g < 0.03 then return IDX.c end
 end
 
--- The prints of the land laid over a ground's own: a crater's blast, ash,
--- then silt, then the rim of a river's bank.
+--- the sundering (src/quake.lua) ------------------------------------------------------
+
+-- How near room point (x, z) is to the edge between two cells of a jittered
+-- grid `size` across (0 on the edge): the plates of a crust.
+local function plates(x, z, size, seed)
+    local gx, gz = floor(x / size), floor(z / size)
+    local d1, d2 = 1e9, 1e9
+    for a = -1, 1 do
+        for b = -1, 1 do
+            local cx, cz = gx + a, gz + b
+            local px = (cx + 0.15 + grain(cx, cz, seed) * 0.7) * size
+            local pz = (cz + 0.15 + grain(cz, cx, seed + 1) * 0.7) * size
+            local d = (x - px) ^ 2 + (z - pz) ^ 2
+            if d < d1 then d1, d2 = d, d1 elseif d < d2 then d2 = d end
+        end
+    end
+    return math.sqrt(d2) - math.sqrt(d1)
+end
+
+-- Lava, still burning: a black crust broken into plates, the fire showing
+-- white and pale in the seams between them. Its glow is set flickering on
+-- the board (src/ui/quake.lua).
+local function lava(x, z)
+    local c = plates(x, z, 3.4, 171)
+    if c < 0.28 then return IDX.w end
+    if c < 0.55 then return grain(x * 2, z * 2, 172) > 0.4 and IDX.c or IDX.s end
+    local g = grain(x, z, 173)
+    if g > 0.93 then return IDX.n end
+    return IDX.u
+end
+
+-- Lava cooled: black rock in ropes and folds, the way it ran, a dull glint
+-- on their backs and a pale speck of ash here and there.
+local function basalt(x, z)
+    local v = sin(x * 0.55 + sin(z * 0.42) * 2.3 + z * 0.12)
+    local g = grain(x, z, 174)
+    if abs(v - 0.8) < 0.12 then return IDX.n end
+    if abs(v + 0.3) < 0.07 then return IDX.o end
+    if g > 0.97 then return IDX.s end
+    if g > 0.85 then return IDX.n end
+    return IDX.u
+end
+
+-- Ground the ash has made rich: dark and crumbly, flecked.
+local function loam(x, z)
+    local g = grain(x, z, 175)
+    if g > 0.9 then return IDX.u end
+    if g > 0.8 then return IDX.n end
+end
+
+-- The sea's floor come up into the air: pale wet sand in ripples, dark
+-- weed drying in patches, shells white in it.
+local function seabed(x, z)
+    local g = grain(x, z, 176)
+    if g > 0.985 then return IDX.w end
+    local weed = sin(x * 0.31 + sin(z * 0.27) * 2) * sin(z * 0.36 - x * 0.12)
+    if weed > 0.55 then return g > 0.4 and IDX.n or IDX.k end
+    local r = sin(x * 0.9 + z * 0.35 + sin(z * 0.2) * 1.5)
+    if r > 0.82 then return IDX.s end
+    if r < -0.9 then return IDX.c end
+end
+
+-- A hex the rift has cracked: a black crack zigzagging through it the way
+-- the rift runs, its lips broken pale, hairline cracks off it.
+local function riftCrack(s, x, z)
+    local cell = s.cellRef
+    local a = s.riftAngle
+    local dx, dz = x - cell.x, z - cell.z
+    local u = dx * math.cos(a) + dz * math.sin(a)
+    local v = -dx * math.sin(a) + dz * math.cos(a)
+    local t = (u / 2.6) % 2
+    local zig = v - (abs(t - 1) - 0.5) * 2.2 - sin(u * 0.4) * 0.8
+    local w = abs(zig)
+    if w < 0.6 then return IDX.o end
+    if w < 1.0 then return IDX.u end
+    if w < 1.5 and grain(x * 2, z * 2, 177) > 0.4 then return IDX.c end
+    -- Hairlines off it, every so often.
+    local k = floor(u / 3.2)
+    if grain(k, cell.id, 178) > 0.5 then
+        local off = u - (k + 0.5) * 3.2
+        local side = grain(k, cell.id, 179) > 0.5 and 1 or -1
+        if v * side > 0 and v * side < 4.5 and abs(off - v * side * 0.5) < 0.3 then return IDX.u end
+    end
+end
+
+-- The lip of an open fault along edge k of a hex: the ground broken dark
+-- right at the edge, cracks running back from it.
+local function faultLip(s, x, z)
+    local cell, pull = s.cellRef, s.faultPull
+    for k = 0, 5 do
+        if pull[k] then
+            local a = math.rad(60 * k)
+            local inside = H.APOTHEM - pull[k] - ((x - cell.x) * math.cos(a) + (z - cell.z) * math.sin(a))
+            if inside < 2.6 then
+                local along = -(x - cell.x) * math.sin(a) + (z - cell.z) * math.cos(a)
+                local g = grain(x * 2, z * 2, 180)
+                if inside < 0.6 then return g > 0.25 and IDX.u or IDX.o end
+                if inside < 1.2 then return g > 0.55 and IDX.n or nil end
+                local jag = floor(along / 2.2)
+                if grain(jag, cell.id + k, 181) > 0.55 and abs(along - (jag + 0.5) * 2.2 - (inside - 1.2) * 0.6) < 0.28 then
+                    return IDX.u
+                end
+            end
+        end
+    end
+end
+
+-- The prints of the land laid over a ground's own: lava and black rock, a
+-- crater's blast, the rift's crack, ash, then silt, then the rim of a
+-- river's bank.
 local function overland(s, x, z, ny)
     if ny <= 0.9 then return end
+    if s.lava then return lava(x, z) end
+    if s.faultPull then
+        local a = faultLip(s, x, z)
+        if a then return a end
+    end
+    if s.riftAngle then
+        local a = riftCrack(s, x, z)
+        if a then return a end
+    end
+    if s.basalt then return basalt(x, z) end
+    if s.raised then
+        local a = seabed(x, z)
+        if a then return a end
+    end
     if s.crater then
         local a = blast(s, x, z)
         if a then return a end
@@ -191,6 +313,10 @@ local function overland(s, x, z, ny)
     end
     if s.silt then
         local a = silt(x, z)
+        if a then return a end
+    end
+    if s.soil then
+        local a = loam(x, z)
         if a then return a end
     end
     if s.pull then return rim(s, x, z) end
@@ -265,6 +391,29 @@ MAT.hotstone = { id = 42, ramp = ramp("w", "w", "c", "s"), print = function(s, x
     if v > 0.6 then return IDX.u end
     if v > 0.2 then return IDX.k end
 end }
+-- The depths of a chasm or a fault: dark, the odd glint of wet rock.
+local ABYSS_SIDE = ramp("u", "o", "o", "o")
+MAT.abyss = { id = 51, ramp = ramp("n", "u", "o", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 then return strata(x, y, z, lev) == SIDE and SIDE_DARK or ABYSS_SIDE end
+    if grain(x * 2, z * 2, 182) > 0.9 then return IDX.n end
+    return IDX.o
+end }
+-- Molten rock: the lava running down a volcano and filling its crater.
+MAT.lava = { id = 52, ramp = ramp("w", "w", "c", "s"), print = function(s, x, y, z, nx, ny, nz, lev)
+    local v = sin(x * 1.3 + sin(z * 1.1 + y) * 2) + sin(y * 1.7 - z * 0.8)
+    if v > 1.1 then return IDX.u end
+    if v > 0.7 then return IDX.n end
+end }
+-- A volcano's cone: ash and cinders in bands round it, darker than rock,
+-- streaked down the slope where the old flows ran.
+MAT.cinder = { id = 53, ramp = ramp("c", "s", "t", "k"), print = function(s, x, y, z, nx, ny, nz, lev)
+    local band = floor((y + sin(x * 0.3 + z * 0.2) * 0.8) / 1.6)
+    local streak = grain(floor(math.atan2(z - s.cellRef.z, x - s.cellRef.x) * 9), 0, 183)
+    if streak > 0.8 then return lev <= 2 and IDX.n or IDX.u end
+    if band % 4 == 0 then return lev <= 2 and IDX.t or IDX.n end
+    if grain(x * 2, y * 2 + z, 184) > 0.93 then return IDX.s end
+end }
+
 -- Star iron: black and heavy, its broken faces bright.
 MAT.iron = { id = 43, ramp = ramp("c", "n", "u", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
     if grain(x * 3, y * 3 + z, 75) > 0.9 then return IDX.w end
@@ -577,6 +726,22 @@ local function riverStrip(cell, k, e)
     return s
 end
 
+-- How far an open fault (src/quake.lua) cuts into each hex beside it, and
+-- how deep the dark goes.
+local FAULT = 2.2
+local DEEP = -6
+
+-- The dark at the bottom of a fault along edge k of a hex: the strip of its
+-- prism within the fault's width of the edge, far down.
+local function faultStrip(cell, k)
+    local s = hexPrism(cell.x, cell.z, DEEP)
+    local a = math.rad(60 * k)
+    local nx, nz = math.cos(a), math.sin(a)
+    table.insert(s.planes, { -nx, 0, -nz, -(nx * cell.x + nz * cell.z + H.APOTHEM - FAULT - 0.3) })
+    s.prism = nil
+    return s
+end
+
 -- Where along a river edge k of a hex: the room point `inset` in from the
 -- edge's middle, `u` along it.
 local function alongEdge(cell, k, inset, u)
@@ -626,7 +791,7 @@ end
 -- The solids of one hex.
 function World:hexSolids(cell)
     local out = {}
-    local ashen = (cell.burnt or cell.fire) and true or nil
+    local ashen = (cell.burnt or cell.fire or cell.ashfall) and true or nil
     local silted = cell.silt and not cell.flood or nil
     -- A field abandoned in the plague, its furrows the way its farm's ran.
     local fallow = (cell.fallow and not cell.improvement and not cell.city) or nil
@@ -636,6 +801,9 @@ function World:hexSolids(cell)
         s.mat, s.cell, s.cellRef, s.world = mat, cell.id, cell, self
         s.ash, s.silt, s.crater, s.blight = ashen, silted, pit, cell.blight
         s.fallow = fallow
+        -- The sundering's (src/quake.lua).
+        s.lava, s.basalt, s.soil, s.raised = cell.lava and true, cell.basalt, cell.soil and not cell.ashfall, cell.raised
+        if cell.rift == 1 then s.riftAngle = cell.riftAngle or 0 end
         -- The way its rows ran, as src/models.lua's M.FARM_LAYOUTS has them.
         if fallow then s.rows = ({ 30, 90, 150 })[cell.id % 3 + 1] end
         out[#out + 1] = s
@@ -651,10 +819,60 @@ function World:hexSolids(cell)
         pull = {}
         for k = 0, 5 do pull[k] = river[k] and bankOf(river[k]) or nil end
     end
+    -- The sundering's open faults (src/quake.lua) cut the hex back from its
+    -- edge as a river does, and leave the dark below.
+    local faults
+    if cell.fault and not t.water then
+        for k = 0, 5 do
+            if cell.fault[k] then
+                faults = faults or {}
+                faults[k] = FAULT
+            end
+        end
+    end
+    local cut = pull
+    if faults then
+        cut = {}
+        for k = 0, 5 do cut[k] = max(pull and pull[k] or 0, faults[k] or 0) end
+    end
     -- The sea's ice stands a little proud of the water: its edge a low cliff.
     if t.sea then top = top + 1 end
-    local ground = add(hexPrism(cell.x, cell.z, top, pull), base)
-    ground.pull = pull
+    if faults then
+        for k = 0, 5 do if faults[k] then add(faultStrip(cell, k), MAT.abyss) end end
+    end
+    -- A chasm the rift has torn: the hex split in two halves along the
+    -- rift, the dark between them, or the sea pouring in; a few boulders
+    -- fallen in.
+    if (cell.rift or 0) >= 2 and not t.water then
+        local a = cell.riftAngle or 0
+        local nx, nz = -math.sin(a), math.cos(a)
+        local gap = cell.rift == 2 and 3.8 or 5
+        local c0 = nx * cell.x + nz * cell.z
+        for side = -1, 1, 2 do
+            local half = hexPrism(cell.x, cell.z, top, cut)
+            table.insert(half.planes, { -side * nx, 0, -side * nz, -side * c0 - gap })
+            local h = add(half, base)
+            h.pull, h.faultPull = pull, faults
+        end
+        local deep = hexPrism(cell.x, cell.z, cell.rift == 3 and D.TERRAIN.coast.top or DEEP)
+        table.insert(deep.planes, { nx, 0, nz, c0 + gap + 0.6 })
+        table.insert(deep.planes, { -nx, 0, -nz, -c0 + gap + 0.6 })
+        add(deep, cell.rift == 3 and MAT.coast or MAT.abyss)
+        local ux, uz = math.cos(a), math.sin(a)
+        for k = -1, 1 do
+            local u = k * 5 + (grain(cell.id, k, 185) - 0.5) * 2
+            local w = (grain(k, cell.id, 186) - 0.5) * gap
+            local bx, bz = cell.x + ux * u + nx * w, cell.z + uz * u + nz * w
+            if H.inset(bx, bz, cell.x, cell.z) > 2 then
+                local r = 1.2 + grain(cell.id, k, 187) * 0.8
+                local y = cell.rift == 3 and D.TERRAIN.coast.top - 0.4 or (k == 0 and 0 or DEEP + 2 + k)
+                add(Sh.ell(bx, y, bz, r * 1.2, r, r), MAT.stone)
+            end
+        end
+        return out
+    end
+    local ground = add(hexPrism(cell.x, cell.z, top, cut), base)
+    ground.pull, ground.faultPull = pull, faults
     if t.water then
         if cell.drownedForest then
             -- What the sea left of a forest: dead trunks standing out of the
@@ -741,6 +959,35 @@ function World:hexSolids(cell)
             end
             return poly
         end
+        if cell.volcano then
+            -- A volcano: a cone of cinders cut off flat at the top, a crater
+            -- in it dark, or full of fire while it erupts and the lava
+            -- running down its sides.
+            local h = 20
+            local r = H.R * (river and 0.8 or 0.94)
+            local turn = grain(cell.id, 6, 30)
+            add(Sh.frustum(12, 0.26, cell.x, top - 0.5, cell.z, r, h + 0.5, nil, turn), MAT.cinder)
+            -- The crater's lip, and the pit in it.
+            local hot = cell.erupting
+            add(Sh.ell(cell.x, top + h - 0.2, cell.z, r * 0.21, 0.9, r * 0.19), hot and MAT.lava or MAT.abyss)
+            -- Lava down its sides while it erupts: three tongues, the
+            -- front one towards the camera.
+            if hot then
+                for k = 0, 2 do
+                    local a = math.rad(grain(cell.id, k, 188) * 50 + k * 120 + 65)
+                    local ca, sa = math.cos(a), math.sin(a)
+                    for m = 0, 3 do
+                        local f0, f1 = m / 4, (m + 1) / 4
+                        local wob = (grain(cell.id, k * 4 + m, 189) - 0.5) * 2
+                        local function at(f) return 0.26 + f * 0.7 end
+                        add(Sh.seg(cell.x + ca * r * at(f0) - sa * wob * f0, top + h * (1 - f0) + 0.3, cell.z + sa * r * at(f0) + ca * wob * f0,
+                            cell.x + ca * r * at(f1) - sa * wob * f1, top + h * (1 - f1) + 0.3, cell.z + sa * r * at(f1) + ca * wob * f1,
+                            0.8 + f0 * 0.5, 0.8 + f1 * 0.5), MAT.lava).join = "lava"
+                    end
+                end
+            end
+            return out
+        end
         -- Kept back from a river below it.
         local wide = river and 0.78 or 0.92
         local ox = (grain(cell.id, 1, 30) - 0.5) * 5
@@ -807,6 +1054,22 @@ function World:hexSolids(cell)
                 add(Sh.pyramid(6, x, g + 5 * tall, z, 3 * tall, 5 * tall, 0, 0.8), crown)
             else
                 add(Sh.ell(x, g + 5.5 * tall, z, 3.8 * tall, 3.6 * tall, 3.8 * tall), crown)
+            end
+        end
+    elseif cell.slid and not cell.city then
+        -- A forest the quake brought down off the hill: trunks lying every
+        -- way, their roots torn up, and rocks come down with them.
+        local pts = scatter(cell, 5, 3.5, 40)
+        for n, p in ipairs(pts) do
+            local x, z = p[1], p[2]
+            local g = top + (cell.elev == "hills" and 1 or 0)
+            if n % 2 == 1 then
+                local a = grain(x, z, 189) * math.pi
+                local dx, dz = math.cos(a) * 3, math.sin(a) * 3
+                add(Sh.seg(x - dx, g + 0.5, z - dz, x + dx, g + 0.7, z + dz, 0.6), MAT.trunk)
+                add(Sh.ell(x - dx, g + 0.8, z - dz, 1, 1.1, 1), MAT.trunk)
+            else
+                add(Sh.ell(x, g + 0.6, z, 1.6, 1.2, 1.4), MAT.stone)
             end
         end
     elseif cell.burntForest and not cell.city then

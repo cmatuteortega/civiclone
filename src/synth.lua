@@ -375,6 +375,25 @@ local DEFS = {
         { dur = 2.5, f0 = 98 * 2.76, a = 0.005, curve = 2, vol = 0.3, vib = { 3, 0.004 } },
         { dur = 1.2, wave = "noise", lp = { 900, 150 }, a = 0.01, curve = 1.5, vol = 0.3 }),
 
+    -- The sundering's (src/quake.lua): a quake, the earth groaning low and
+    -- shuddering, stones knocking in it; an eruption, a deep blast and the
+    -- roar after it; a wave, the sea rushing in and breaking on the shore.
+    rumble = sound({ vol = 0.55, gap = 0.6, poly = 2, wob = 0.1 },
+        { dur = 2.2, wave = "noise", lp = { 220, 60 }, a = 0.15, curve = 1.3, trem = { 9, 0.7 } },
+        { dur = 2.0, f0 = 46, f1 = 34, a = 0.2, curve = 1.4, vol = 0.6, vib = { 7, 0.06 } },
+        { at = 0.3, dur = 1.2, wave = "grit", f0 = 140, f1 = 90, lp = { 700, 300 }, a = 0.1, curve = 1.6, vol = 0.25,
+            trem = { 17, 0.9 } }),
+    eruption = sound({ vol = 0.6, gap = 1.5 },
+        { dur = 0.1, wave = "noise", hp = { 200 }, lp = { 4000, 700 }, a = 0.001, curve = 2 },
+        { dur = 1.6, f0 = 58, f1 = 28, bend = 0.5, a = 0.004, curve = 1.5 },
+        { at = 0.05, dur = 3.2, wave = "noise", lp = { 1400, 200 }, a = 0.3, curve = 1.1, vol = 0.7, trem = { 5, 0.3 } },
+        { at = 0.4, dur = 2.4, wave = "grit", f0 = 90, f1 = 60, lp = { 900, 300 }, a = 0.4, curve = 1.3, vol = 0.3,
+            trem = { 21, 0.8 } }),
+    wave = sound({ vol = 0.5, gap = 0.4, poly = 2, wob = 0.08 },
+        { dur = 1.3, wave = "noise", hp = { 100, 300 }, lp = { 400, 2600 }, bend = 0.4, a = 1.0, curve = 0.7 },
+        { at = 1.1, dur = 1.6, wave = "noise", hp = { 200 }, lp = { 5000, 500 }, a = 0.01, curve = 1.6, vol = 0.9 },
+        { at = 1.1, dur = 0.8, f0 = 70, f1 = 40, a = 0.005, curve = 1.8, vol = 0.5 }),
+
     -- The plague's (src/plague.lua): a knell for its dead, one great bell
     -- tolled low with its hum held under it; and rats, a scuttle of claws
     -- and a few thin squeaks.

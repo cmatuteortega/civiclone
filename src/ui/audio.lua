@@ -229,7 +229,8 @@ function Audio.hear(game, e)
         if seen(e.cell) then at("squeak", e.cell, 0.8) end
     elseif k == "sicken" then
         if e.city.owner == 1 then at("knell", e.cell, 0.7, 0, 1.12) end
-    elseif k == "eliminated" or k == "heat" or k == "flood" or k == "sky" or k == "demons" or k == "sun" or k == "plague" then
+    elseif k == "eliminated" or k == "heat" or k == "flood" or k == "sky" or k == "demons" or k == "sun" or k == "plague"
+        or k == "sundering" then
         -- A civilization gone, or the cataclysm come a stage nearer.
         at("gong")
     elseif k == "embark" or k == "land" then
