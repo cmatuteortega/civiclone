@@ -546,7 +546,7 @@ M.CITY_PLOTS = PLOTS
 
 -- What each building takes, of the plots: it stands in that plot instead of
 -- a house.
-local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10, sanctum = 9 }
+local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10, sanctum = 11 }
 
 -- A little hash, so the same city is laid out the same way every time.
 local function hash(a, b)
@@ -1120,11 +1120,11 @@ function M.city(look, pop, capital, built, shore, drop, site)
             local x, z = at("sanctum")
             for k = 0, 5 do
                 local a = k / 6 * 2 * math.pi
-                parts[#parts + 1] = part(Sh.box(x + cos(a) * 2.4, 0, z + sin(a) * 2.1, 0.7, 0.6, 3.6 + (k % 2) * 0.8, -a), R.wall,
+                parts[#parts + 1] = part(Sh.box(x + cos(a) * 2.6, 0, z + sin(a) * 2.3, 0.8, 0.7, 5.2 + (k % 2) * 1.2, -a), R.wall,
                     90, function(ux, uy) if floor(uy * 6) % 2 == 0 and abs(ux) < 0.3 then return IDX.t end end)
             end
-            parts[#parts + 1] = part(Sh.prism(6, x, 0, z, 0.8, 1.6), R.stone, 91)
-            parts[#parts + 1] = part(Sh.ell(x, 2.1, z, 0.55, 0.65, 0.55), GLOW, 92)
+            parts[#parts + 1] = part(Sh.prism(6, x, 0, z, 0.9, 2.4), R.stone, 91)
+            parts[#parts + 1] = part(Sh.ell(x, 3.1, z, 0.7, 0.8, 0.7), GLOW, 92)
         end
         if b.levee then
             -- Banks of earth all round the hex, low and broad, faced with
@@ -1846,21 +1846,25 @@ end
 function BEAST.spider(pose) return spider(pose, false) end
 function BEAST.brood(pose) return spider(pose, true) end
 
--- An eye looking out along +x: white, veined, a dark iris and a pupil, a
--- lid of black hide over the top of it.
+-- An eye looking out along +x and a little up, at whoever looks down on
+-- it: white, veined, a dark iris ringed pale and a pupil; a brow of black
+-- hide over the back of it, drawn down over the whole of it to blink.
 local function eyeball(p, x, y, z, r, id, wide, shut)
-    p[#p + 1] = part(Sh.ell(x, y, z, r, r, r), SCLERA, id, function(ux, uy, uz)
-        local f = ux
-        if f > 0.82 then return wide and IDX.u or IDX.o end
-        if f > (wide and 0.7 or 0.6) then return IDX.n end
-        if f > 0.52 then return IDX.t end
+    local look = A.rotZ(0.75)
+    p[#p + 1] = part(Sh.ell(x, y, z, r, r, r, look), SCLERA, id, function(ux, uy, uz)
+        if ux > 0.86 then return IDX.o end
+        if ux > (wide and 0.8 or 0.74) then return wide and IDX.o or IDX.u end
+        if ux > 0.6 then return IDX.n end
+        if ux > 0.55 then return IDX.w end
         -- Veins, creeping out from the back.
         local a = math.atan2(uz, uy)
-        if f < 0.3 and abs(sin(a * 5 + f * 9)) < 0.08 then return IDX.s end
+        if ux < 0.35 and abs(sin(a * 5 + ux * 9)) < 0.1 then return IDX.t end
     end)
-    local lid = shut and 0.15 or (wide and 0.85 or 0.55)
-    p[#p + 1] = part(Sh.ell(x - r * 0.05, y + r * lid, z, r * 1.08, r * 0.62, r * 1.08), INK, id + 1)
-    if shut then p[#p + 1] = part(Sh.ell(x, y - r * 0.3, z, r * 1.06, r * 0.7, r * 1.06), INK, id + 2) end
+    if shut then
+        p[#p + 1] = part(Sh.ell(x, y, z, r * 1.06, r * 1.06, r * 1.06), INK, id + 1)
+        return
+    end
+    p[#p + 1] = part(Sh.ell(x - r * 0.55, y + r * 0.45, z, r * 0.75, r * 0.7, r * 1.08), INK, id + 1)
 end
 
 -- A giant eye, floating over the ground, its tendrils hanging and curling
@@ -1887,41 +1891,35 @@ end
 -- arm tapering to a curled tip, pale suckers along its inside, and two
 -- lesser ones beside it. 0, 1 and 2 swaying, 3 lashing down along +x, 4
 -- sunk low, coiling.
-local function arm(p, x0, z0, height, bend, side, id, thick)
-    local pts = {}
-    local n = 9
-    for k = 0, n do
-        local f = k / n
-        local curl = f * f * bend
-        local x = x0 + sin(curl) * height * 0.55 * f
-        local y = -1 + cos(curl * 0.8) * height * f
-        local z = z0 + side * sin(f * math.pi) * 1.4
-        pts[#pts + 1] = { x, y, z, thick * (1 - f * 0.82) }
-    end
+local function arm(p, x0, z0, height, lean, curl, side, id, thick)
+    -- Walked up from the water a segment at a time, each turned a little
+    -- more: upright at the root, rolled over at the tip.
+    local n = 10
+    local x, y, z = x0, -1.5, z0
+    local seg = height / n
     for k = 1, n do
-        local a, b = pts[k], pts[k + 1]
-        p[#p + 1] = part(Sh.seg(a[1], a[2], a[3], b[1], b[2], b[3], a[4], b[4]), GLOSS, id, function(ux, uy, uz, l, nx, ny)
-            if nx < -0.4 then return IDX.n end
+        local f = k / n
+        local th = lean + curl * f * f * f * 3
+        local nx, ny = x + sin(th) * seg, y + cos(th) * seg
+        local nz = z0 + side * sin(f * math.pi) * 0.8
+        local r0, r1 = thick * (1 - (k - 1) / n * 0.85), thick * (1 - k / n * 0.85)
+        p[#p + 1] = part(Sh.seg(x, y, z, nx, ny, nz, r0, r1), GLOSS, id, function(ux, uy, uz, l, nxx)
+            if nxx < -0.5 then return IDX.n end
         end)
-        if k % 2 == 0 and k < n then
-            local sx = a[1] - 0.8 * a[4]
-            p[#p + 1] = part(Sh.ell(sx, a[2], a[3], 0.32 * a[4] + 0.12, 0.3 * a[4] + 0.1, 0.32 * a[4] + 0.12), SCLERA, id + 1)
+        if k % 3 == 1 and k < n - 1 then
+            p[#p + 1] = part(Sh.ell(x - cos(th) * r0 * 0.6, y + sin(th) * r0 * 0.6, z, r0 * 0.4, r0 * 0.4, r0 * 0.5), SCLERA, id + 1)
         end
+        x, y, z = nx, ny, nz
     end
 end
 
 function BEAST.tentacle(pose)
     local p = {}
-    local bend = ({ [0] = 1.4, 1.9, 1.0, 3.2, 2.6 })[pose] or 1.4
-    local h = pose == 4 and 7 or (pose == 3 and 12 or 14)
-    arm(p, 0, 0, h, bend, 1, 1, 1.7)
-    arm(p, -2.8, 2.6, h * 0.55, bend * 0.8 + 0.6, -1, 10, 1.0)
-    arm(p, -2.2, -2.8, h * 0.45, bend * 1.1 + 0.4, 1, 20, 0.9)
-    -- The water broken white round it.
-    for k = 0, 5 do
-        local a = k / 6 * 2 * math.pi
-        p[#p + 1] = part(Sh.ell(cos(a) * 2.4 - 0.6, -0.6, sin(a) * 2.4, 1.1, 0.35, 0.8), BONE, 30)
-    end
+    local lean = ({ [0] = -0.15, -0.35, 0.1, 0.9, 0.2 })[pose] or 0
+    local curl = ({ [0] = 0.9, 1.1, 0.7, 0.6, 2.0 })[pose] or 0.9
+    local h = pose == 4 and 9 or 16
+    arm(p, 0, 0, h, lean, curl, 1, 1, 2.2)
+    arm(p, -3.6, 3.2, h * 0.5, lean - 0.3, curl + 0.6, -1, 10, 1.2)
     return p
 end
 
@@ -1950,7 +1948,7 @@ function BEAST.abyss(pose)
 end
 
 local BEAST_SCALE = { wolf = 0.74, bear = 0.74, boar = 0.68, aurochs = 0.7, horse = 0.82, croc = 0.66, serpent = 0.8,
-    spider = 0.62, brood = 0.95, eye = 0.7, tentacle = 0.78, abyss = 0.95 }
+    spider = 0.7, brood = 0.95, eye = 0.8, tentacle = 1.0, abyss = 0.95 }
 -- What each beast's poses past 3 are, for the board to choose among.
 M.BEAST_POSES = {
     wolf = { howl = 4, sniff = 5, lie = 6 }, bear = { rear = 4, root = 5 }, boar = { root = 4 },

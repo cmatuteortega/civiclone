@@ -184,7 +184,7 @@ a ring of carved stones round a lamp, holds a city; an army seals the
 rifts, and can storm the citadel and raze it before the Eye of the Abyss
 opens in it.
 
-![The citadel of the abyss and its blight, a rift, and the demons](shots/38-demons.png)
+![The demons on their own: spiders, a brood mother, eyes, tentacles, the Eye of the Abyss; a rift, the citadel; a town with a sanctum](shots/38-demon-models.png)
 
 ## Running it
 
