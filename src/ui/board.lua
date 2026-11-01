@@ -766,6 +766,26 @@ function Board.banners()
     end
 end
 
+-- Hands rows y0 to y1 of the overlay over to its image: the whole of it if
+-- that is most of it, else that band alone, through a picture kept for
+-- bands of that height.
+local bands = {}
+local function upload(y0, y1)
+    local rows = y1 - y0 + 1
+    if rows * 2 > S.ch then
+        S.overlayImage:replacePixels(S.overlay)
+        return
+    end
+    local band = bands[rows]
+    if not band or band.cw ~= S.cw then
+        band = { cw = S.cw, data = love.image.newImageData(S.cw, rows, "rgba8") }
+        band.px = ffi.cast("uint8_t*", band.data:getFFIPointer())
+        bands[rows] = band
+    end
+    ffi.copy(band.px, S.opx + y0 * S.cw * 4, rows * S.cw * 4)
+    S.overlayImage:replacePixels(band.data, 1, 1, 0, y0)
+end
+
 function Board.draw()
     local g, w = S.game, S.world
     local me = g.players[1]
@@ -773,11 +793,14 @@ function Board.draw()
         w:build(me.explored, me.visible, S.grid)
         me.sightChanged, S.gridShown = false, S.grid
     end
-    ffi.fill(S.opx, S.cw * S.ch * 4, 0)
+    P.begin()
     borders(me)
     marks()
     things(me)
-    S.overlayImage:replacePixels(S.overlay)
+    -- Laid only where it differs from the last frame (src/ui/pixels.lua),
+    -- and only those rows handed over.
+    local _, y0, _, y1 = P.finish()
+    if y0 then upload(y0, y1) end
     Daylight.draw(w)
 
     love.graphics.setCanvas(S.canvas)
