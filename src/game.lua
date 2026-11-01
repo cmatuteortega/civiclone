@@ -253,6 +253,7 @@ function Game:describe(cell)
     elseif cell.drowned then parts[#parts + 1] = "- DROWNED LAND" end
     if cell.glow then parts[#parts + 1] = "- FRESH CRATER"
     elseif cell.crater then parts[#parts + 1] = "- CRATER" end
+    if cell.blight then parts[#parts + 1] = "- BLIGHTED" end
     if cell.fire then parts[#parts + 1] = "- BURNING"
     elseif cell.scorched then parts[#parts + 1] = "- SCORCHED"
     elseif cell.burnt then parts[#parts + 1] = "- BURNT" end
@@ -322,6 +323,15 @@ function Game:foreignAt(cell, owner)
     if m and m.owner ~= owner then return m end
     if c and c.owner ~= owner then return c end
     if cell.city and cell.city.owner ~= owner then return cell.city end
+    -- The demons' citadel (src/demons.lua), while it still stands.
+    local l = cell.lair
+    if l and l.hp and l.hp > 0 and owner ~= Game.WILD then return l end
+end
+
+-- The demons' citadel on the cell, standing against `owner`'s units, or nil.
+function Game:besieged(cell, owner)
+    local l = cell.lair
+    if l and l.hp and l.hp > 0 and owner ~= Game.WILD then return l end
 end
 
 -- Can unit u stop on this cell?
@@ -563,17 +573,23 @@ function Game:canAttack(u, cell)
     -- A shot needs a soldier or a city to aim at; a civilian is only taken.
     if u.def.ranged then
         local m = self.mil[cell.id]
-        return d <= u.def.range and ((m and m.owner ~= u.owner) or (cell.city and cell.city.owner ~= u.owner)) and true or false
+        return d <= u.def.range and ((m and m.owner ~= u.owner) or (cell.city and cell.city.owner ~= u.owner)
+            or self:besieged(cell, u.owner)) and true or false
     end
     if d ~= 1 then return false end
-    -- The wild leaves the towns alone, and itself.
-    if u.owner == Game.WILD and (cell.city or target.owner == Game.WILD) then return false end
+    -- The wild leaves the towns alone, and itself; not the demons the towns.
+    if u.owner == Game.WILD and ((cell.city and not u.def.demon) or target.owner == Game.WILD) then return false end
+    if self:besieged(cell, u.owner) and not self.mil[cell.id] then return true end
+    -- A tentacle in the water is struck from the shore.
+    local m = self.mil[cell.id]
+    if m and m.def.lives == "shore" and m.owner ~= u.owner and not u.def.sea then return true end
     -- A crocodile takes only what comes to the water: across its river.
     if u.def.across and not self:riverBetween(self.cells[u.cell], cell) then return false end
     -- Melee: a city from anywhere next to it; otherwise a ship fights on the
     -- water and a soldier on the land.
     if cell.city then return true end
-    if u.def.sea then return self:isWater(cell) end
+    -- A tentacle lashes the shore.
+    if u.def.sea then return self:isWater(cell) or (u.def.demon == true and self:passable(cell)) end
     return self:passable(cell)
 end
 
@@ -582,7 +598,9 @@ function Game:forecast(u, cell)
     local city = cell.city and cell.city.owner ~= u.owner and cell.city
     local a = self:attackStrength(u, u.def.ranged, cell)
     local d
+    local lair = not city and not self.mil[cell.id] and self:besieged(cell, u.owner)
     if city then d = self:cityStrength(city)
+    elseif lair then d = lair.str
     else
         local t = self.mil[cell.id]
         if not t or t.owner == u.owner then return 100, 0 end
@@ -616,6 +634,8 @@ function Game:attack(u, cell)
             u.hp = u.hp - taken
             self:emit({ kind = "hit", cell = from.id, amount = taken, unit = u })
         end
+        -- The demons never take a town: they feed on it (src/demons.lua).
+        if u.owner == Game.WILD and city.hp < 1 then Cat.KINDS.demons.devour(self, city) end
         if u.hp <= 0 then
             self:kill(u, city.owner)
         elseif city.hp <= 0 then
@@ -625,10 +645,37 @@ function Game:attack(u, cell)
         return true
     end
 
+    local lair = not target and self:besieged(cell, u.owner)
+    if lair then
+        -- The demons' citadel: beaten down like a city's walls; at nothing,
+        -- a melee attacker walks in and razes it (src/beasts.lua).
+        local d = lair.str
+        local dealt = damage(self.rng, a, d)
+        lair.hp = max(0, lair.hp - dealt)
+        self:emit({ kind = "hit", cell = cell.id, amount = dealt })
+        if not ranged then
+            local taken = damage(self.rng, d, a)
+            u.hp = u.hp - taken
+            self:emit({ kind = "hit", cell = from.id, amount = taken, unit = u })
+        end
+        if u.hp <= 0 then
+            self:kill(u, Game.WILD)
+        elseif lair.hp <= 0 and not ranged then
+            self:relocate(u, cell.id)
+        elseif lair.hp <= 0 then
+            self:tell(u.owner, "THE CITADEL OF THE ABYSS IS BROKEN: WALK IN AND RAZE IT")
+        end
+        return true
+    end
+
     if not target then
         -- Only a civilian there: a melee attacker just walks in and takes it.
         local c = self.civ[cell.id]
-        if not ranged and c and u.owner == Game.WILD then
+        if not ranged and c and u.def.drags then
+            -- A tentacle drags them under.
+            self:emit({ kind = "hit", cell = cell.id, amount = c.hp, unit = c })
+            self:kill(c, Game.WILD, u)
+        elseif not ranged and c and u.owner == Game.WILD then
             -- A beast does not take the people it falls on: it mauls them.
             local dealt = damage(self.rng, a, self:defense(c))
             c.hp = c.hp - dealt
@@ -639,6 +686,8 @@ function Game:attack(u, cell)
     end
     local d = self:defense(target)
     local dealt = damage(self.rng, a, d)
+    -- Out in a boat, a tentacle takes them under at a blow.
+    if u.def.drags and not ranged and self:embarked(target) then dealt = target.hp end
     target.hp = target.hp - dealt
     target.fortified = false
     -- A beast that minds its own business minds whoever struck it now.
@@ -654,7 +703,7 @@ function Game:attack(u, cell)
     if target.hp <= 0 then self:kill(target, u.owner, u) end
     if u.hp <= 0 then
         self:kill(u, target.owner, target)
-    elseif target.hp <= 0 and not ranged and u.owner ~= Game.WILD and self:canEnter(u, cell) then
+    elseif target.hp <= 0 and not ranged and u.owner ~= Game.WILD and target.def.lives ~= "shore" and self:canEnter(u, cell) then
         -- Into the hex it won.
         self:relocate(u, cell.id)
     end
@@ -684,7 +733,7 @@ end
 function Game:canFound(u)
     if u.kind ~= "settler" or u.moves <= 0 then return false end
     local cell = self.cells[u.cell]
-    if not self:passable(cell) or cell.city or (cell.lair and cell.lair.def.beast) then return false end
+    if not self:passable(cell) or cell.city or (cell.lair and (cell.lair.def.beast or cell.lair.def.demon)) then return false end
     if cell.owner and cell.owner ~= u.owner then return false end
     for _, c in ipairs(self.cities) do
         if self:dist(self.cells[c.cell], cell) < 4 then return false end
@@ -936,14 +985,16 @@ function Game:borderNeed(city)
     return floor(D.CITY.borderCost + 6 * city.claimed ^ 1.3)
 end
 
--- A city with walls shoots the weakest enemy in reach.
+-- A city with walls shoots the weakest enemy in reach; one with a sanctum
+-- (src/demons.lua), the weakest demon, walls or none.
 function Game:cityStrike(city)
-    if not city.buildings.walls or city.hp <= 0 then return end
+    local walls, sanctum = city.buildings.walls, city.buildings.sanctum
+    if (not walls and not sanctum) or city.hp <= 0 then return end
     local home = self.cells[city.cell]
     local best
     for _, cell in ipairs(self:within(home, D.CITY.rangedRange)) do
         local u = self.mil[cell.id] or self.civ[cell.id]
-        if u and u.owner ~= city.owner and (not best or u.hp < best.hp) then best = u end
+        if u and u.owner ~= city.owner and (walls or u.def.demon) and (not best or u.hp < best.hp) then best = u end
     end
     if not best then return end
     local dealt = damage(self.rng, self:cityStrength(city), self:defense(best))
@@ -1145,6 +1196,8 @@ function Game:score(p)
     for _, c in ipairs(self:citiesOf(p.id)) do s = s + 5 + c.pop * 2 end
     for _ in pairs(p.techs) do s = s + 4 end
     for _ in pairs(p.explored) do s = s + 0.05 end
+    -- Demons slain, rifts sealed, the citadel razed (src/demons.lua).
+    s = s + (p.glory or 0)
     return floor(s)
 end
 
@@ -1245,11 +1298,11 @@ function Game:improvementsFor(u)
         return out
     end
     if cell.improvement ~= "farm" and cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert"
-        and not D.TERRAIN[cell.terrain].noFarm and not cell.fire and not cell.flood then
+        and not D.TERRAIN[cell.terrain].noFarm and not cell.fire and not cell.flood and not cell.blight then
         out[#out + 1] = "farm"
     end
     if cell.improvement ~= "mine" and (cell.elev == "hills" or cell.resource == "stone" or cell.resource == "gems"
-        or cell.resource == "iron") and p.techs.mining and not cell.glow then
+        or cell.resource == "iron") and p.techs.mining and not cell.glow and not cell.blight then
         out[#out + 1] = "mine"
     end
     return out

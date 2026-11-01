@@ -169,15 +169,32 @@ of turf, holds a city through it, and through the other cataclysms too.
 ![A great stone comes down beside a burning forest](shots/36-great-stone.gif)
 ![The heart of the comet falls in the long night](shots/37-heart-of-the-comet.gif)
 
+Or the abyss opens (`src/demons.lua`), the one end of the world that can be
+fought. A blood moon, and the ground splits where the citadel of the abyss
+will rise: the demons' one capital, a ribbed black spire among lesser spikes
+with an eye glowing in a window high up, its blight spreading round it as
+its borders, black ground veined with cracks of ink. Rifts tear open in the
+land, each seen coming, and the demons come up out of them and it, drawn
+ink-black and lit by pale eyes so none is taken for a beast: hell spiders on
+eight legs with a pale hourglass on their backs, giant eyes floating over
+the ground trailing tendrils, then tentacles out of the sea that lash the
+shore and drag whoever is in a boat under, and brood mothers with their eggs
+on their backs. They go for the towns, and feed on their people. A sanctum,
+a ring of carved stones round a lamp, holds a city; an army seals the
+rifts, and can storm the citadel and raze it before the Eye of the Abyss
+opens in it.
+
+![The citadel of the abyss and its blight, a rift, and the demons](shots/38-demons.png)
+
 ## Running it
 
 ```
 love .
 ```
 
-Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|none` picks how the world ends, `--play` skips
+Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|none` picks how the world ends, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds

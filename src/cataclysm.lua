@@ -3,7 +3,7 @@
 -- Each game has one, kept as game.cataclysm (nil with Game.new{ cataclysm =
 -- false }): its `kind` one of Cat.KINDS. Three are built, the heat death
 -- here, the deluge in src/flood.lua and the sky's falling in
--- src/skyfall.lua; the demons are meant to go in KINDS beside them. Every kind has four stages on its
+-- src/skyfall.lua and the demons in src/demons.lua. Every kind has four stages on its
 -- turns, an omen first, and the same last turn, D.LAST_TURN: what is here
 -- that is not the heat's (the stage, the top bar's label, the last turns'
 -- warnings, the dev window's list) asks the kind.
@@ -161,7 +161,7 @@ function Cat.harm(game, city, amount)
 end
 
 -- The food city `city` loses this turn to thirst (or, in the deluge, to
--- fever; under the falling sky, to the cold). A shelter's stores spare it
+-- fever; under the falling sky, to the cold; before the demons, to dread). A shelter's stores spare it
 -- some.
 function Cat.thirst(game, city)
     local K = Cat.kindOf(game)
@@ -399,5 +399,6 @@ end
 
 Cat.KINDS.flood = require "src.flood"
 Cat.KINDS.sky = require "src.skyfall"
+Cat.KINDS.demons = require "src.demons"
 
 return Cat

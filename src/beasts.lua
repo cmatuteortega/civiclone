@@ -34,6 +34,12 @@ function Beasts.canEnter(game, u, cell)
     if cell.city then return false end
     local lives = u.def.lives
     if lives == "ocean" then return cell.terrain == "ocean" end
+    -- A tentacle (src/demons.lua): in the coast's water by the land.
+    if lives == "shore" then
+        if cell.terrain ~= "coast" then return false end
+        for _, n in ipairs(game:neighbours(cell)) do if not game:isWater(n) then return true end end
+        return false
+    end
     if game:isWater(cell) or cell.elev == "mountain" then return false end
     if lives == "river" then return game:onRiver(cell) end
     return true
@@ -202,6 +208,11 @@ end
 local function give(game, who, prize, cell)
     local p = game.players[who]
     local bits = {}
+    -- Glory (the demons' slain, src/demons.lua) counts in the score.
+    if prize.glory and prize.glory > 0 then
+        p.glory = (p.glory or 0) + prize.glory
+        bits[#bits + 1] = "+" .. prize.glory .. " GLORY"
+    end
     if prize.gold and prize.gold > 0 then
         p.gold = p.gold + prize.gold
         bits[#bits + 1] = "+" .. prize.gold .. " GOLD"
@@ -247,6 +258,14 @@ function Beasts.arrive(game, u, cell)
         Beasts.removeLair(game, lair)
         local words, first = give(game, u.owner, def.prize, cell)
         local what = def.sting and "WILD BEES ROBBED OF THEIR HONEY" or (def.name .. " CLEARED")
+        if def.demon then
+            what = def.citadel and "THE CITADEL OF THE ABYSS RAZED" or "RIFT SEALED"
+            if cell.blight then
+                cell.blight = nil
+                game:emit({ kind = "terrain", cell = cell.id })
+            end
+            if def.citadel and Beasts.onRazed then Beasts.onRazed(game, u.owner) end
+        end
         game:tell(u.owner, what .. (words ~= "" and (": " .. words) or ""))
         game:emit({ kind = "cleared", cell = cell.id, lair = lair.kind, text = first })
     end
@@ -409,8 +428,9 @@ function Beasts.play(game)
     for _, u in ipairs(game.units) do
         if u.owner == Beasts.WILD then list[#list + 1] = u end
     end
+    -- The demons (src/demons.lua) act in the cataclysm's turn, not here.
     for _, u in ipairs(list) do
-        if not u.dead and u.moves > 0 then act(game, u) end
+        if not u.dead and u.moves > 0 and not u.def.demon then act(game, u) end
         u.dest = nil
     end
     for _, lair in ipairs(game.lairs) do

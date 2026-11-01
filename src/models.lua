@@ -62,6 +62,8 @@ local R = {
     hull = ramp("c", "s", "t", "n"),
     rope = ramp("c", "s", "t", "k"),
 }
+-- What glows: a lamp, a demon's eyes.
+local GLOW = ramp("w", "w", "w", "c")
 
 -- A civilization's colours: its cloth and roofs, and what to print on them.
 local LOOK = {
@@ -544,7 +546,7 @@ M.CITY_PLOTS = PLOTS
 
 -- What each building takes, of the plots: it stands in that plot instead of
 -- a house.
-local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10 }
+local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10, sanctum = 9 }
 
 -- A little hash, so the same city is laid out the same way every time.
 local function hash(a, b)
@@ -1016,7 +1018,7 @@ function M.city(look, pop, capital, built, shore, drop, site)
     drop = drop and floor(drop * 2 + 0.5) / 2 or 0
     local key = table.concat({ "c", look, #lay.houses, lay.tier, capital and 1 or 0, b.walls and 1 or 0,
         b.granary and 1 or 0, b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
-        b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, b.levee and 1 or 0, b.shelter and 1 or 0, siteKey(site) }, ":")
+        b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, b.levee and 1 or 0, b.shelter and 1 or 0, b.sanctum and 1 or 0, siteKey(site) }, ":")
     return kept(key, function()
         local L = LOOK[look]
         local parts = {}
@@ -1111,6 +1113,18 @@ function M.city(look, pop, capital, built, shore, drop, site)
                 parts[#parts + 1] = part(Sh.box(x + side * 0.9, 0, z + 2.5, 0.45, 0.45, 1.9), R.stone, 83)
             end
             parts[#parts + 1] = part(Sh.box(x, 1.9, z + 2.5, 2.4, 0.55, 0.5), R.stone, 84)
+        end
+        if b.sanctum then
+            -- The sanctum, against the demons: a ring of tall carved stones,
+            -- pale, round a lamp on a plinth kept burning.
+            local x, z = at("sanctum")
+            for k = 0, 5 do
+                local a = k / 6 * 2 * math.pi
+                parts[#parts + 1] = part(Sh.box(x + cos(a) * 2.4, 0, z + sin(a) * 2.1, 0.7, 0.6, 3.6 + (k % 2) * 0.8, -a), R.wall,
+                    90, function(ux, uy) if floor(uy * 6) % 2 == 0 and abs(ux) < 0.3 then return IDX.t end end)
+            end
+            parts[#parts + 1] = part(Sh.prism(6, x, 0, z, 0.8, 1.6), R.stone, 91)
+            parts[#parts + 1] = part(Sh.ell(x, 2.1, z, 0.55, 0.65, 0.55), GLOW, 92)
         end
         if b.levee then
             -- Banks of earth all round the hex, low and broad, faced with
@@ -1755,11 +1769,193 @@ function BEAST.serpent(pose)
     return p
 end
 
-local BEAST_SCALE = { wolf = 0.74, bear = 0.74, boar = 0.68, aurochs = 0.7, horse = 0.82, croc = 0.66, serpent = 0.8 }
+--- the demons ---------------------------------------------------------------------
+--
+-- The demons (src/demons.lua) are drawn so no one takes them for a beast:
+-- ink-black, glossy, and lit by pale eyes, many of them. Hell spiders on
+-- eight legs, giant eyes floating over the ground trailing tendrils,
+-- tentacles out of the sea, a brood mother twice a spider's size with her
+-- eggs on her back, and the Eye of the Abyss.
+
+local INK = ramp("u", "o", "o", "o")
+local GLOSS = ramp("k", "u", "o", "o")
+local SCLERA = ramp("w", "c", "s", "t")
+
+-- A spider facing +x: `big` the brood mother. Pose 0 standing, 1 and 2
+-- the walk, 3 reared up with its front legs high and fangs out, 4 crouched
+-- low, legs drawn in.
+local function spider(pose, big)
+    local p = {}
+    local rear = pose == 3 and 1 or 0
+    local low = pose == 4 and -1.2 or 0
+    local by = 3.8 + low + rear * 0.8
+    local tilt = A.rotZ(rear * 0.35)
+    -- The abdomen, a pale hourglass on its back; the brood mother's carries
+    -- her eggs.
+    p[#p + 1] = part(Sh.ell(-3.4, by + 0.8, 0, 3.8, 3.0, 3.2, tilt), GLOSS, 1, function(ux, uy, uz)
+        if uy > 0.55 and abs(uz) < 0.18 + abs(ux + 0.1) * 0.5 and abs(ux + 0.1) < 0.35 then return IDX.c end
+    end)
+    p[#p + 1] = part(Sh.ell(1.2, by + rear * 1.2, 0, 2.3, 1.7, 2.0), INK, 2)
+    -- Eyes: eight, in two rows, pale.
+    for k, e in ipairs({ { 3.2, 0.5, 0.55 }, { 3.2, 0.5, -0.55 }, { 3.0, 0.9, 1.15 }, { 3.0, 0.9, -1.15 },
+        { 2.8, 1.25, 0.35 }, { 2.8, 1.25, -0.35 }, { 2.5, 1.35, 0.95 }, { 2.5, 1.35, -0.95 } }) do
+        local r = k <= 2 and 0.45 or 0.3
+        p[#p + 1] = part(Sh.ell(e[1], by + rear * 1.2 + e[2], e[3], r, r, r), GLOW, 3)
+    end
+    -- Fangs, out when it strikes.
+    local fang = rear == 1 and 1.2 or 0.5
+    for _, z in ipairs({ -0.5, 0.5 }) do
+        p[#p + 1] = part(Sh.seg(3.3, by + rear * 1.2 - 0.5, z, 3.6 + fang * 0.4, by + rear * 1.2 - 0.9 - fang, z * 0.7, 0.32, 0.1),
+            BONE, 4)
+    end
+    -- Eight legs, each bent high at the knee; in the walk the two sets of
+    -- four step in turn.
+    local reach = pose == 4 and 4.6 or 6.4
+    for k, dx in ipairs({ 2.4, 0.9, -0.7, -2.4 }) do
+        for _, side in ipairs({ -1, 1 }) do
+            local set = ((k + (side > 0 and 1 or 0)) % 2 == 0) and 1 or -1
+            local step = stride(pose, 0.9) * set
+            local hx, hy, hz = 1.2 + dx * 0.35, by, side * 1.4
+            local fx, fy, fz = 1.2 + dx * 1.9 + step, 0.2, side * reach
+            local kx, ky, kz = 1.2 + dx * 1.2 + step * 0.5, by + 3.2 + (pose == 4 and -1.4 or 0), side * (reach * 0.62)
+            if pose ~= 0 and pose ~= 4 and set > 0 and pose ~= 3 then ky, fy = ky + 0.8, 0.9 end
+            if rear == 1 and k <= 2 then
+                kx, ky, kz = 3.8 + (2 - k), by + 5.0, side * 2.6
+                fx, fy, fz = 5.6 + (2 - k) * 0.8, by + 6.8 - k, side * 3.4
+            end
+            p[#p + 1] = part(Sh.seg(hx, hy, hz, kx, ky, kz, 0.42, 0.34), INK, 5 + k)
+            p[#p + 1] = part(Sh.seg(kx, ky, kz, fx, fy, fz, 0.34, 0.14), INK, 5 + k, function(ux, uy)
+                if uy < -0.6 then return IDX.n end
+            end)
+        end
+    end
+    if big then
+        -- Her eggs, pale, clustered on her back, and spines along it.
+        for k, e in ipairs({ { -3.8, 3.0, 0.9 }, { -2.6, 3.4, -0.7 }, { -4.6, 2.6, -1.0 }, { -3.0, 2.8, 1.8 },
+            { -4.2, 3.2, 0.0 }, { -2.2, 3.0, 1.0 } }) do
+            p[#p + 1] = part(Sh.ell(e[1], by + 0.8 + e[2], e[3], 0.8, 0.7, 0.8), SCLERA, 20 + k)
+        end
+        for k = 0, 3 do
+            p[#p + 1] = part(Sh.seg(-0.6 - k * 1.6, by + 2.4 + (k == 0 and 0 or 0.8), 0, -1.0 - k * 1.6, by + 4.8 + (k == 0 and 0 or 0.8), 0,
+                0.4, 0.05), INK, 30)
+        end
+    end
+    return p
+end
+
+function BEAST.spider(pose) return spider(pose, false) end
+function BEAST.brood(pose) return spider(pose, true) end
+
+-- An eye looking out along +x: white, veined, a dark iris and a pupil, a
+-- lid of black hide over the top of it.
+local function eyeball(p, x, y, z, r, id, wide, shut)
+    p[#p + 1] = part(Sh.ell(x, y, z, r, r, r), SCLERA, id, function(ux, uy, uz)
+        local f = ux
+        if f > 0.82 then return wide and IDX.u or IDX.o end
+        if f > (wide and 0.7 or 0.6) then return IDX.n end
+        if f > 0.52 then return IDX.t end
+        -- Veins, creeping out from the back.
+        local a = math.atan2(uz, uy)
+        if f < 0.3 and abs(sin(a * 5 + f * 9)) < 0.08 then return IDX.s end
+    end)
+    local lid = shut and 0.15 or (wide and 0.85 or 0.55)
+    p[#p + 1] = part(Sh.ell(x - r * 0.05, y + r * lid, z, r * 1.08, r * 0.62, r * 1.08), INK, id + 1)
+    if shut then p[#p + 1] = part(Sh.ell(x, y - r * 0.3, z, r * 1.06, r * 0.7, r * 1.06), INK, id + 2) end
+end
+
+-- A giant eye, floating over the ground, its tendrils hanging and curling
+-- under it. 0, 1 and 2 bobbing as it drifts; 3 its gaze, wide, the
+-- tendrils thrown out; 4 blinking.
+function BEAST.eye(pose)
+    local p = {}
+    local bob = ({ [0] = 0, 0.5, -0.5, 0.2, 0 })[pose] or 0
+    local y = 8.2 + bob
+    eyeball(p, 0, y, 0, 3.2, 1, pose == 3, pose == 4)
+    for k = 0, 5 do
+        local a = k / 6 * 2 * math.pi
+        local cz, cx = sin(a) * 1.8, cos(a) * 1.4 - 0.6
+        local out = pose == 3 and 2.2 or 0.6
+        local sway = sin(k * 1.7 + (pose == 1 and 0.8 or pose == 2 and -0.8 or 0)) * 0.9
+        local mx, mz = cx * (1.4 + out * 0.4) + sway, cz * (1.4 + out * 0.5)
+        p[#p + 1] = part(Sh.seg(cx, y - 2.4, cz, mx, y - 5.0, mz, 0.5, 0.32), INK, 10 + k)
+        p[#p + 1] = part(Sh.seg(mx, y - 5.0, mz, mx * 1.3 - sway, y - 7.4 + out, mz * 1.4, 0.32, 0.1), INK, 10 + k)
+    end
+    return p
+end
+
+-- A tentacle up out of the sea, its pivot at the water's top: a thick
+-- arm tapering to a curled tip, pale suckers along its inside, and two
+-- lesser ones beside it. 0, 1 and 2 swaying, 3 lashing down along +x, 4
+-- sunk low, coiling.
+local function arm(p, x0, z0, height, bend, side, id, thick)
+    local pts = {}
+    local n = 9
+    for k = 0, n do
+        local f = k / n
+        local curl = f * f * bend
+        local x = x0 + sin(curl) * height * 0.55 * f
+        local y = -1 + cos(curl * 0.8) * height * f
+        local z = z0 + side * sin(f * math.pi) * 1.4
+        pts[#pts + 1] = { x, y, z, thick * (1 - f * 0.82) }
+    end
+    for k = 1, n do
+        local a, b = pts[k], pts[k + 1]
+        p[#p + 1] = part(Sh.seg(a[1], a[2], a[3], b[1], b[2], b[3], a[4], b[4]), GLOSS, id, function(ux, uy, uz, l, nx, ny)
+            if nx < -0.4 then return IDX.n end
+        end)
+        if k % 2 == 0 and k < n then
+            local sx = a[1] - 0.8 * a[4]
+            p[#p + 1] = part(Sh.ell(sx, a[2], a[3], 0.32 * a[4] + 0.12, 0.3 * a[4] + 0.1, 0.32 * a[4] + 0.12), SCLERA, id + 1)
+        end
+    end
+end
+
+function BEAST.tentacle(pose)
+    local p = {}
+    local bend = ({ [0] = 1.4, 1.9, 1.0, 3.2, 2.6 })[pose] or 1.4
+    local h = pose == 4 and 7 or (pose == 3 and 12 or 14)
+    arm(p, 0, 0, h, bend, 1, 1, 1.7)
+    arm(p, -2.8, 2.6, h * 0.55, bend * 0.8 + 0.6, -1, 10, 1.0)
+    arm(p, -2.2, -2.8, h * 0.45, bend * 1.1 + 0.4, 1, 20, 0.9)
+    -- The water broken white round it.
+    for k = 0, 5 do
+        local a = k / 6 * 2 * math.pi
+        p[#p + 1] = part(Sh.ell(cos(a) * 2.4 - 0.6, -0.6, sin(a) * 2.4, 1.1, 0.35, 0.8), BONE, 30)
+    end
+    return p
+end
+
+-- The Eye of the Abyss: a great eye on a writhing crown of tentacles and
+-- black spines, floating high. 0, 1 and 2 drifting, 3 its gaze, 4 the
+-- arms coiling.
+function BEAST.abyss(pose)
+    local p = {}
+    local bob = ({ [0] = 0, 0.6, -0.6, 0.3, 0 })[pose] or 0
+    local y = 13 + bob
+    eyeball(p, 0, y, 0, 5.2, 1, pose == 3, false)
+    for k = 0, 7 do
+        local a = k / 8 * 2 * math.pi + 0.2
+        local ca, sa = cos(a), sin(a)
+        local out = pose == 3 and 1.6 or (pose == 4 and 0.6 or 1)
+        local w = sin(k * 2.1 + bob * 3) * 1.2
+        local x1, z1 = ca * 4.8, sa * 4.8
+        local x2, z2 = ca * 8.0 * out + w, sa * 8.0 * out
+        local x3, z3 = ca * 9.6 * out, sa * 9.6 * out + w
+        p[#p + 1] = part(Sh.seg(x1 * 0.6 - 1, y - 3, z1 * 0.6, x2, y - 6.5, z2, 1.0, 0.6), GLOSS, 10 + k)
+        p[#p + 1] = part(Sh.seg(x2, y - 6.5, z2, x3, y - 11 + (pose == 4 and 4 or 0), z3, 0.6, 0.15), GLOSS, 10 + k)
+        p[#p + 1] = part(Sh.seg(-ca * 0.5 - 1.5, y + 2.5, sa * 4, -ca * 1.2 - 2.4 - k % 2, y + 7 + (k % 3), sa * 5.6, 0.45, 0.05),
+            INK, 30)
+    end
+    return p
+end
+
+local BEAST_SCALE = { wolf = 0.74, bear = 0.74, boar = 0.68, aurochs = 0.7, horse = 0.82, croc = 0.66, serpent = 0.8,
+    spider = 0.62, brood = 0.95, eye = 0.7, tentacle = 0.78, abyss = 0.95 }
 -- What each beast's poses past 3 are, for the board to choose among.
 M.BEAST_POSES = {
     wolf = { howl = 4, sniff = 5, lie = 6 }, bear = { rear = 4, root = 5 }, boar = { root = 4 },
     aurochs = { graze = 4 }, horse = { graze = 4, rear = 5 }, croc = { sunk = 4 }, serpent = { roll = 4, sunk = 5 },
+    spider = { crouch = 4 }, brood = { crouch = 4 }, eye = { blink = 4 }, tentacle = { coil = 4 }, abyss = { coil = 4 },
 }
 
 function M.beast(kind, face, pose)
@@ -1811,8 +2007,69 @@ function LAIR.hive()
     p[#p + 1] = part(Sh.ell(1.6, 4.8, 1.8, 0.7, 0.9, 0.5), BLACK, 3)
     return p
 end
+-- A rift: the ground torn open in a jagged black fissure, its lips of rock
+-- thrown up and leaning out, a pale light down in it.
+function LAIR.rift()
+    local p = {}
+    p[#p + 1] = part(Sh.ell(0, 0.2, 0, 7.5, 0.7, 2.6, A.rotY(0.35)), INK, 1, function(ux, uy, uz)
+        if abs(uz + sin(ux * 9) * 0.15) < 0.12 then return IDX.w end
+        if abs(uz + sin(ux * 9) * 0.15) < 0.3 then return IDX.c end
+    end)
+    for k = 0, 9 do
+        local f = k / 9 - 0.5
+        local side = k % 2 == 0 and 1 or -1
+        local x, z = f * 13, side * (2.6 + abs(sin(k * 2.3)) * 0.8) - f * 4.6
+        local h = 2.2 + abs(sin(k * 1.7)) * 2.4
+        p[#p + 1] = part(crag({ { x - 1.4, z - 0.9 }, { x + 1.4, z - 0.9 }, { x + 1.0, z + 1.0 }, { x - 1.2, z + 0.9 } }, 0,
+            { x, h, z + side * 1.4 }), R.stone, 2 + k, function(ux, uy, uz, l, nx, ny)
+            if ny > 0.7 then return IDX.n end
+        end)
+    end
+    for k = 0, 5 do
+        local a = k * 1.1
+        p[#p + 1] = part(Sh.ell(cos(a) * 8, 0.3, sin(a) * 5, 0.8, 0.5, 0.7), R.stone, 20)
+    end
+    return p
+end
+
+-- The citadel of the abyss, the demons' capital: a black spire of rock
+-- grown out of the ground, ribbed, with lesser spikes round it like the
+-- towers of a wall, a gate black as the pit at its foot, and an eye
+-- glowing in a window high up.
+function LAIR.citadel()
+    local p = {}
+    local ribs = function(ux, uy, uz, l, nx, ny)
+        if floor(math.atan2(uz, ux) * 3) % 2 == 0 then return IDX.u end
+        if floor(uy * 7) % 3 == 0 then return IDX.n end
+    end
+    p[#p + 1] = part(crag({ { -4, -4 }, { 4, -4.4 }, { 5, 1 }, { 1.4, 4.6 }, { -4.4, 3 } }, 0, { 0, 30, 0 }), GLOSS, 1, ribs)
+    p[#p + 1] = part(crag({ { -6, -2 }, { -1, -6 }, { 4, -5 }, { 7, 0 }, { 3, 5 }, { -4, 5 } }, 0, { 0.4, 10, 0 }), INK, 2)
+    for k = 0, 5 do
+        local a = k / 6 * 2 * math.pi + 0.4
+        local x, z = cos(a) * 8.4, sin(a) * 6.4
+        local h = 9 + (k % 3) * 3
+        p[#p + 1] = part(crag({ { x - 1.4, z - 1.2 }, { x + 1.4, z - 1.2 }, { x + 1.2, z + 1.2 }, { x - 1.4, z + 1.0 } }, 0,
+            { x + cos(a) * 1.2, h, z + sin(a) * 1.2 }), GLOSS, 3 + k, ribs)
+    end
+    -- Walls of black between the spikes, low.
+    for k = 0, 5 do
+        local a0, a1 = k / 6 * 2 * math.pi + 0.4, (k + 1) / 6 * 2 * math.pi + 0.4
+        if k ~= 1 then
+            p[#p + 1] = part(Sh.seg(cos(a0) * 8.4, 1.8, sin(a0) * 6.4, cos(a1) * 8.4, 1.8, sin(a1) * 6.4, 1.6), INK, 10)
+        end
+    end
+    -- The gate, at the front, and the eye in its window.
+    p[#p + 1] = part(Sh.ell(1.2, 2.0, 4.6, 1.8, 3.2, 0.9), R.dark, 20, function() return IDX.o end)
+    eyeball(p, 1.2, 19, 2.1, 1.3, 21, true, false)
+    for _, z in ipairs({ -1, 1 }) do
+        p[#p + 1] = part(Sh.ell(1.4 + z * 0.4, 3.0, 4.9, 0.25, 0.25, 0.25), GLOW, 25)
+    end
+    return p
+end
+
+local LAIR_SCALE = { citadel = 0.78, rift = 0.62 }
 function M.lair(kind)
-    return kept("lair:" .. kind, LAIR[kind], M.UNIT_SCALE * 0.62)
+    return kept("lair:" .. kind, LAIR[kind], M.UNIT_SCALE * (LAIR_SCALE[kind] or 0.62))
 end
 
 -- A bee, or a few: a speck of ink, for the board to swarm about a hive.

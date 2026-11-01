@@ -10,6 +10,7 @@ local Mapgen = require "src.mapgen"
 local D = require "src.defs"
 local Cat = require "src.cataclysm"
 local Sky = require "src.skyfall"
+local Demons = require "src.demons"
 
 local max = math.max
 
@@ -21,8 +22,8 @@ local function military(u) return not u.def.civilian end
 local function wild(game, cell, n)
     for _, m in ipairs(game:within(cell, n)) do
         local v = game.mil[m.id]
-        if v and v.owner == game.WILD and v.def.temper == "hostile" then return v end
-        if m.lair and m.lair.def.beast then return m end
+        if v and v.owner == game.WILD and (v.def.temper == "hostile" or v.def.demon) then return v end
+        if m.lair and (m.lair.def.beast or m.lair.def.demon) then return m end
     end
 end
 
@@ -183,7 +184,7 @@ local function improve(game, u)
             and not game.civ[cell.id] then
             local techs = game.players[u.owner].techs
             local can = not wild(game, cell, 2) and not Sky.marked(game, cell) and ((cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert"
-                and not D.TERRAIN[cell.terrain].noFarm and not cell.flood and not game:isWater(cell))
+                and not D.TERRAIN[cell.terrain].noFarm and not cell.flood and not game:isWater(cell) and not cell.blight)
                 or ((cell.elev == "hills" or cell.resource == "iron") and techs.mining and not cell.glow)
                 or (cell.resource == "fish" and techs.sailing))
             if can then
@@ -214,8 +215,11 @@ local function strike(game, u)
         if game:canAttack(u, cell) then
             local dealt, taken = game:forecast(u, cell)
             local target = game.mil[cell.id]
-            local hp = cell.city and cell.city.hp or (target and target.hp or 0)
+            local lair = not target and game:besieged(cell, u.owner)
+            local hp = cell.city and cell.city.hp or (target and target.hp or (lair and lair.hp or 0))
             local v = dealt - taken * 0.8 + (dealt >= hp and 40 or 0)
+            -- The demons' citadel is worth the blood, while there is blood.
+            if lair and u.hp > taken + 15 then v = max(v, dealt + 10) end
             if taken >= u.hp then v = -100 end
             -- A city at nothing is the best target there is.
             if cell.city and cell.city.hp <= 0 and not u.def.ranged then v = 200 end
@@ -322,6 +326,17 @@ local function soldier(game, p, u, attacking)
             return
         end
     end
+    -- The demons' citadel, once the army is marching and it has been seen:
+    -- before any rival's city, half of it.
+    local citadel, cc = Demons.citadel(game)
+    if citadel and attacking and u.id % 2 == 0 and p.explored[cc.id] and not game.cells[u.cell].city then
+        local path = game:path(u, cc.id, true)
+        if path then
+            if #path > 0 then game:walk(u, path) end
+            strike(game, u)
+            return
+        end
+    end
     -- A beast that goes for people, near one of our cities and not too
     -- strong for us: hunt it down (it pays). Not the city's own guard.
     for _, c in ipairs(game:citiesOf(p.id)) do
@@ -331,6 +346,19 @@ local function soldier(game, p, u, attacking)
             march(game, u, game.cells[b.cell])
             strike(game, u)
             return
+        end
+    end
+    -- A rift near one of our cities with no demon on it: seal it (walking
+    -- in does). Not the city's own guard.
+    for _, l in ipairs(game.lairs) do
+        if l.kind == "rift" and not game.mil[l.cell] then
+            local rc = game.cells[l.cell]
+            for _, c in ipairs(game:citiesOf(p.id)) do
+                if game.mil[c.cell] ~= u and game:dist(rc, game.cells[c.cell]) <= 6
+                    and game:dist(game.cells[u.cell], rc) <= 6 then
+                    if march(game, u, rc) then return end
+                end
+            end
         end
     end
     -- A guard stays home unless the army is marching.

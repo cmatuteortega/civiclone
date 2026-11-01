@@ -57,7 +57,7 @@ Settings.LIST = {
     { id = "devTools", tab = "gameplay", name = "DEVELOPER TOOLS", values = ONOFF.values, show = ONOFF.show, default = false },
     -- Not in a tab: the cataclysm last chosen for a new game (the new game
     -- window, src/ui/menu.lua), kept for the next.
-    { id = "cataclysm", tab = "newgame", name = "CATACLYSM", values = { "heat", "flood", "sky", "none" }, default = "heat" },
+    { id = "cataclysm", tab = "newgame", name = "CATACLYSM", values = { "heat", "flood", "sky", "demons", "none" }, default = "heat" },
 }
 Settings.BY = {}
 for _, s in ipairs(Settings.LIST) do Settings.BY[s.id] = s end

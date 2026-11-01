@@ -105,7 +105,22 @@ D.BEASTS = {
     aurochs = { name = "AUROCHS", str = 28, moves = 1, sight = 2, temper = "neutral", lives = "land", leash = 2, sense = 1,
         loot = { food = 25, culture = 4 }, beast = true },
     horse = { name = "WILD HORSES", str = 8, moves = 3, sight = 2, temper = "shy", lives = "land", leash = 3, sense = 2,
-        loot = { food = 6 }, tame = "horses", beast = true },
+        loot = { food = 6 }, tame = "horses", beast = true },    -- The demons' (src/demons.lua): owned by the wild too, but they belong
+    -- to no lair's leash and go for the towns. `demon`: one of them, drawn
+    -- ink-black with pale eyes so it is never taken for a beast. `drags`: it
+    -- pulls a civilian or anyone in a boat under at a blow. `shore`: it
+    -- lives in the coast's water beside the land and never moves (its one
+    -- move is for its blow).
+    spider = { name = "HELL SPIDER", str = 22, moves = 3, sight = 2, temper = "demon", lives = "land", leash = 3, sense = 5,
+        night = 4, loot = { gold = 10, glory = 0.5 }, demon = true },
+    eye = { name = "GIANT EYE", str = 16, ranged = 28, range = 2, moves = 2, sight = 3, temper = "demon", lives = "land",
+        leash = 3, sense = 5, loot = { gold = 16, culture = 4, glory = 1 }, demon = true },
+    tentacle = { name = "TENTACLE", str = 30, moves = 1, sight = 1, temper = "demon", lives = "shore", leash = 0, sense = 1,
+        sea = true, drags = true, loot = { gold = 15, glory = 1 }, demon = true },
+    brood = { name = "BROOD MOTHER", str = 44, moves = 2, sight = 2, temper = "demon", lives = "land", leash = 4, sense = 9,
+        night = 4, loot = { gold = 40, culture = 8, glory = 2 }, demon = true },
+    abyss = { name = "EYE OF THE ABYSS", str = 58, moves = 1, sight = 3, temper = "demon", lives = "land", leash = 99,
+        sense = 99, loot = { gold = 150, culture = 40, glory = 10 }, demon = true, boss = true },
 }
 -- Lairs: a den, a cave or a hive on a hex, which the beasts come out of
 -- (one every `every` turns, up to `keep` of them about) until someone walks
@@ -115,6 +130,11 @@ D.LAIRS = {
     den = { name = "WOLF DEN", beast = "wolf", keep = 2, every = 10, prize = { gold = 40 } },
     cave = { name = "BEAR CAVE", beast = "bear", keep = 1, every = 14, prize = { gold = 50, culture = 10 } },
     hive = { name = "WILD BEES", sting = 20, prize = { gold = 15, food = 15 } },
+    -- The demons' (src/demons.lua): a rift torn in the ground, and their one
+    -- capital, the citadel, which stands `hp` and must be beaten down before
+    -- anyone can walk in and raze it. Neither sends out beasts as a den does.
+    rift = { name = "RIFT", demon = true, prize = { gold = 30, culture = 8, glory = 2 } },
+    citadel = { name = "CITADEL OF THE ABYSS", demon = true, citadel = true, prize = { gold = 150, culture = 40, glory = 10 } },
 }
 -- How many of each the map starts with, per 100 hexes of land (or of ocean,
 -- for the serpents), and how near a civilization's start any may be.
@@ -165,6 +185,11 @@ D.BUILDINGS = {
     -- with turf, where its people hide and its grain is kept. Built only
     -- when the world is ending, and the one ward the sky's falling has.
     shelter = { name = "SHELTER", short = "SHELT.", cost = 60, ward = "any", tech = "mining", order = 10 },
+    -- Against the demons (D.DEMONS): a ring of carved standing stones and a
+    -- lamp kept burning. No rift opens on the city's land and the blight
+    -- never takes it, the city shoots the demons near it even without walls,
+    -- and its people dread less.
+    sanctum = { name = "SANCTUM", short = "SANCT.", cost = 70, ward = "demons", tech = "writing", order = 11 },
 }
 
 -- The shelter, against whatever ends the world: a city with one takes only
@@ -281,13 +306,66 @@ D.SKY = {
     heartPop = 0.5, ringCity = 80,
 }
 
+-- The demons: the fourth way the world can end (src/demons.lua), on the
+-- same turns as the others and to the same last turn. The first that fights
+-- back: what holds it off is an army as much as a building.
+D.DEMONS = {
+    omen = 90,         -- the blood moon; on turn 99 the citadel's ground is seen marked
+    rifts = 100,       -- the citadel rises, and rifts open in the land
+    deep = 120,        -- tentacles rise out of the sea by the shore
+    hellgate = 140,    -- the brood mothers come, and the Eye of the Abyss
+    -- The citadel, the demons' one capital: how far it stands from every
+    -- city (at least), its strength and HP in each stage (it grows), what it
+    -- heals a turn, how far its blight reaches, how often it sends a demon
+    -- out and how many of its own it keeps about.
+    citadelFrom = 5,
+    citadelStr = { rifts = 26, deep = 34, hellgate = 44 },
+    citadelHp = { rifts = 200, deep = 260, hellgate = 320 },
+    citadelHeal = 15,
+    citadelReach = { rifts = 2, deep = 3, hellgate = 4 },
+    citadelEvery = { rifts = 3, deep = 2, hellgate = 2 },
+    citadelKeep = { rifts = 3, deep = 5, hellgate = 7 },
+    citadelHit = 15,   -- to every unit beside it, each turn
+    -- Rifts: the chance one opens a turn, how many may be open at once, how
+    -- near a city it may open, how often it sends a demon out, how many of
+    -- its own it keeps about and how far its blight reaches. Each is seen
+    -- coming the turn before.
+    rift = { rifts = 0.35, deep = 0.5, hellgate = 0.6 },
+    riftMax = { rifts = 4, deep = 6, hellgate = 8 },
+    riftFrom = { rifts = 3, deep = 2, hellgate = 2 },
+    riftEvery = { rifts = 4, deep = 3, hellgate = 3 },
+    riftKeep = { rifts = 2, deep = 2, hellgate = 3 },
+    riftReach = { rifts = 1, deep = 2, hellgate = 2 },
+    -- Tentacles: how many rise a turn by the shore, how many may be up at
+    -- once, and how many turns one stays before it sinks. Seen coming the
+    -- turn before. With nothing to strike it wrecks what is beside it by
+    -- `wreck`.
+    tentacles = { deep = 1, hellgate = 2 },
+    tentacleMax = { deep = 4, hellgate = 7 },
+    tentacleLife = 8,
+    wreck = 0.35,
+    -- The blight: how many hexes each rift (and the citadel, `citadelSpread`)
+    -- blights a turn within its reach, what it does to a unit standing on
+    -- it, and the chance a blighted hex out of every reach heals a turn.
+    spread = 2, citadelSpread = 3,
+    blightDamage = 10,
+    heal = 0.2,
+    -- Dread: food every city loses a turn, in each stage; a sanctum spares
+    -- it `sanctumDread`.
+    dread = { rifts = 1, deep = 3, hellgate = 6 },
+    sanctumDread = 2,
+    -- The Eye of the Abyss: told on `eyeWarn`, it comes out of the citadel
+    -- on `eye`, if the citadel still stands.
+    eyeWarn = 144, eye = 150,
+}
+
 -- Technologies, in the order the list shows them.
 D.TECHS = {
     { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY" },
     { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES, SHELTER" },
     { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "ARCHER" },
     { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN, LEVEE" },
-    { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY" },
+    { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY, SANCTUM" },
     { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, gives = "SPEARMAN" },
     { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, gives = "HORSEMAN" },
     { id = "currency", name = "CURRENCY", cost = 80, needs = { "writing" }, gives = "MARKET" },

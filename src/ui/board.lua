@@ -25,6 +25,7 @@ local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
 local Rain = require "src.ui.rain"
 local SkyFx = require "src.ui.sky"
+local Abyss = require "src.ui.abyss"
 local Audio = require "src.ui.audio"
 
 local floor, min = math.floor, math.min
@@ -41,6 +42,8 @@ Board.TEAM = {
     -- The wild: what goes for people under ink, the rest on khaki.
     wild = { fill = "k", ink = "o", line = function() return IDX.n end },
     hostile = { fill = "o", ink = "s", line = function() return IDX.n end },
+    -- The demons (src/demons.lua): pale on ink, banded pale, never the wild's.
+    demon = { fill = "o", ink = "w", band = "c", line = function() return IDX.w end },
 }
 
 local function lookOf(owner) return S.game.players[owner].civ.look end
@@ -434,6 +437,21 @@ local function idlePose(u, a, near)
         local f = t % 10
         if f > 6.5 then return P_.sunk end
         return ({ [0] = 0, 1, P_.roll, 2 })[floor(f * 2) % 4]
+    elseif k == "spider" or k == "brood" then
+        -- Still, then a twitch of the legs; low and ready when anyone is near.
+        local f = t % 5
+        if near then return f % 1.6 < 0.8 and P_.crouch or 0 end
+        return (f < 3.6 and 0) or (f < 4.0 and 1) or (f < 4.4 and 2) or P_.crouch
+    elseif k == "eye" or k == "abyss" then
+        -- Drifting up and down; the eye blinks now and then.
+        local f = t % 7
+        if k == "eye" and f > 6.6 then return P_.blink end
+        return ({ [0] = 0, 1, 0, 2 })[floor(t * 1.5) % 4]
+    elseif k == "tentacle" then
+        -- Swaying, coiling down now and then.
+        local f = t % 9
+        if f > 7 then return P_.coil end
+        return ({ [0] = 0, 1, 0, 2 })[floor(t * 1.2) % 4]
     end
     return 0
 end
@@ -475,6 +493,10 @@ local function lairs(me, list)
         if me.explored[cell.id] then
             local _, y = Anim.home(cell)
             local x, z = cell.x - 3, cell.z - 5
+            -- The demons' rift lies across the middle of its hex, their
+            -- citadel stands on it whole.
+            if l.kind == "rift" then x, z = cell.x, cell.z - 1 end
+            if l.kind == "citadel" then x, z, y = cell.x - 1, cell.z - 4, cell.top end
             list[#list + 1] = { z = z, draw = function() P.stamp(M.lair(l.kind), x, y, z) end }
             if l.kind == "hive" and me.visible[cell.id] and not Sea.still() then
                 local t = Sea.air()
@@ -592,11 +614,13 @@ local function things(me)
     end
     Wild.things(list, me, P.stamp)
     SkyFx.things(me, list)
+    Abyss.things(me, list)
     table.sort(list, function(a, b) return a.z < b.z end)
     for _, t in ipairs(list) do t.draw() end
     Birds.draw()
     Rain.draw()
     SkyFx.draw()
+    Abyss.draw()
 end
 
 --- flat on top -----------------------------------------------------------------
@@ -620,6 +644,7 @@ local function unitBanner(u)
     end
     local team = Board.TEAM[lookOf(u.owner)]
     if u.owner == g.WILD and u.def.temper == "hostile" then team = Board.TEAM.hostile end
+    if u.owner == g.WILD and u.def.demon then team = Board.TEAM.demon end
     local bx, by = sx - 4, sy - 9
     local sel = selectedUnit() == u
     Draw.rect(sel and "w" or "o", bx - 1, by - 1, 9, 9)
@@ -670,6 +695,20 @@ function Board.banners()
     end
     for _, c in ipairs(g.cities) do
         if me.explored[c.cell] then cityBanner(c) end
+    end
+    -- The demons' citadel: its name, and what it has left to stand.
+    for _, l in ipairs(g.lairs) do
+        if l.def.citadel and me.explored[l.cell] then
+            local cell = g.cells[l.cell]
+            local sx, sy = screen(cell.x, cell.top + 44, cell.z - 4)
+            local name = "CITADEL"
+            local w = Font.width(name) + 4
+            local x, y = sx - floor(w / 2), sy - 12
+            Draw.rect("w", x - 1, y - 1, w + 2, 11)
+            Draw.rect("o", x, y, w, 9)
+            Draw.text("w", name, x + 2, y + 2)
+            Draw.bar(x, y - 3, w, l.hp / l.maxHp, "w", "o")
+        end
     end
     -- Turns to the hex under the pointer.
     local u = selectedUnit()

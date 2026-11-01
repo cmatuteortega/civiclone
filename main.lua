@@ -60,7 +60,7 @@ function love.quit() Audio.stop() end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
 -- bar fills, then the first turn. The world ends by the cataclysm chosen in
--- the new game window (or `--cataclysm heat|flood|sky|none`), or by none.
+-- the new game window (or `--cataclysm heat|flood|sky|demons|none`), or by none.
 function S.newGame(seed)
     seed = seed or S.seedArg or (os.time() % 100000)
     S.seedArg = nil
@@ -109,7 +109,7 @@ function love.load(args)
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
-        -- `--cataclysm heat|flood|sky|none`: how the world ends, whatever the new game
+        -- `--cataclysm heat|flood|sky|demons|none`: how the world ends, whatever the new game
         -- window last had.
         if a == "--cataclysm" and args[n + 1] then S.cataclysmArg = args[n + 1] end
         -- `--touch` lays out the screen as for a phone.
@@ -403,6 +403,63 @@ local function followPlan()
             S.selected = nil
             View.lookAt(from, true)
         end
+        -- `--select abyss`: the demons round the player's first unit: their
+        -- citadel risen a few hexes off with its blight about it, a rift
+        -- open and another and a tentacle coming, and one of every demon,
+        -- all of it shown.
+        if plan.select == "abyss" then
+            local D = require "src.defs"
+            local Beasts = require "src.beasts"
+            local Demons = require "src.demons"
+            local g, p = S.game, S.game.players[1]
+            g.cataclysm.kind = "demons"
+            local from = g.cells[g:unitsOf(1)[1].cell]
+            local spots = g:within(from, 5)
+            table.sort(spots, function(x, y) return g:dist(x, from) < g:dist(y, from) end)
+            local used = {}
+            local function take(f, near)
+                for _, cell in ipairs(spots) do
+                    if not used[cell.id] and not cell.city and not cell.lair and not g.mil[cell.id] and not g.civ[cell.id]
+                        and g:dist(cell, from) >= (near or 2) and f(cell) then
+                        used[cell.id] = true
+                        return cell
+                    end
+                end
+            end
+            local function ground(c) return g:passable(c) end
+            local cit = take(function(c) return ground(c) and g:dist(c, from) >= 3 end, 3)
+            if cit then
+                Beasts.addLair(g, "citadel", cit.id)
+                local l = cit.lair
+                l.hp, l.maxHp, l.str = 230, 320, D.DEMONS.citadelStr.deep
+                g.cataclysm.citadel = cit.id
+                Demons.blight(g, cit)
+                for _, n in ipairs(g:neighbours(cit)) do
+                    if ground(n) and not n.city then Demons.blight(g, n) end
+                    used[n.id] = true
+                end
+            end
+            local rift = take(ground)
+            if rift then Beasts.addLair(g, "rift", rift.id); Demons.blight(g, rift) end
+            g.cataclysm.marks = {}
+            local m = take(ground)
+            if m then g.cataclysm.marks[m.id] = "rift" end
+            local sea = take(function(c) return c.terrain == "coast" end, 1)
+            if sea then g.cataclysm.marks[sea.id] = "tentacle" end
+            local shore = take(function(c)
+                if c.terrain ~= "coast" then return false end
+                for _, n in ipairs(g:neighbours(c)) do if ground(n) then return true end end
+            end, 1)
+            if shore then g:addUnit("tentacle", g.WILD, shore.id).home = shore.id end
+            for _, kind in ipairs({ "spider", "eye", "brood", "spider", "abyss" }) do
+                local c = take(ground)
+                if c then g:addUnit(kind, g.WILD, c.id).home = c.id end
+            end
+            for _, cell in ipairs(g:within(from, 6)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+            p.sightChanged = true
+            S.selected = nil
+            View.lookAt(from, true)
+        end
         -- `--select bigfall`: a great stone coming on open land beside a
         -- forest near the player's capital, the only one this turn, the
         -- camera on it (with `--next`, to watch it come down).
@@ -456,7 +513,7 @@ local function followPlan()
         -- `shelter`): the player's capital given one, selected.
         local heat = ({ fire = "fire", scorch = "scorched", burnt = "burnt", flood = "flood", silt = "silt",
             drowned = "drowned", marsh = "marsh", crater = "crater", glow = "glow", mark = "mark",
-            heart = "heart" })[plan.select or ""]
+            heart = "heart", blight = "blight" })[plan.select or ""]
         if heat then
             local g, p = S.game, S.game.players[1]
             local best, bv = nil, 0

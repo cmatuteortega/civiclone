@@ -21,7 +21,7 @@ that is the file to edit to tune the game.
 15. [Sight and fog of war](#sight-and-fog-of-war)
 16. [The rival civilizations](#the-rival-civilizations)
 17. [The wild](#the-wild)
-18. [The heat death](#the-heat-death) · [The deluge](#the-deluge)
+18. [The heat death](#the-heat-death) · [The deluge](#the-deluge) · [The sky falls](#the-sky-falls) · [The demons](#the-demons)
 19. [Winning and losing](#winning-and-losing)
 20. [How it is drawn](#how-it-is-drawn)
 21. [How it sounds](#how-it-sounds)
@@ -42,11 +42,11 @@ begins:
 | **Heat death** | The [heat death](#the-heat-death): drought, wildfires and the scorch, and the game ends at turn 160 |
 | **The deluge** | The [deluge](#the-deluge): the long rains, the floods and the rising sea, and the game ends at turn 160 |
 | **Skyfall** | The [sky falls](#the-sky-falls): the starfall, the bombardment and the long night, and the game ends at turn 160 |
-| **Demons** | Shown greyed: not made yet |
+| **Demons** | [The demons](#the-demons): the rifts, the deep and the hellgate, a citadel to raze, and the game ends at turn 160 |
 | **None** | No cataclysm, no cisterns, levees or shelters: the game ends at turn 150 on score |
 
 The choice is kept for the next game. `love . --cataclysm none` (or `heat`,
-`flood` or `sky`) overrides it.
+`flood`, `sky` or `demons`) overrides it.
 
 Every game makes a new map from a seed: random by default, or chosen with
 `love . --seed 1234`. The same seed always makes the same map. While the map
@@ -451,12 +451,14 @@ below 1) and the store empties.
 | Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less | Masonry; only in the heat death |
 | Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less | Masonry; only in the deluge |
 | Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Mining; only when there is a cataclysm |
+| Sanctum | 70 | Against [the demons](#the-demons): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Writing; only against the demons |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
 a round stone tank of water under a little roofed well-head, low banks of
 earth capped with stone all round the hex (the levee), a low mound of turf
-ringed with stones with a stone doorway into it at the front (the shelter).
+ringed with stones with a stone doorway into it at the front (the shelter), a ring of tall pale carved
+stones round a lamp kept burning (the sanctum).
 A city on the water builds out over it on the side nearest the front of the
 screen: steps down the bank and a pier with a boat tied up; with a harbour a
 stone quay, a crane and goods; with a lighthouse a mole out to a striped tower
@@ -553,7 +555,7 @@ waits for the next choice.
 | Mining | 25 | — | Mines, Shelter |
 | Archery | 35 | — | Archer |
 | Masonry | 40 | Mining | Walls, Cistern, Levee |
-| Writing | 50 | Pottery | Library |
+| Writing | 50 | Pottery | Library, Sanctum |
 | Bronze Working | 55 | Mining | Spearman |
 | Horseback Riding | 60 | Archery | Horseman |
 | Currency | 80 | Writing | Market |
@@ -881,12 +883,90 @@ omen on, and gets its units out from under the stones. A shelter is not
 only the sky's: against the heat or the deluge, the AI builds one once its
 cistern or levee is up.
 
+## The demons
+
+The world ends in the abyss. From turn 90 a blood moon hangs in the night,
+and the game ends when turn 160 is played out. It is the one cataclysm that
+fights back: the heat, the water and the stones come whatever anyone does,
+and the demons can be beaten. What holds them off is an army as much as a
+building. The rules are in `src/demons.lua`, the numbers in `D.DEMONS` in
+`src/defs.lua`.
+
+| Turns | Stage | What happens |
+| --- | --- | --- |
+| 90 | **The omen** | Everyone is told the rifts open in 10 turns. A blood moon, black with a pale rim, hangs in the night. On turn 99 the ground the citadel will rise on is seen splitting |
+| 100–119 | **The rifts** | **The citadel of the abyss** rises: the demons' one capital. Rifts open in the land (a 35% chance a turn, up to 4 open), each seen coming the turn before. Hell spiders come out of both. Every city loses 1 food a turn to dread |
+| 120–139 | **The deep** | The citadel grows. Giant eyes come out with the spiders. **Tentacles** rise out of the coast's water beside the land, 1 a turn, up to 4. Rifts open half the time, up to 6, and nearer the towns. The dread takes 3 food a turn |
+| 140–160 | **The hellgate** | The citadel at its greatest, **brood mothers** marching on the towns, 2 tentacles a turn, up to 7, and up to 8 rifts. The dread takes 6 food a turn. On turn 144 everyone is told **the Eye of the Abyss** opens in the citadel, and on turn 150 it does, if the citadel still stands |
+
+**The demons** are the wild's, as the beasts are, but they keep to no lair:
+they go for the civilizations' towns first and their people on the way, and
+they never stop at a border. They are drawn ink-black and glossy, lit by pale
+eyes, and their banners are pale on ink, banded pale, so none is taken for a
+beast.
+
+| Demon | Strength | Moves | What it does | Slain, it brings |
+| --- | --- | --- | --- | --- |
+| **Hell spider** | 22 (26 at night) | 3 | Eight legs, eight pale eyes, a pale hourglass on its back. Goes for the nearest town within 5 | 10 gold, ½ glory |
+| **Giant eye** | 16, shoots 28 at 2 hexes | 2 | Floats over the ground trailing tendrils, and strikes from afar: it comes only as near as it must | 16 gold, 4 culture, 1 glory |
+| **Tentacle** | 30 | — | Rises out of the coast's water beside the land and never moves. Lashes whatever is on the shore beside it: it drags a civilian, or anyone in a boat, under at a blow. With no one to strike it tears apart a farm, mine or fishing boats beside it, a third of the time. The water round it yields no food. It sinks after 8 turns. Struck from the shore by any soldier, by ships, by archers | 15 gold, 1 glory |
+| **Brood mother** | 44 (48 at night) | 2 | Twice a spider's size, her eggs on her back. Only out of the citadel, in the hellgate. Goes for the nearest town within 9 | 40 gold, 8 culture, 2 glory |
+| **Eye of the Abyss** | 58 | 1 | A great eye on a crown of tentacles. Goes for the nearest capital, wherever it is | 150 gold, 40 culture, 10 glory |
+
+**The towns.** A demon strikes a city as a soldier does, but never takes it:
+its blow leaves the city at 1 HP at least, and one that would have fallen
+loses a citizen to the demons instead (once a turn, never the last, and none
+from a city with a shelter).
+
+**The citadel** rises at least 5 hexes from every city, most likely just
+beyond that and out of anyone's borders, and everyone is shown where. It
+stands like a city: 200 HP and strength 26 in the rifts, 260 and 34 in the
+deep, 320 and 44 in the hellgate, healing 15 a turn. Its name and HP show
+over it. It sends a demon out every 3 turns (2 from the deep on), keeping 3,
+5 and then 7 of its own about. It blights the land round it, 3 hexes a
+turn, out to 2, 3 and then 4 hexes: those are its borders. It strikes every
+unit beside it for 15 HP a turn. No one can walk into it while it stands.
+Beaten down to nothing (archers can help, but only a melee unit can go in),
+a melee unit walks in and **razes** it, for 150 gold, 40 culture and 10
+glory. Then its blight heals, it sends no one out, and the Eye of the Abyss
+never comes. There is only ever one.
+
+**Rifts** open on land at least 3 hexes from every city (2 from the deep
+on), likeliest nearest the towns, never on a sanctum's land. Each sends out
+a demon every 4 turns (3 from the deep on) and keeps 2 (3 in the hellgate),
+and blights 2 hexes a turn within 1 of it (2 from the deep on). A soldier
+that walks into one with no demon on it **seals** it, for 30 gold, 8
+culture and 2 glory, and its own ground heals at once. Whatever stands where
+a rift or the citadel comes up is thrown to a free hex beside, or lost.
+
+**The blight** kills the trees where they stand (stumps and snags are left),
+takes the farm or the mine and the grain, and yields no food at all. A unit
+that ends a turn on it loses 10 HP; a builder can't farm or mine it. Out of
+every rift's and the citadel's reach it heals, a fifth of the time each
+turn. It is drawn as ground gone black in patches, veined with cracks of
+ink with a pale glint in them.
+
+**Seen coming.** The citadel's ground and every rift are marked the turn
+before: a crack across the hex pulsing pale, the hex ringed. A tentacle's
+water turns in rings. Your hexes are in the news. At night the rifts, the
+citadel and what is coming light the dark round them as a town does.
+
+**Glory** is won by slaying demons, sealing rifts and razing the citadel,
+and counts a point of score each.
+
+**Sanctums** are the way to hold on, with an army: the AI raises them from
+the omen on, then shelters. It hunts the demons near its cities, seals the
+rifts near them, and once its army marches sends half of it against the
+citadel before any rival's city. In all-AI games the citadel is razed in
+some games and stands in others; the towns that have no army to spare lose
+people to the demons and the dread.
+
 ## Winning and losing
 
 | Outcome | How |
 | --- | --- |
 | **Domination victory** | Every rival is destroyed, or you hold every capital |
-| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), the [deluge](#the-deluge) or [the sky's falling](#the-sky-falls), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
+| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), the [deluge](#the-deluge), [the sky's falling](#the-sky-falls) or [the demons](#the-demons), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
 | **Defeat** | Your civilization is destroyed, or that last turn passes and a rival scores higher |
 
 **Elimination:** a civilization with no cities and no settler is destroyed,
@@ -898,6 +978,7 @@ turn 5.
 - 5 per city, plus 2 per citizen
 - 4 per technology
 - 0.05 per hex explored
+- 1 per glory: won against [the demons](#the-demons)
 
 **At the end**, a panel shows the result, why, and every civilization's
 cities and score. **NEW GAME** starts again; **KEEP LOOKING** closes the
@@ -1221,6 +1302,7 @@ and picks up where it left off.
 | `love . --play --shot fire.png --turns 128 --select fire` | The camera over the most fire on the map, with the land round it shown. `--select scorch` for the most baked earth, `--select burnt` for the most burnt land; `--select cistern` gives your capital a cistern and looks at it |
 | `love . --play --cataclysm flood --shot flood.png --skip 130 --select flood --film 60` | The deluge: the camera over the most floodwater, in the storm, sixty pictures a few frames apart. `--select marsh`, `silt` or `drowned` for the most of each; `--select levee` gives your capital a levee |
 | `love . --play --cataclysm sky --shot fall.png --skip 124 --select mark --hour 12 --next --film 12` | The sky's falling: the camera over the most hexes stones are falling on, then the turn ended (`--next`) so they come down in the pictures; [shots/33-starfall.png](shots/33-starfall.png) was made so. `--select crater` or `glow` for the most craters (or hot ones), `heart` for the heart of the comet's hexes once it is told; `--select shelter` gives your capital a shelter; `--select skyfall` puts one of every crater and a stone of each size coming round your start; `--select bigfall` a great stone coming beside a forest near your capital ([shots/36-great-stone.gif](shots/36-great-stone.gif) was made so, with `--skip 124 --zoom 2 --next --film 40`; [shots/37-heart-of-the-comet.gif](shots/37-heart-of-the-comet.gif) with `--skip 149 --select heart --hour 0 --next --film 80`) |
+| `love . --play --cataclysm demons --shot abyss.png --select abyss --hour 13` | The demons: their citadel risen a few hexes from your start with its blight about it, a rift open, another and a tentacle coming, and one of every demon, all of it shown ([shots/38-demons.png](shots/38-demons.png) was made so). `--select blight` looks at the most blighted land of a game played on (with `--skip`) |
 | `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
 | `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |

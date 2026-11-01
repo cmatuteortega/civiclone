@@ -277,6 +277,8 @@ function Daylight.lamps(w)
             end
         end
     end
+    -- The demons' rifts and citadel, and what is coming up (src/ui/abyss.lua).
+    require("src.ui.abyss").lamps(w, me, list, sig)
     return list, table.concat(sig, ",")
 end
 

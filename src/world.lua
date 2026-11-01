@@ -103,6 +103,19 @@ local function ash(x, z)
     if g > 0.85 then return IDX.n end
 end
 
+-- Where the demons' blight lies (src/demons.lua): the ground gone black
+-- in patches, veined with cracks of ink and a pale glint here and there in
+-- them, as if lit from under. Nil where the ground shows through.
+local function veins(x, z)
+    local v = sin(x * 0.55 + sin(z * 0.4) * 2.4) * sin(z * 0.47 - x * 0.21 + 1.3)
+    local g = grain(x, z, 91)
+    if abs(v) < 0.06 then return g > 0.88 and IDX.c or IDX.o end
+    if abs(v) < 0.14 then return IDX.u end
+    if v > 0.5 then return g > 0.55 and IDX.n or IDX.u end
+    if v < -0.6 and g > 0.5 then return IDX.n end
+    if g > 0.94 then return IDX.u end
+end
+
 -- Where a flood has lain (src/flood.lua): pale silt in bands, as the water
 -- left it going down, with dark tide lines between. Nil where it shows
 -- through.
@@ -143,6 +156,10 @@ local function overland(s, x, z, ny)
     if ny <= 0.9 then return end
     if s.crater then
         local a = blast(s, x, z)
+        if a then return a end
+    end
+    if s.blight then
+        local a = veins(x, z)
         if a then return a end
     end
     if s.ash then
@@ -484,7 +501,7 @@ function World:hexSolids(cell)
     local pit = cell.crater and not cell.city and min(5.5, 1.6 + (cell.sunk or 0) * 0.6) or nil
     local function add(s, mat)
         s.mat, s.cell, s.cellRef, s.world = mat, cell.id, cell, self
-        s.ash, s.silt, s.crater = ashen, silted, pit
+        s.ash, s.silt, s.crater, s.blight = ashen, silted, pit, cell.blight
         out[#out + 1] = s
         return s
     end

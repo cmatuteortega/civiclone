@@ -208,7 +208,15 @@ function Audio.hear(game, e)
     elseif k == "flood" and e.cell then
         -- A river over its banks.
         if seen(e.cell) then at("splash", e.cell, 0.7, 0, 0.6) end
-    elseif k == "eliminated" or k == "heat" or k == "flood" or k == "sky" then
+    elseif k == "rift" or k == "citadel" or k == "abyss" or k == "razed" then
+        -- The ground torn open (src/demons.lua), heard wherever it is.
+        at("stone", e.cell, k == "rift" and 0.7 or 1, 0, 0.5)
+        if k ~= "rift" then at("gong", nil, 0.8, 0.2, 0.6) end
+    elseif k == "rise" or k == "sink" then
+        if seen(e.cell) then at("splash", e.cell, 0.9, 0, 0.5) end
+    elseif k == "devour" then
+        if seen(e.cell) then at("fallen", e.cell, 0.6, 0, 0.7) end
+    elseif k == "eliminated" or k == "heat" or k == "flood" or k == "sky" or k == "demons" then
         -- A civilization gone, or the cataclysm come a stage nearer.
         at("gong")
     elseif k == "embark" or k == "land" then
