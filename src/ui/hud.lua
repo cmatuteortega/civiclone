@@ -365,6 +365,9 @@ end
 local MINI = { ocean = "u", coast = "n", grass = "k", plains = "t", desert = "c", marsh = "n", tundra = "s", snow = "w",
     ice = "c" }
 
+-- The minimap's hexes as last drawn onto its canvas.
+local mini = { look = {} }
+
 local function minimap()
     local g = S.game
     local mw, mh = g.cols * 2 + 1, g.rows * 2
@@ -380,8 +383,15 @@ local function minimap()
     if night then
         for _, cell in ipairs(g.cells) do night[cell.id] = D.sunSide(g, cell.x, cell.z) end
     end
+    -- Each hex as it shows, as a number: its key, a river's speck, a town's
+    -- ink. The hexes are drawn onto a canvas of their own only when one of
+    -- them shows otherwise than when last drawn; the canvas is drawn every
+    -- frame. (No two hexes' pixels meet, so what is drawn over a hex later,
+    -- a sick town's blink, comes out as if drawn in among them.)
+    local again = not mini.canvas or mini.game ~= g or mini.w ~= mw or mini.h ~= mh
+    local look, IDX = mini.look, T.IDX
     for _, cell in ipairs(g.cells) do
-        local px, py = x + cell.c * 2 + cell.r % 2, y + cell.r * 2
+        local v
         if p.explored[cell.id] then
             local k = cell.elev == "mountain" and "s" or MINI[cell.terrain]
             if cell.owner then k = Board.TEAM[g.players[cell.owner].civ.look].fill end
@@ -391,16 +401,43 @@ local function minimap()
             if zone == "night" or (zone == "twilight" and (cell.c + cell.r) % 2 == 0 and (night[cell.id] or 0) < 0) then
                 k = Palette.darker[k]
             end
-            rect(k, px, py, 2, 2)
             -- A river's course, a dark speck in each hex along it.
-            if not cell.owner and g:onRiver(cell) then rect("u", px + 1, py + 1, 1, 1) end
-            if cell.city then
-                rect("o", px, py, 2, 1)
-                -- A sick town blinks pale.
-                if cell.city.sick and floor(S.clock * 2) % 2 == 0 then rect("w", px, py, 2, 2) end
-            end
+            v = IDX[k] * 4 + ((not cell.owner and g:onRiver(cell)) and 2 or 0) + (cell.city and 1 or 0)
         else
-            rect((cell.c + cell.r) % 2 == 0 and "c" or "s", px, py, 2, 2)
+            v = (cell.c + cell.r) % 2 == 0 and -1 or -2
+        end
+        if look[cell.id] ~= v then look[cell.id], again = v, true end
+    end
+    if again then
+        if not mini.canvas or mini.w ~= mw or mini.h ~= mh then
+            mini.canvas = love.graphics.newCanvas(mw, mh)
+            mini.canvas:setFilter("nearest", "nearest")
+        end
+        mini.game, mini.w, mini.h = g, mw, mh
+        love.graphics.push("all")
+        love.graphics.setCanvas(mini.canvas)
+        love.graphics.origin()
+        love.graphics.clear(0, 0, 0, 0)
+        for _, cell in ipairs(g.cells) do
+            local px, py = cell.c * 2 + cell.r % 2, cell.r * 2
+            local v = look[cell.id]
+            if v < 0 then
+                rect(v == -1 and "c" or "s", px, py, 2, 2)
+            else
+                rect(T.KEYS[floor(v / 4)], px, py, 2, 2)
+                if v % 4 >= 2 then rect("u", px + 1, py + 1, 1, 1) end
+                if v % 2 == 1 then rect("o", px, py, 2, 1) end
+            end
+        end
+        love.graphics.pop()
+    end
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.draw(mini.canvas, x, y)
+    -- A sick town blinks pale.
+    if floor(S.clock * 2) % 2 == 0 then
+        for _, c in ipairs(g.cities) do
+            local cell = g.cells[c.cell]
+            if c.sick and p.explored[cell.id] then rect("w", x + cell.c * 2 + cell.r % 2, y + cell.r * 2, 2, 2) end
         end
     end
     -- What the board shows now.

@@ -4,6 +4,7 @@
 
 local T = require "src.tracer"
 local Font = require "src.font"
+local Sheet = require "src.ui.sheet"
 local S = require "src.ui.state"
 
 local floor = math.floor
@@ -124,15 +125,15 @@ local ICONS = {
 }
 Draw.ICONS = ICONS
 
+-- Drawn out of one picture of them all (src/ui/sheet.lua): the same pixels
+-- as a box for each.
+for _, g in pairs(ICONS) do Sheet.add(g, g, 5, 5) end
+
 function Draw.icon(name, x, y, k)
     local g = ICONS[name]
     if not g then return end
     Draw.color(k or "o")
-    for r = 1, 5 do
-        for c = 1, 5 do
-            if g[r]:sub(c, c) == "#" then love.graphics.rectangle("fill", floor(x) + c - 1, floor(y) + r - 1, 1, 1) end
-        end
-    end
+    Sheet.draw(g, floor(x), floor(y))
 end
 
 -- A bar `w` long, filled to fraction f.

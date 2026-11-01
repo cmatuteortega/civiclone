@@ -3,7 +3,10 @@
 -- punctuation). LÖVE's vector font would break the pixel grid inside a canvas
 -- this small, so lettering is plotted a pixel at a time like everything else.
 -- Text is UTF-8: accented capitals carry their mark on a sixth row, one pixel
--- above the letter.
+-- above the letter. Each letter is drawn out of one picture of them all
+-- (src/ui/sheet.lua): the same pixels as a box for each.
+
+local Sheet = require "src.ui.sheet"
 
 local Font = {}
 
@@ -107,7 +110,9 @@ function Font.width(text)
 end
 
 -- Plotted with the colour already set by the caller.
-function Font.print(text, x, y)
+-- A pixel at a time, as it was: where (x, y) is not a whole pixel, which
+-- the picture's quads can't be trusted to land on the same pixels as.
+local function plot(text, x, y)
     local n = 0
     for ch in text:gmatch(CHAR) do
         local g = GLYPHS[UPPER[ch] or ch:upper()]
@@ -122,6 +127,18 @@ function Font.print(text, x, y)
                 end
             end
         end
+        n = n + 1
+    end
+end
+
+for _, g in pairs(GLYPHS) do Sheet.add(g, g, GW, #g, #g - GH) end
+
+function Font.print(text, x, y)
+    if x % 1 ~= 0 or y % 1 ~= 0 then return plot(text, x, y) end
+    local n = 0
+    for ch in text:gmatch(CHAR) do
+        local g = GLYPHS[UPPER[ch] or ch:upper()]
+        if g then Sheet.draw(g, x + n * ADVANCE, y) end
         n = n + 1
     end
 end
