@@ -32,16 +32,35 @@ P.LAMP, P.WALL = 250, 252
 --- the frame's list -------------------------------------------------------------
 
 -- A tile is TILE pixels square.
-local TILE, SHIFT = 16, 4
+local TILE = 16
 P.TILE = TILE
 
--- What a frame asked, in order: kind (PUT, LIFT, STAMP or THROUGH), where on
--- the canvas, and what (a key and an alpha; the steps; the stamp's number).
--- Each stamp's picture, remap, place and depth beside. Then, by tile, which
--- of them touch it, in order.
+-- A key and an alpha as the four bytes of an overlay pixel, read as one
+-- 32-bit number, so a pixel is laid with one store.
+local PACK = {}
+do
+    local u = ffi.new("union { uint8_t b[4]; uint32_t w; }")
+    for k = 0, #RGB8 do
+        local c = RGB8[k] or { 0, 0, 0 }
+        u.b[0], u.b[1], u.b[2], u.b[3] = c[1], c[2], c[3], 0
+        PACK[k] = u.w
+    end
+end
+local ALPHA = 2 ^ 24
+do
+    local u = ffi.new("union { uint8_t b[4]; uint32_t w; }")
+    u.b[0], u.b[1], u.b[2], u.b[3] = 0, 0, 0, 1
+    ALPHA = u.w
+end
+
+-- What a frame asked, in order: kind (PUT, LIFT, STAMP or THROUGH), and for
+-- a pixel which one (y * cw + x), its tile (1 on) and what (the pixel's four
+-- bytes; the steps); for a stamp, its number. Each stamp's picture, remap,
+-- place and depth beside, and its tiles. Then, by tile, which of them touch
+-- it, in order.
 local PUT, LIFT, STAMP, THROUGH = 1, 2, 3, 4
 local function newFrame()
-    return { n = 0, kind = {}, x = {}, y = {}, v = {},
+    return { n = 0, kind = {}, p = {}, t = {}, v = {},
         ns = 0, pic = {}, remap = {}, bi = {}, bj = {}, d = {}, dark = {},
         tx0 = {}, ty0 = {}, tx1 = {}, ty1 = {},
         start = {}, at = {}, fill = {} }
@@ -49,16 +68,21 @@ end
 local cur, prev = newFrame(), newFrame()
 -- What the last frame was laid on: when any of it changes, all is laid again.
 local laid = {}
--- The tiles to lay this frame.
+-- The tiles to lay this frame, 1 on.
 local dirty = {}
+-- Tiles across the canvas, for this frame.
+local tw = 1
 
--- Put key k at canvas pixel (x, y); `a` the alpha, if not the plain 255.
+-- Put key k at canvas pixel (x, y), whole numbers; `a` the alpha, if not
+-- the plain 255.
 local function putS(k, x, y, a)
-    if k == 0 or x < 0 or y < 0 or x >= S.cw or y >= S.ch then return end
+    local cw = S.cw
+    if k == 0 or x < 0 or y < 0 or x >= cw or y >= S.ch then return end
     local f = cur
     local n = f.n + 1
     f.n = n
-    f.kind[n], f.x[n], f.y[n], f.v[n] = PUT, x, y, k * 256 + (a or 255)
+    f.kind[n], f.p[n], f.v[n] = PUT, y * cw + x, PACK[k] + (a or 255) * ALPHA
+    f.t[n] = (y - y % TILE) / TILE * tw + (x - x % TILE) / TILE + 1
 end
 P.putS = putS
 
@@ -66,11 +90,13 @@ P.putS = putS
 -- painted again every frame (src/ui/sea.lua), so a mark over it can't be a
 -- colour: it is left in the alpha, which the overlay is never drawn with.
 function P.liftS(steps, x, y)
-    if x < 0 or y < 0 or x >= S.cw or y >= S.ch then return end
+    local cw = S.cw
+    if x < 0 or y < 0 or x >= cw or y >= S.ch then return end
     local f = cur
     local n = f.n + 1
     f.n = n
-    f.kind[n], f.x[n], f.y[n], f.v[n] = LIFT, x, y, steps
+    f.kind[n], f.p[n], f.v[n] = LIFT, y * cw + x, steps
+    f.t[n] = (y - y % TILE) / TILE * tw + (x - x % TILE) / TILE + 1
 end
 
 -- Put key k at board-picture pixel (i, j).
@@ -144,7 +170,7 @@ local function ask(kind, pic, x, y, z, remap, dark)
     f.tx0[s], f.ty0[s], f.tx1[s], f.ty1[s] = floor(x0 / TILE), floor(y0 / TILE), floor(x1 / TILE), floor(y1 / TILE)
     local n = f.n + 1
     f.n = n
-    f.kind[n], f.x[n], f.y[n], f.v[n] = kind, 0, 0, s
+    f.kind[n], f.v[n] = kind, s
 end
 
 function P.stamp(pic, x, y, z, remap, dark) ask(STAMP, pic, x, y, z, remap, dark) end
@@ -156,23 +182,25 @@ function P.stampThrough(pic, x, y, z, remap) ask(THROUGH, pic, x, y, z, remap) e
 
 -- Lays stamp s of frame f on the overlay: only on the tiles marked in `on`,
 -- or everywhere without it.
-local function lay(f, s, through, on, tw)
+local function lay(f, s, through, on)
     local pic, remap, bi, bj, d, dark = f.pic[s], f.remap[s], f.bi[s], f.bj[s], f.d[s], f.dark[s]
     local o = opaque(pic)
     local w = S.world
     local ww, wh, dep = w.w, w.h, w.dep
-    local cw, ch, opx = S.cw, S.ch, S.opx
+    local cw, ch, px = S.cw, S.ch, ffi.cast("uint32_t*", S.opx)
     local cx, cy = floor(S.camx), floor(S.camy)
     local oi, oj, ok, od, ow = o.i, o.j, o.k, o.d, o.win
-    local LAMP, WALL, DARKER = P.LAMP, P.WALL, T.DARKER
+    local LAMP, WALL, DARKER = P.LAMP * ALPHA, P.WALL * ALPHA, T.DARKER
+    local OPAQUE = 255 * ALPHA
+    local ntw = tw
     for q = 1, o.n do
         local i, j = bi + oi[q], bj + oj[q]
         local x, y = i - cx, j - cy
         if x >= 0 and y >= 0 and x < cw and y < ch
-            and (not on or on[(y - y % TILE) / TILE * tw + (x - x % TILE) / TILE]) then
+            and (not on or on[(y - y % TILE) / TILE * ntw + (x - x % TILE) / TILE + 1]) then
             local k, a
             if i < 0 or j < 0 or i >= ww or j >= wh or d + od[q] >= dep[j * ww + i] - 0.6 then
-                k, a = remap[ok[q]], 255
+                k, a = remap[ok[q]], OPAQUE
                 if not through then
                     local wn = ow[q]
                     if wn ~= 0 then
@@ -181,12 +209,9 @@ local function lay(f, s, through, on, tw)
                     end
                 end
             elseif through and (i + j) % 2 == 0 then
-                k, a = remap[DARKER[ok[q]]], 255
+                k, a = remap[DARKER[ok[q]]], OPAQUE
             end
-            if k and k ~= 0 then
-                local p = (y * cw + x) * 4
-                opx[p], opx[p + 1], opx[p + 2], opx[p + 3] = R8[k], G8[k], B8[k], a
-            end
+            if k and k ~= 0 then px[y * cw + x] = PACK[k] + a end
         end
     end
 end
@@ -240,50 +265,49 @@ end
 function P.begin()
     prev, cur = cur, prev
     cur.n, cur.ns = 0, 0
+    tw = math.ceil(S.cw / TILE)
 end
 
 -- Which of frame f's asks touch each tile: f.at from f.start[t] on, in the
--- order they were asked. `tw` tiles across, `nt` in all.
-local function sort(f, tw, nt)
-    local start, at, kind, xs, ys, v = f.start, f.at, f.kind, f.x, f.y, f.v
+-- order they were asked. `nt` tiles, 1 on.
+local function sort(f, nt)
+    local start, at, fill, kind, ts, v = f.start, f.at, f.fill, f.kind, f.t, f.v
     local tx0, ty0, tx1, ty1 = f.tx0, f.ty0, f.tx1, f.ty1
-    for t = 0, nt do start[t] = 0 end
+    for t = 1, nt + 1 do start[t] = 0 end
     for n = 1, f.n do
-        local k = kind[n]
-        if k <= LIFT then
-            local t = floor(ys[n] / TILE) * tw + floor(xs[n] / TILE)
+        if kind[n] <= LIFT then
+            local t = ts[n]
             start[t] = start[t] + 1
         else
             local s = v[n]
             for ty = ty0[s], ty1[s] do
+                local row = ty * tw + 1
                 for tx = tx0[s], tx1[s] do
-                    local t = ty * tw + tx
+                    local t = row + tx
                     start[t] = start[t] + 1
                 end
             end
         end
     end
-    -- From counts to where each tile's run begins (1-based), and a cursor.
+    -- From counts to where each tile's run begins, and a cursor through it.
     local sum = 1
-    for t = 0, nt do
+    for t = 1, nt + 1 do
         local c = start[t]
-        start[t] = sum
+        start[t], fill[t] = sum, sum
         sum = sum + c
     end
-    local fill = f.fill
-    for t = 0, nt do fill[t] = start[t] end
     for n = 1, f.n do
-        local k = kind[n]
-        if k <= LIFT then
-            local t = floor(ys[n] / TILE) * tw + floor(xs[n] / TILE)
+        if kind[n] <= LIFT then
+            local t = ts[n]
             local q = fill[t]
             fill[t] = q + 1
             at[q] = n
         else
             local s = v[n]
             for ty = ty0[s], ty1[s] do
+                local row = ty * tw + 1
                 for tx = tx0[s], tx1[s] do
-                    local t = ty * tw + tx
+                    local t = row + tx
                     local q = fill[t]
                     fill[t] = q + 1
                     at[q] = n
@@ -297,7 +321,7 @@ end
 local function same(f, a, g, b)
     local k = f.kind[a]
     if k ~= g.kind[b] then return false end
-    if k <= LIFT then return f.x[a] == g.x[b] and f.y[a] == g.y[b] and f.v[a] == g.v[b] end
+    if k <= LIFT then return f.p[a] == g.p[b] and f.v[a] == g.v[b] end
     local s, r = f.v[a], g.v[b]
     return f.pic[s] == g.pic[r] and f.bi[s] == g.bi[r] and f.bj[s] == g.bj[r] and f.d[s] == g.d[r]
         and f.remap[s] == g.remap[r] and f.dark[s] == g.dark[r]
@@ -321,19 +345,20 @@ end
 -- pixels laid again (x0, y0, x1, y1), or nothing if none was.
 function P.finish(whole)
     local w, cw, ch, opx = S.world, S.cw, S.ch, S.opx
+    local px = ffi.cast("uint32_t*", opx)
     local cx, cy = floor(S.camx), floor(S.camy)
-    local tw, th = math.ceil(cw / TILE), math.ceil(ch / TILE)
+    local th = math.ceil(ch / TILE)
     local nt = tw * th
     whole = whole or laid.world ~= w or laid.version ~= w.version or laid.overlay ~= S.overlay
         or laid.cx ~= cx or laid.cy ~= cy or laid.cw ~= cw or laid.ch ~= ch
     laid.world, laid.version, laid.overlay, laid.cx, laid.cy, laid.cw, laid.ch = w, w.version, S.overlay, cx, cy, cw, ch
-    sort(cur, tw, nt)
+    sort(cur, nt)
     if whole then
         ffi.fill(opx, cw * ch * 4, 0)
-        for t = 0, nt - 1 do dirty[t] = true end
+        for t = 1, nt do dirty[t] = true end
     else
         local any = false
-        for t = 0, nt - 1 do
+        for t = 1, nt do
             local d = not unchanged(t)
             dirty[t] = d
             any = any or d
@@ -344,7 +369,7 @@ function P.finish(whole)
     local bx0, by0, bx1, by1 = tw, th, -1, -1
     for ty = 0, th - 1 do
         for tx = 0, tw - 1 do
-            if dirty[ty * tw + tx] then
+            if dirty[ty * tw + tx + 1] then
                 bx0, by0, bx1, by1 = min(bx0, tx), min(by0, ty), max(bx1, tx), max(by1, ty)
                 if not whole then
                     local x0, y0 = tx * TILE, ty * TILE
@@ -355,35 +380,32 @@ function P.finish(whole)
         end
     end
     -- Everything asked that touches them, in order.
-    local on = not whole and dirty or nil
     local f = cur
-    local kind, xs, ys, v = f.kind, f.x, f.y, f.v
+    local kind, ps, ts, v = f.kind, f.p, f.t, f.v
     local tx0, ty0, tx1, ty1 = f.tx0, f.ty0, f.tx1, f.ty1
     for n = 1, f.n do
         local k = kind[n]
-        if k <= LIFT then
-            local x, y = xs[n], ys[n]
-            if whole or dirty[floor(y / TILE) * tw + floor(x / TILE)] then
-                local p = (y * cw + x) * 4
-                if k == PUT then
-                    local key = floor(v[n] / 256)
-                    opx[p], opx[p + 1], opx[p + 2], opx[p + 3] = R8[key], G8[key], B8[key], v[n] % 256
-                elseif opx[p + 3] == 0 then
-                    opx[p + 3] = v[n]
-                end
+        if k == PUT then
+            if whole or dirty[ts[n]] then px[ps[n]] = v[n] end
+        elseif k == LIFT then
+            if whole or dirty[ts[n]] then
+                local q = ps[n] * 4 + 3
+                if opx[q] == 0 then opx[q] = v[n] end
             end
         else
+            -- A stamp: laid if any tile under it is, and where all are,
+            -- without asking at each pixel.
             local s = v[n]
-            local hit = whole
-            if not hit then
+            local some, all = whole, true
+            if not whole then
                 for ty = ty0[s], ty1[s] do
+                    local row = ty * tw + 1
                     for tx = tx0[s], tx1[s] do
-                        if dirty[ty * tw + tx] then hit = true break end
+                        if dirty[row + tx] then some = true else all = false end
                     end
-                    if hit then break end
                 end
             end
-            if hit then lay(f, s, k == THROUGH, on, tw) end
+            if some then lay(f, s, k == THROUGH, not (whole or all) and dirty or nil) end
         end
     end
     return bx0 * TILE, by0 * TILE, min(cw, (bx1 + 1) * TILE) - 1, min(ch, (by1 + 1) * TILE) - 1
