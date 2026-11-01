@@ -295,6 +295,8 @@ function Daylight.lamps(w)
         if me.explored[cell.id] then
             local i, j = w:toImage(cell.x, cell.top, cell.z)
             local r = 22 + 3 * min(c.pop, 8) + (c.capital and 8 or 0)
+            -- A town the plague is in keeps few lamps lit.
+            if c.sick then r = floor(r * 0.6) end
             list[#list + 1] = { floor(i), floor(j) - 4, r }
             sig[#sig + 1] = c.cell .. ":" .. r
         end
@@ -322,6 +324,8 @@ function Daylight.lamps(w)
     end
     -- The demons' rifts and citadel, and what is coming up (src/ui/abyss.lua).
     require("src.ui.abyss").lamps(w, me, list, sig)
+    -- The plague's pyres (src/ui/pestilence.lua).
+    require("src.ui.pestilence").lamps(w, me, list, sig)
     return list, table.concat(sig, ",")
 end
 

@@ -66,6 +66,7 @@ uniform float lit;       // 1 while the days go round, 0 for the map as the trac
 uniform float exposure;  // steps the night takes off the lightest keys: 0 by day
 uniform float night;     // 0 by day, 1 in the dark
 uniform float storm;     // 0 fair, 1 the deluge's worst: more cloud, and rain on the water
+uniform float overcast;  // 0 fair, 1 the plague's worst: more cloud, nothing else
 uniform vec4 still;      // the still sun (src/stillsun.lua): xy the way to the day, z where the line is along it, w a hex's width; w 0 when the sun moves
 uniform float band;      // how far the twilight reaches either side of the line, in hexes
 
@@ -110,7 +111,7 @@ float cloud(vec2 p, vec2 w, float t) {
     if (weather < 0.5) return 0.0;
     vec2 q = w * 0.0042 - vec2(t * 0.012, t * 0.003);
     float c = noise(q) * 0.7 + noise(q * 2.3 + 5.2) * 0.3;
-    float edge = 0.66 + 0.04 * sin(t * 0.013) - 0.08 * storm;
+    float edge = 0.66 + 0.04 * sin(t * 0.013) - 0.08 * storm - 0.08 * overcast;
     float d = bayer4(p);
     if (c > edge + 0.03) return d < 0.5 ? 1.0 : 0.0;
     if (c > edge) return d < 0.25 ? 1.0 : 0.0;
@@ -599,6 +600,7 @@ function Sea.begin(w, overlay, camx, camy)
         s:send("air", air)
         s:send("weather", weather)
         if s:hasUniform("storm") then s:send("storm", S.storm or 0) end
+        if s:hasUniform("overcast") then s:send("overcast", S.overcast or 0) end
     end
     sh:send("mask", w.maskImage)
     for _, s in ipairs({ sh, Sea.cover }) do

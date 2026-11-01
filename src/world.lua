@@ -130,6 +130,24 @@ local function silt(x, z)
     if v > 0.25 and g > 0.6 then return IDX.c end
 end
 
+-- A farm left fallow in the plague (src/plague.lua): the old furrows still
+-- showing under it in faint bands, overgrown in dark clumps of dock and
+-- nettle, thistles standing pale out of them. Nil where the ground shows
+-- through.
+local function weeds(s, x, z)
+    local g = grain(x, z, 131)
+    local clump = sin(x * 0.7 + sin(z * 0.55) * 1.9) * sin(z * 0.62 - x * 0.31 + 0.7)
+    if clump > 0.45 then
+        if g > 0.9 then return IDX.c end
+        return g > 0.3 and IDX.u or IDX.n
+    end
+    if clump > 0.3 and g > 0.4 then return IDX.n end
+    if g > 0.965 then return IDX.w end
+    -- The furrows, nearly gone.
+    local a = math.rad(s.rows or 30)
+    if floor((x * math.cos(a) + z * math.sin(a)) / 1.6) % 3 == 0 and g > 0.55 then return IDX.k end
+end
+
 -- Where a stone has fallen (src/skyfall.lua): the pit at the middle
 -- blackened, and rays of pale rubble thrown out from it, a few long and
 -- most short, specks of it between. Nil where the ground shows through.
@@ -161,6 +179,10 @@ local function overland(s, x, z, ny)
     end
     if s.blight then
         local a = veins(x, z)
+        if a then return a end
+    end
+    if s.fallow then
+        local a = weeds(s, x, z)
         if a then return a end
     end
     if s.ash then
@@ -606,11 +628,16 @@ function World:hexSolids(cell)
     local out = {}
     local ashen = (cell.burnt or cell.fire) and true or nil
     local silted = cell.silt and not cell.flood or nil
+    -- A field abandoned in the plague, its furrows the way its farm's ran.
+    local fallow = (cell.fallow and not cell.improvement and not cell.city) or nil
     -- A crater's pit: wider the deeper it went.
     local pit = cell.crater and not cell.city and min(5.5, 1.6 + (cell.sunk or 0) * 0.6) or nil
     local function add(s, mat)
         s.mat, s.cell, s.cellRef, s.world = mat, cell.id, cell, self
         s.ash, s.silt, s.crater, s.blight = ashen, silted, pit, cell.blight
+        s.fallow = fallow
+        -- The way its rows ran, as src/models.lua's M.FARM_LAYOUTS has them.
+        if fallow then s.rows = ({ 30, 90, 150 })[cell.id % 3 + 1] end
         out[#out + 1] = s
         return s
     end

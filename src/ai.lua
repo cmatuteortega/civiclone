@@ -12,6 +12,7 @@ local Cat = require "src.cataclysm"
 local Sky = require "src.skyfall"
 local Demons = require "src.demons"
 local Sun = require "src.stillsun"
+local Plague = require "src.plague"
 
 local max = math.max
 
@@ -23,7 +24,7 @@ local function military(u) return not u.def.civilian end
 local function wild(game, cell, n)
     for _, m in ipairs(game:within(cell, n)) do
         local v = game.mil[m.id]
-        if v and v.owner == game.WILD and (v.def.temper == "hostile" or v.def.demon) then return v end
+        if v and v.owner == game.WILD and (v.def.temper == "hostile" or v.def.demon or v.def.vermin) then return v end
         if m.lair and (m.lair.def.beast or m.lair.def.demon) then return m end
     end
 end
@@ -440,6 +441,30 @@ local function dodge(game, u)
     if best then game:step(u, best.id) end
 end
 
+-- Against the plague (src/plague.lua): a well town shuts its gates while a
+-- sick one is near, wider as the great pestilence comes, and opens them
+-- again once it has passed.
+local function gates(game, p)
+    local stage = Cat.is(game, "plague") and Cat.stage(game)
+    if not stage or stage == "omen" then return end
+    local reach = Plague.greatComing(game) and D.PLAGUE.reach or 5
+    for _, city in ipairs(game:citiesOf(p.id)) do
+        local near = false
+        if not city.sick and not Plague.immune(game, city) then
+            local here = game.cells[city.cell]
+            for _, c in ipairs(game.cities) do
+                if c.sick and game:dist(here, game.cells[c.cell]) <= reach then near = true break end
+            end
+            -- Rats on their way are as bad.
+            for _, n in ipairs(game:within(here, 3)) do
+                local m = game.mil[n.id]
+                if m and Plague.isRat(m) then near = true break end
+            end
+        end
+        Plague.setShut(game, city, near)
+    end
+end
+
 function AI.play(game, p)
     if not p.researching then
         local list = game:researchable(p)
@@ -453,6 +478,7 @@ function AI.play(game, p)
         -- Buy a soldier when an enemy is at the gates.
         if city.hp < game:maxHp(city) and city.build and city.build.kind == "unit" then game:buy(city) end
     end
+    gates(game, p)
     local soldiers = 0
     for _, u in ipairs(game:unitsOf(p.id)) do if military(u) and u.kind ~= "scout" then soldiers = soldiers + 1 end end
     local attacking = game.turn >= 25 and soldiers >= 2 + #game:citiesOf(p.id)

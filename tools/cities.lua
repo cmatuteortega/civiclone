@@ -8,8 +8,9 @@
 -- writes dir/cities-growth.ppm (each land, a row; each size, a column),
 -- dir/cities-sites.ppm (the same city in different places),
 -- dir/cities-levee.ppm and dir/cities-shelter.ppm (towns without and with a
--- levee, and a shelter) and dir/cities-frost.ppm (towns on tundra and snow,
--- with and without a hearth), at one pixel to the pixel; scale them up by a
+-- levee, and a shelter), dir/cities-frost.ppm (towns on tundra and snow,
+-- with and without a hearth) and dir/cities-plague.ppm (towns the plague is
+-- in, daubed, their dead buried, and a lazaret), at one pixel to the pixel; scale them up by a
 -- whole number to look at them.
 
 package.path = "./?.lua;" .. package.path
@@ -166,7 +167,7 @@ local function scene(game, at, city, px, py)
         if n and D.TERRAIN[n.terrain].water then shore = k break end
     end
     local pic = M.city(city.look or "light", city.pop, city.capital, city.built, shore, shore and cell.top + 2,
-        M.citySite(cell))
+        M.citySite(cell), city.pest)
     local si, sj, d = world:toImage(cell.x, cell.top, cell.z)
     local bi, bj = floor(si) - pic.oi, floor(sj) - pic.oj
     for pj = 0, pic.h - 1 do
@@ -340,4 +341,38 @@ do
         text(s[1], (k - 0.5) * BW, BH + 2, true)
     end
     write("cities-frost")
+end
+
+-- The plague (src/plague.lua): towns well, sick (their houses daubed with
+-- crosses), with their dead buried on the plots their houses stood on, and
+-- with a lazaret, on each land.
+do
+    local SITES = {
+        { "GRASS, WELL", plain("grass"), nil, { pop = 6 } },
+        { "GRASS, SICK", plain("grass"), nil, { pop = 6, pest = { marked = true, graves = 0 } } },
+        { "GRASS, DEAD 6", plain("grass"), nil, { pop = 3, pest = { marked = true, graves = 6 } } },
+        { "GRASS, LAZARET", plain("grass"), nil, { pop = 5, built = { lazaret = true }, pest = { marked = true, graves = 3 } } },
+        { "PLAINS, SICK", plain("plains"), nil, { pop = 4, look = "stripe", pest = { marked = true, graves = 4 } } },
+        { "DESERT, SICK", plain("desert"), nil, { pop = 7, look = "dark", pest = { marked = true, graves = 2 } } },
+        { "HILLS, SICK", plain("grass", function() return { "grass", "hills" } end), nil,
+            { pop = 8, pest = { marked = true, graves = 3 }, built = { lazaret = true } } },
+        { "MENDED, DEAD 9", plain("plains"), nil, { pop = 2, look = "dark", pest = { graves = 9 } } },
+    }
+    local per = 4
+    sheet(BW * per, (BH + 10) * math.ceil(#SITES / per))
+    for k, s in ipairs(SITES) do
+        local col, row = (k - 1) % per, floor((k - 1) / per)
+        local land = s[2]
+        if s[1]:find("HILLS") then
+            land = function(c, r)
+                if c == MID[1] and r == MID[2] then return "grass", "hills" end
+                return "grass", (c + r) % 2 == 0 and "hills" or "flat"
+            end
+        end
+        local game, at = stretch(land, s[3])
+        local img, w, h, ci, cj = scene(game, at, s[4])
+        lay(img, w, h, ci, cj, col * BW, row * (BH + 10), BW, BH)
+        text(s[1], (col + 0.5) * BW, row * (BH + 10) + BH + 2, true)
+    end
+    write("cities-plague")
 end

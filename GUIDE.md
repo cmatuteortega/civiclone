@@ -21,7 +21,7 @@ that is the file to edit to tune the game.
 15. [Sight and fog of war](#sight-and-fog-of-war)
 16. [The rival civilizations](#the-rival-civilizations)
 17. [The wild](#the-wild)
-18. [The heat death](#the-heat-death) · [The deluge](#the-deluge) · [The sky falls](#the-sky-falls) · [The demons](#the-demons)
+18. [The heat death](#the-heat-death) · [The deluge](#the-deluge) · [The sky falls](#the-sky-falls) · [The demons](#the-demons) · [The still sun](#the-still-sun) · [The plague](#the-plague)
 19. [Winning and losing](#winning-and-losing)
 20. [How it is drawn](#how-it-is-drawn)
 21. [How it sounds](#how-it-sounds)
@@ -44,10 +44,11 @@ begins:
 | **Skyfall** | The [sky falls](#the-sky-falls): the starfall, the bombardment and the long night, and the game ends at turn 160 |
 | **Demons** | [The demons](#the-demons): the rifts, the deep and the hellgate, a citadel to raze, and the game ends at turn 160 |
 | **The still sun** | [The sun stands still](#the-still-sun): endless day on one side of a line no one can foresee, endless night and ice on the other, and the game ends at turn 160 |
-| **None** | No cataclysm, no cisterns, levees, hearths or shelters: the game ends at turn 150 on score |
+| **The plague** | [The plague](#the-plague): the fever, the great dying and the dance of death, going from town to town with people and rats, and the game ends at turn 160 |
+| **None** | No cataclysm, no cisterns, levees, hearths, lazarets or shelters: the game ends at turn 150 on score |
 
 The choice is kept for the next game. `love . --cataclysm none` (or `heat`,
-`flood`, `sky`, `demons` or `sun`) overrides it.
+`flood`, `sky`, `demons`, `sun` or `plague`) overrides it.
 
 Every game makes a new map from a seed: random by default, or chosen with
 `love . --seed 1234`. The same seed always makes the same map. While the map
@@ -473,6 +474,7 @@ below 1) and the store empties.
 | Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Mining; only when there is a cataclysm |
 | Sanctum | 70 | Against [the demons](#the-demons): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Writing; only against the demons |
 | Hearth | 70 | Against the night of [the still sun](#the-still-sun): its land freezes a quarter as fast, its farms keep their food through the night, its people go 2 less cold | Pottery; only under the still sun |
+| Lazaret | 70 | Against [the plague](#the-plague): half as many of its sick die, it mends sooner (+12% a turn), and its people go hungry 1 less, sick or well | Writing; only in the plague |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
@@ -481,7 +483,9 @@ earth capped with stone all round the hex (the levee), a low mound of turf
 ringed with stones with a stone doorway into it at the front (the shelter), a ring of tall pale carved
 stones round a lamp kept burning (the sanctum), a squat domed kiln-house of
 stone with its mouth glowing, a tall smoking chimney and a stack of logs (the
-hearth). A town on frozen ground has snow on its roofs.
+hearth), a long low whitewashed house with a row of small windows lit at
+night, a cross on its gable and herb beds before it (the lazaret). A town on
+frozen ground has snow on its roofs.
 A city on the water builds out over it on the side nearest the front of the
 screen: steps down the bank and a pier with a boat tied up; with a harbour a
 stone quay, a crane and goods; with a lighthouse a mole out to a striped tower
@@ -1061,12 +1065,80 @@ still sun's night and in the sky's long night:
 - **A river** between two frozen hexes is frozen over, and crossed with no
   ford.
 
+## The plague
+
+The world ends in sickness. From turn 90 the crows gather over the towns,
+and the game ends when turn 160 is played out. It is the one cataclysm that
+goes from town to town: it doesn't come out of the land or the sky, it is
+carried, by people and by rats, and what keeps it out is keeping them out.
+The rules are in `src/plague.lua`, the numbers in `D.PLAGUE` in
+`src/defs.lua`.
+
+| Turns | Stage | What happens |
+| --- | --- | --- |
+| 90 | **The omen** | Everyone is told the fever comes in 10 turns. Crows wheel over every town. On turn 99 everyone is told which town will fall sick first: a big one, likeliest on the water |
+| 100–119 | **The fever** | That town falls sick, and the sickness spreads (12% a turn from a sick town to each town near it). A sick town loses 1 food a turn; now and then (4% a turn) one falls sick from over the sea |
+| 120–139 | **The great dying** | A second town falls sick, far from the first. It spreads faster (18%), the sick towns send **rats** out, the sick lose 2 food a turn and every well town 1, for fear |
+| 140–160 | **The dance of death** | Faster still (24%), more rats, the sick lose 3 food and the well 2. On turn 144 everyone is told **the great pestilence** comes, and on turn 150 it does: every sick town loses a third of its people (a fifth with a lazaret), and every well town within 7 of a sick one that isn't shut falls sick |
+
+**From town to town.** Each turn a sick town may give it to each town within
+7 hexes that can catch it: the chance above out to 3 hexes, halved for each
+hex further; 1.6 times as likely if both stand on a river or both on the
+coast. If either town is **shut**, an eighth as likely.
+
+**People carry it.** A unit that ends a turn in a sick town catches it half
+the time, beside one 12% of the time, beside rats 30%. It carries it for 5
+turns, losing 6 HP a turn (it can die of it), then is spared 14 turns. While
+it carries it, each turn it stands in or beside a town that can catch it,
+it brings it in: 30%, 40% and 50% in the three stages (an eighth as likely
+into a shut town from outside its gates). A settler that carries it founds a
+sick town. Flies buzz round whoever carries it, its banner has a dark speck
+on a pale corner, and its panel says so.
+
+**A sick town** doesn't grow (its food stops just short), and loses one of
+its people now and then (30%, 45% and 60% a turn; half that with a
+lazaret), never the last. Half the time a death leaves one of its **farms
+fallow**: the farm is gone, the field overgrown, its farmhouse a ruin. A
+builder can farm it again. After 6 turns sick it may mend (10%, 8% and 6% a
+turn; 12% more with a lazaret), and then it can't catch it again for 14
+turns.
+
+**Rats** run out of the sick towns in the great dying (30% a turn each) and
+the dance (45%), up to 4 and then 7 at once, onto the land beside. A swarm
+runs for the nearest town within 6 that can catch it, and beside it brings
+it in, 35% a turn (much less into a shut one). A hex with rats on it yields
+no food. They fight no one and are slain easily (strength 8, 4 gold), but
+whoever stands beside them may catch it. They scatter after 12 turns.
+
+**Shutting a town** is the way to hold on, with the lazaret and a
+[shelter](#buildings) (its stores spare 1 food of the hunger). Its city
+panel's **SHUT** button closes its gates and **OPEN** opens them, whenever
+you like: no one walks in or out (units trained in it wait inside), the
+sickness reaches it and leaves it an eighth as often, but it doesn't grow
+and makes no gold. The AI builds lazarets from the omen on, then shelters;
+shuts every well town with a sick one within 5 hexes or rats within 3 (within
+7 as the great pestilence comes) and opens it again once it is clear, and
+hunts the rats near its towns.
+
+**How it looks.** A sick town's houses are daubed with great crosses of ink
+over their doors and windows, most of its lamps go dark at night and its
+light shrinks; a miasma lies over it and the land round it, the ground a
+step paler in a slow drifting dither, wisps of it curling up among the
+roofs; crows wheel over it. Its dead are buried in rows on the plots their
+houses stood on, a cross of sticks at each head, and for two turns after a
+death a pyre burns on the land beside it, under a black column of smoke,
+lighting the night. A shut town has a pole with a pale flag banded dark at
+each corner of its hex and a rope slung between them. From the great dying
+on the sky is overcast: more clouds' shadows go over the land. Its banner shows a cross,
+blinking, while it is sick, and a flag while it is shut, and on the minimap
+it blinks pale. A death tolls a knell; the great pestilence two.
+
 ## Winning and losing
 
 | Outcome | How |
 | --- | --- |
 | **Domination victory** | Every rival is destroyed, or you hold every capital |
-| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), the [deluge](#the-deluge), [the sky's falling](#the-sky-falls), [the demons](#the-demons) or [the still sun](#the-still-sun), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
+| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), the [deluge](#the-deluge), [the sky's falling](#the-sky-falls), [the demons](#the-demons), [the still sun](#the-still-sun) or [the plague](#the-plague), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
 | **Defeat** | Your civilization is destroyed, or that last turn passes and a rival scores higher |
 
 **Elimination:** a civilization with no cities and no settler is destroyed,
@@ -1366,6 +1438,7 @@ loud if the hex is off the edge.
 | Your city trains or builds something, grows, or pushes out its border; you learn a technology | A hammer and a bell; two notes rising; a high shimmer; a rising lyre. One at a time, at most four a turn |
 | Enemy soldiers in sight on your land or within 4 hexes of your city | A distant horn, at most once every 90 seconds |
 | A city taken; one of yours lost; a civilization destroyed | Drums, a horn and bells; a horn falling; a gong |
+| The plague: a death, one of your towns falling sick; the great pestilence; rats running out | A knell, a great bell tolled low over its own hum (a little higher for a town falling sick); two knells and a gong; a scuttle of claws and thin squeaks |
 | Victory, defeat | A rising fanfare; a falling one |
 
 **The land.** Every half second, 35 points spread over the screen are
@@ -1422,8 +1495,10 @@ and picks up where it left off.
 | `love . --play --cataclysm sky --shot fall.png --skip 124 --select mark --hour 12 --next --film 12` | The sky's falling: the camera over the most hexes stones are falling on, then the turn ended (`--next`) so they come down in the pictures; [shots/33-starfall.png](shots/33-starfall.png) was made so. `--select crater` or `glow` for the most craters (or hot ones), `heart` for the heart of the comet's hexes once it is told; `--select shelter` gives your capital a shelter; `--select skyfall` puts one of every crater and a stone of each size coming round your start; `--select bigfall` a great stone coming beside a forest near your capital ([shots/36-great-stone.gif](shots/36-great-stone.gif) was made so, with `--skip 124 --zoom 2 --next --film 40`; [shots/37-heart-of-the-comet.gif](shots/37-heart-of-the-comet.gif) with `--skip 149 --select heart --hour 0 --next --film 80`) |
 | `love . --play --cataclysm sun --shot sun.png --skip 135 --select world --size 1920x1200 --zoom -1` | The still sun: the whole map shown in a bigger window (`--size`), a step further out (`--zoom -1`), the camera on the line; [shots/39-still-sun.png](shots/39-still-sun.png) was made so. `--select twilight` looks at the land on the line, `frost`, `tundra`, `snow` or `ice` at the most of it; `--select hearth` gives your capital a hearth |
 | `love . --play --cataclysm none --shot frozen.png --select frozen --hour 12` | The frost round your start, whatever the cataclysm: tundra near, snow beyond, the trees, hills and mountains under it, a river frozen over, the shallows frozen to ice with leads of water and floes left in it; `--select frozen:N` looks at hex N. With `--turns 3` first, your town under it keeps a hearth; [shots/40-frost.png](shots/40-frost.png) and [shots/41-sea-ice.png](shots/41-sea-ice.png) (`--select frozen:630 --zoom 2`, seed 7) were made so. [shots/42-endless-night.png](shots/42-endless-night.png) is `--cataclysm sun --seed 11 --skip 150 --select ice`, and [shots/43-snowfall.gif](shots/43-snowfall.gif) the same with `--zoom 2 --film 40`; [shots/45-long-night-frost.png](shots/45-long-night-frost.png) is `--cataclysm sky --seed 7 --skip 156 --select world` |
-| `luajit tools/cities.lua dir` | Sheets of towns traced as the game traces them, into dir/*.ppm, no LÖVE needed; dir/cities-frost.ppm is towns on tundra and snow with and without a hearth ([shots/44-frozen-towns.png](shots/44-frozen-towns.png), scaled up three times) |
+| `luajit tools/cities.lua dir` | Sheets of towns traced as the game traces them, into dir/*.ppm, no LÖVE needed; dir/cities-frost.ppm is towns on tundra and snow with and without a hearth ([shots/44-frozen-towns.png](shots/44-frozen-towns.png), scaled up three times), dir/cities-plague.ppm towns the plague is in ([shots/47-plague-towns.png](shots/47-plague-towns.png)) |
+| `luajit tools/plague_sheet.lua` | The plague's models on their own into /tmp/sheet/plague.ppm: the rats, a shut town's flag, a pyre, a fallow farm's ruin, and towns well, sick, burying their dead and with a lazaret ([shots/49-plague-models.png](shots/49-plague-models.png), scaled up three times) |
 | `love . --play --cataclysm demons --shot abyss.png --select abyss --hour 13` | The demons: their citadel risen a few hexes from your start with its blight about it, a rift open, another and a tentacle coming, and one of every demon, all of it shown. `--select blight` looks at the most blighted land of a game played on (with `--skip`) |
+| `love . --play --cataclysm plague --shot plague.png --turns 40 --select plague --hour 13 --zoom 2` | The plague round your capital: it sick (daubed, its dead buried, a pyre burning beside it, the miasma over it, crows over it), a second town of yours shut with a lazaret (founded if there is none), rats running, a soldier carrying it and farms fallow, all of it shown |
 | `luajit tools/demon_sheet.lua` | The demons' models painted on their own, every pose, beside beasts and a warrior, with the rift, the citadel and a town with a sanctum, into /tmp/sheet/sheet.ppm, no LÖVE needed; [shots/38-demon-models.png](shots/38-demon-models.png) was made so |
 | `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
 | `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |

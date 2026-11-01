@@ -27,6 +27,7 @@ local Rain = require "src.ui.rain"
 local Snow = require "src.ui.snow"
 local SkyFx = require "src.ui.sky"
 local Abyss = require "src.ui.abyss"
+local Pest = require "src.ui.pestilence"
 local Audio = require "src.ui.audio"
 
 local floor, min = math.floor, math.min
@@ -448,6 +449,11 @@ local function idlePose(u, a, near)
         local f = t % 7
         if k == "eye" and f > 6.6 then return P_.blink end
         return ({ [0] = 0, 1, 0, 2 })[floor(t * 1.5) % 4]
+    elseif k == "rats" then
+        -- Never still: scurrying on the spot, one up sniffing now and then.
+        local f = t % 4
+        if f > 3.2 then return P_.sniff end
+        return ({ [0] = 1, 0, 2, 0 })[floor(t * 6) % 4], f < S.dt * 1.5 and near and "squeak"
     elseif k == "tentacle" then
         -- Swaying, coiling down now and then.
         local f = t % 9
@@ -571,8 +577,8 @@ local function things(me)
             list[#list + 1] = { z = cell.z, draw = function()
                 local shore = Anim.shore(g, cell)
                 local pic = M.city(lookOf(c.owner), c.pop, c.capital, c.buildings, shore, shore and cell.top + 2,
-                    M.citySite(cell))
-                P.stamp(pic, cell.x, cell.top, cell.z, c.flash and T.FLASH or nil)
+                    M.citySite(cell), Pest.cityLook(c))
+                P.stamp(pic, cell.x, cell.top, cell.z, c.flash and T.FLASH or nil, Pest.dark(c))
                 if me.visible[cell.id] then Smoke.city(cell, c) end
             end }
         end
@@ -616,6 +622,8 @@ local function things(me)
     Wild.things(list, me, P.stamp)
     SkyFx.things(me, list)
     Abyss.things(me, list)
+    Pest.ruins(me, list)
+    Pest.things(me, list)
     table.sort(list, function(a, b) return a.z < b.z end)
     for _, t in ipairs(list) do t.draw() end
     Birds.draw()
@@ -623,6 +631,7 @@ local function things(me)
     Snow.draw()
     SkyFx.draw()
     Abyss.draw()
+    Pest.draw()
 end
 
 --- flat on top -----------------------------------------------------------------
@@ -647,12 +656,15 @@ local function unitBanner(u)
     local team = Board.TEAM[lookOf(u.owner)]
     if u.owner == g.WILD and u.def.temper == "hostile" then team = Board.TEAM.hostile end
     if u.owner == g.WILD and u.def.demon then team = Board.TEAM.demon end
+    if u.owner == g.WILD and u.def.vermin then team = Board.TEAM.hostile end
     local bx, by = sx - 4, sy - 9
     local sel = selectedUnit() == u
     Draw.rect(sel and "w" or "o", bx - 1, by - 1, 9, 9)
     Draw.rect(team.fill, bx, by, 7, 7)
     if team.band then Draw.rect(team.band, bx, by, 7, 1) Draw.rect(team.band, bx, by + 6, 7, 1) end
     Draw.icon(u.kind, bx + 1, by + 1, team.ink)
+    -- Carrying the plague (src/plague.lua): a speck of ink on a pale corner.
+    if u.sick then Draw.rect("w", bx + 5, by, 2, 2) Draw.rect("o", bx + 6, by, 1, 1) end
     -- Moves left, for the player's own: a pip beside it.
     if u.owner == 1 and u.moves > 0 and not u.fortified then Draw.rect("w", bx + 8, by + 6, 1, 1) end
     if u.fortified then Draw.rect("c", bx + 8, by, 1, 3) end
@@ -678,6 +690,21 @@ local function cityBanner(c)
     local tx = x + 11
     if c.capital then Draw.icon("star", tx, y + 2, team.ink) tx = tx + 6 end
     Draw.text(team.ink, name, tx, y + 2)
+    -- The plague (src/plague.lua): sick, a cross in a box after the name,
+    -- blinking; shut, a flag.
+    local ex = x + w + 2
+    if c.sick then
+        local on = floor(S.clock * 2) % 2 == 0
+        Draw.rect("o", ex - 1, y - 1, 9, 11)
+        Draw.rect(on and "w" or "c", ex, y, 7, 9)
+        Draw.icon("plague", ex + 1, y + 2, "o")
+        ex = ex + 9
+    end
+    if c.shut then
+        Draw.rect("o", ex - 1, y - 1, 9, 11)
+        Draw.rect("c", ex, y, 7, 9)
+        Draw.icon("shut", ex + 1, y + 2, "o")
+    end
     -- Growth and production underneath, for the player's own.
     if c.owner == 1 then
         Draw.bar(x, y + 10, w, c.food / g:growthNeed(c), "c", "u")

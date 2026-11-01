@@ -63,7 +63,7 @@ function love.quit() Audio.stop() end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
 -- bar fills, then the first turn. The world ends by the cataclysm chosen in
--- the new game window (or `--cataclysm heat|flood|sky|demons|sun|none`), or by none.
+-- the new game window (or `--cataclysm heat|flood|sky|demons|sun|plague|none`), or by none.
 function S.newGame(seed)
     seed = seed or S.seedArg or (os.time() % 100000)
     S.seedArg = nil
@@ -112,7 +112,7 @@ function love.load(args)
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
-        -- `--cataclysm heat|flood|sky|demons|sun|none`: how the world ends, whatever the new game
+        -- `--cataclysm heat|flood|sky|demons|sun|plague|none`: how the world ends, whatever the new game
         -- window last had.
         if a == "--cataclysm" and args[n + 1] then S.cataclysmArg = args[n + 1] end
         -- `--touch` lays out the screen as for a phone.
@@ -516,6 +516,74 @@ local function followPlan()
             p.sightChanged = true
             S.selected = nil
             View.lookAt(from, true)
+        end
+        -- `--select plague`: the plague round the player's capital: the
+        -- capital sick, its houses daubed, graves dug, a pyre burning
+        -- beside it and the miasma over it, crows over it; a town of theirs
+        -- shut nearby (founded if there is none), with a lazaret; rats
+        -- running, a soldier carrying it, a farm fallow, all of it shown.
+        if plan.select == "plague" then
+            local Plague = require "src.plague"
+            local g, p = S.game, S.game.players[1]
+            g.cataclysm.kind = "plague"
+            if g.turn < D.PLAGUE.fever then g.turn = D.PLAGUE.dying + 2 end
+            g.cataclysm.stage = require("src.cataclysm").stage(g)
+            local cap = g:citiesOf(1)[1]
+            if not cap then
+                for _, u in ipairs(g:unitsOf(1)) do if u.kind == "settler" then cap = g:found(u) end end
+            end
+            if cap then
+                local from = g.cells[cap.cell]
+                cap.pop = math.max(cap.pop, 6)
+                g:assignWork(cap)
+                Plague.infect(g, cap)
+                cap.sick, cap.dead, cap.pyre = 5, 5, g.turn
+                -- A second town of ours, shut, with a lazaret.
+                local other
+                for _, c in ipairs(g:citiesOf(1)) do if c ~= cap then other = c break end end
+                if not other then
+                    for _, cell in ipairs(g:within(from, 5)) do
+                        if g:dist(cell, from) >= 4 and g:passable(cell) and not cell.city and not cell.lair
+                            and not g.mil[cell.id] and not g.civ[cell.id] and (not cell.owner or cell.owner == 1) then
+                            local s = g:addUnit("settler", 1, cell.id)
+                            other = g:found(s)
+                            if other then break end
+                            g:removeUnit(s)
+                        end
+                    end
+                end
+                if other then
+                    other.pop = math.max(other.pop, 3)
+                    other.buildings.lazaret = true
+                    Plague.setShut(g, other, true)
+                end
+                -- A farm left fallow, and rats out of it.
+                local spots = g:within(from, 2)
+                table.sort(spots, function(x, y) return g:dist(x, from) < g:dist(y, from) end)
+                local n = 0
+                for _, cell in ipairs(spots) do
+                    if g:dist(cell, from) >= 1 and g:passable(cell) and not cell.city and not cell.feature
+                        and cell.elev == "flat" and not cell.lair and not g.mil[cell.id] and n < 2 then
+                        n = n + 1
+                        cell.improvement, cell.fallow = nil, true
+                        g:emit({ kind = "terrain", cell = cell.id })
+                    end
+                end
+                local rats = 0
+                for _, cell in ipairs(spots) do
+                    if rats < 2 and g:dist(cell, from) == 2 and g:passable(cell) and not cell.city and not g.mil[cell.id]
+                        and not cell.lair then
+                        rats = rats + 1
+                        local r = g:addUnit("rats", g.WILD, cell.id)
+                        r.home, r.life = cap.cell, 10
+                    end
+                end
+                for _, u in ipairs(g:unitsOf(1)) do if not u.def.civilian then u.sick = 3 break end end
+                for _, cell in ipairs(g:within(from, 6)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+                p.sightChanged = true
+                S.selected = nil
+                View.lookAt(from, true)
+            end
         end
         -- `--select bigfall`: a great stone coming on open land beside a
         -- forest near the player's capital, the only one this turn, the

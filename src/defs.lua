@@ -131,6 +131,12 @@ D.BEASTS = {
         night = 4, loot = { gold = 40, culture = 8, glory = 2 }, demon = true },
     abyss = { name = "EYE OF THE ABYSS", str = 58, moves = 1, sight = 3, temper = "demon", lives = "land", leash = 99,
         sense = 99, loot = { gold = 150, culture = 40, glory = 10 }, demon = true, boss = true },
+    -- The plague's (src/plague.lua): a swarm of rats out of a sick town's
+    -- granaries, that runs for the towns still well and brings the sickness
+    -- into them. `vermin`: it plays in the plague's turn, not the wild's,
+    -- and fights no one.
+    rats = { name = "PLAGUE RATS", str = 8, moves = 2, sight = 2, temper = "vermin", lives = "land", leash = 6, sense = 6,
+        loot = { gold = 4 }, vermin = true },
 }
 -- Lairs: a den, a cave or a hive on a hex, which the beasts come out of
 -- (one every `every` turns, up to `keep` of them about) until someone walks
@@ -241,6 +247,11 @@ D.BUILDINGS = {
     -- its farms keep their food through the night, and its people go less
     -- cold.
     hearth = { name = "HEARTH", short = "HEARTH", cost = 70, ward = "sun", tech = "pottery", order = 12 },
+    -- Against the plague (D.PLAGUE): a house of the sick outside the
+    -- houses of the well, long and low, its beds in a row and a herb garden
+    -- by it. Fewer of the city's sick die, they mend sooner, the well stay
+    -- well longer after, and its people go hungry less.
+    lazaret = { name = "LAZARET", short = "LAZAR.", cost = 70, ward = "plague", tech = "writing", order = 13 },
 }
 
 -- The shelter, against whatever ends the world: a city with one takes only
@@ -460,13 +471,69 @@ D.SUN = {
     scorchDamage = 10, frostbite = 10, crush = 25,
 }
 
+-- The plague: the sixth way the world can end (src/plague.lua), on the
+-- same turns as the others and to the same last turn. The one that goes
+-- from town to town: it is carried, by people walking and by rats, and the
+-- way to keep it out is to keep them out.
+D.PLAGUE = {
+    omen = 90,         -- the crows gather; on turn 99 the first sick town is seen
+    fever = 100,       -- the first town falls sick, and it spreads
+    dying = 120,       -- the great dying: faster, a second outbreak, rats
+    dance = 140,       -- the dance of death; on `great` the great pestilence
+    -- How many towns fall sick as each stage begins (the first, and a
+    -- second, elsewhere, far from the first).
+    seeds = { fever = 1, dying = 1 },
+    -- And now and then another, from over the sea: the chance a turn.
+    flare = { fever = 0.04, dying = 0.08, dance = 0.1 },
+    -- From a sick town to a well one: the chance a turn, in each stage, for
+    -- a town within `reach` (half as likely for each hex further than 3),
+    -- more where both are on a river or both on the coast (`water`), far
+    -- less if either is shut (`shut`). A town that has mended can't catch
+    -- it again for `immunity` turns.
+    spread = { fever = 0.12, dying = 0.18, dance = 0.24 },
+    reach = 7, water = 1.6, shut = 0.12, immunity = 14,
+    -- People: a unit that ends a turn in a sick town catches it by
+    -- `catchIn`, beside one by `catchBy`, beside rats by `catchRats`, and
+    -- carries it for `carry` turns, losing `sickHp` a turn (it can die of
+    -- it). Walking into or beside a well town it brings it in by `bring`.
+    -- A settler that carries it founds a sick town.
+    catchIn = 0.5, catchBy = 0.12, catchRats = 0.3, carry = 5, sickHp = 6,
+    bring = { fever = 0.3, dying = 0.4, dance = 0.5 },
+    -- A sick town: the chance a turn one of its people dies (never the
+    -- last), and that a death leaves one of its farms fallow; the chance it
+    -- mends a turn, once sick `mendAfter` turns. A lazaret halves the deaths
+    -- (`lazaretDeath`) and adds `lazaretMend` to the mending.
+    death = { fever = 0.3, dying = 0.45, dance = 0.6 },
+    fallow = 0.5,
+    mend = { fever = 0.1, dying = 0.08, dance = 0.06 },
+    mendAfter = 6,
+    lazaretDeath = 0.5, lazaretMend = 0.12,
+    -- Food a town loses a turn: the sick (`sick`), and the well from fear
+    -- (`fear`); a lazaret spares `ward` of it. A sick or shut town doesn't
+    -- grow, and a shut one makes no gold.
+    sick = { fever = 1, dying = 2, dance = 3 },
+    fear = { dying = 1, dance = 2 },
+    ward = 1,
+    -- Rats: the chance a turn a sick town sends a swarm out, in each stage,
+    -- how many may be out at once, the chance a turn one beside a well
+    -- town brings the sickness in, and how many turns a swarm lives. A
+    -- farm with rats on it yields no food.
+    rats = { dying = 0.3, dance = 0.45 },
+    ratMax = { dying = 4, dance = 7 },
+    ratBite = 0.35, ratLife = 12,
+    -- The great pestilence: told on `warn`, on `great` every sick town loses
+    -- `greatLoss` of its people (`lazaretLoss` with a lazaret), and every
+    -- well town within `reach` of one that isn't shut falls sick.
+    warn = 144, great = 150, greatLoss = 1 / 3, lazaretLoss = 1 / 5,
+}
+
 -- Technologies, in the order the list shows them.
 D.TECHS = {
     { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY, HEARTH" },
     { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES, SHELTER" },
     { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "ARCHER" },
     { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN, LEVEE" },
-    { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY, SANCTUM" },
+    { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY, SANCTUM, LAZARET" },
     { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, gives = "SPEARMAN" },
     { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, gives = "HORSEMAN" },
     { id = "currency", name = "CURRENCY", cost = 80, needs = { "writing" }, gives = "MARKET" },

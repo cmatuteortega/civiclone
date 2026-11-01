@@ -375,6 +375,17 @@ local DEFS = {
         { dur = 2.5, f0 = 98 * 2.76, a = 0.005, curve = 2, vol = 0.3, vib = { 3, 0.004 } },
         { dur = 1.2, wave = "noise", lp = { 900, 150 }, a = 0.01, curve = 1.5, vol = 0.3 }),
 
+    -- The plague's (src/plague.lua): a knell for its dead, one great bell
+    -- tolled low with its hum held under it; and rats, a scuttle of claws
+    -- and a few thin squeaks.
+    knell = sound({ vol = 0.42, gap = 1.5, echo = { 0.3, 0.3 } },
+        bell(0, 146.8, 3.2, 0.8), bell(0, 146.8 * 1.19, 2.4, 0.25),
+        { dur = 3.6, f0 = 73.4, a = 0.01, curve = 1.4, vol = 0.35, vib = { 2.2, 0.003 } }),
+    squeak = sound({ vol = 0.16, gap = 0.4, poly = 2, wob = 0.15 },
+        { dur = 0.3, wave = "noise", hp = { 2200 }, lp = { 7000, 3000 }, a = 0.01, curve = 1.2, vol = 0.5, trem = { 23, 0.9 } },
+        { at = 0.05, dur = 0.06, wave = "tri", f0 = 3400, f1 = 2900, a = 0.003, curve = 1.6, vol = 0.5 },
+        { at = 0.17, dur = 0.05, wave = "tri", f0 = 3900, f1 = 3300, a = 0.003, curve = 1.6, vol = 0.4 }),
+
     --- the turn, and the end
     turn = sound({ vol = 0.28, gap = 0.4, echo = { 0.2, 0.25 } },
         drum(0, 0.9, 85),

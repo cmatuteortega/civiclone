@@ -23,6 +23,7 @@ local Menu = require "src.ui.menu"
 local Settings = require "src.settings"
 local Clock = require "src.ui.clock"
 local Palette = require "src.palette"
+local Plague = require "src.plague"
 
 local floor, max, min = math.floor, math.max, math.min
 local text, rect, button, icon = Draw.text, Draw.rect, Draw.button, Draw.icon
@@ -126,8 +127,8 @@ local function unitPanel(u)
             stats[#stats + 1] = "MOVES " .. u.moves .. "/" .. g:maxMoves(u)
             if def.charges then stats[#stats + 1] = "BUILDS " .. u.charges end
             text("c", table.concat(stats, "  "), x + 15, y + 4)
-            local status = u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP") or (u.dest and "ON THE MOVE")
-                or (embarked and "EMBARKED") or nil
+            local status = (u.sick and "CARRIES THE PLAGUE") or u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP")
+                or (u.dest and "ON THE MOVE") or (embarked and "EMBARKED") or nil
             if status then text("s", status, x + w - Font.width(status) - 4, y + 18) end
             local bx = x + 3
             for _, a in ipairs(acts) do
@@ -149,7 +150,7 @@ local function cityPanel(c)
     local mine = c.owner == 1
     local w = 150
     local items = mine and g:buildable(c) or {}
-    local h = 62 + (mine and (#items * 10 + 14) or 0)
+    local h = 62 + (mine and (#items * 10 + 14) or 0) + (Cat.is(g, "plague") and Cat.stage(g) and 11 or 0)
     h = min(h, S.vh - 13 - 24)
     local cap = c.capital and " (CAPITAL)" or ""
     Win.add({ id = "city", title = c.name .. cap, w = w, h = h,
@@ -193,9 +194,25 @@ function cityBody(c, x, y, w, h, mine, items)
     local line2 = table.concat(long, " ")
     if Font.width(line2) > w - 8 then line2 = table.concat(short, " ") end
     text("s", #ids > 0 and line2 or "NO BUILDINGS", x + 4, y + 36)
+    local yy = y + 45
+    -- The plague (src/plague.lua): how the town is, and its gates.
+    if Cat.is(g, "plague") and Cat.stage(g) then
+        local how
+        if c.sick then how = "SICK " .. (c.sick - 1) .. " TURNS"
+        elseif Plague.immune(g, c) then how = "MENDED: SPARED " .. (c.immune - g.turn) .. " TURNS"
+        else how = "WELL" end
+        if c.dead then how = how .. "  DEAD " .. c.dead end
+        text(c.sick and "w" or "c", how, x + 4, yy)
+        if mine then
+            button(c.shut and "OPEN" or "SHUT", x + w - 34, yy - 2, 30, 10, function() Plague.setShut(g, c) end,
+                { on = c.shut })
+        elseif c.shut then
+            text("s", "SHUT", x + w - 4 - Font.width("SHUT"), yy)
+        end
+        yy = yy + 11
+    end
     if not mine then return end
     -- What it is building, and what it could.
-    local yy = y + 45
     if c.build then
         local def = c.build.kind == "unit" and D.UNITS[c.build.id] or D.BUILDINGS[c.build.id]
         text("w", def.name .. " " .. floor(c.prod) .. "/" .. def.cost .. " (" .. g:turnsFor(c, def.cost) .. ")", x + 4, yy)
@@ -287,7 +304,8 @@ local function tooltip()
         for _, u in ipairs({ g.mil[cell.id], g.civ[cell.id] }) do
             if u and u.owner == g.WILD then
                 local d = u.def
-                local how = d.temper == "hostile" and "HOSTILE" or (d.temper == "neutral" and "FIGHTS IF HUNTED" or "SHY")
+                local how = d.temper == "hostile" and "HOSTILE" or (d.temper == "neutral" and "FIGHTS IF HUNTED"
+                    or (d.vermin and "BRINGS THE PLAGUE" or "SHY"))
                 lines[#lines + 1] = d.name .. " - " .. how .. " - STR " .. (d.str + Beasts.nightBonus(g, u)) .. " " .. u.hp .. "HP"
                 if d.night then lines[#lines + 1] = D.night(g.turn, g, cell) and "HUNTING BY NIGHT: +" .. d.night .. " STRENGTH"
                     or "STRONGER AT NIGHT" end
@@ -376,7 +394,11 @@ local function minimap()
             rect(k, px, py, 2, 2)
             -- A river's course, a dark speck in each hex along it.
             if not cell.owner and g:onRiver(cell) then rect("u", px + 1, py + 1, 1, 1) end
-            if cell.city then rect("o", px, py, 2, 1) end
+            if cell.city then
+                rect("o", px, py, 2, 1)
+                -- A sick town blinks pale.
+                if cell.city.sick and floor(S.clock * 2) % 2 == 0 then rect("w", px, py, 2, 2) end
+            end
         else
             rect((cell.c + cell.r) % 2 == 0 and "c" or "s", px, py, 2, 2)
         end

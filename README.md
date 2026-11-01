@@ -212,15 +212,42 @@ its people there. The sky's long night now freezes the land too.
 ![Towns on tundra and snow, snow on their roofs, with and without a hearth](shots/44-frozen-towns.png)
 ![The sky's long night, the land freezing under it](shots/45-long-night-frost.png)
 
+Or the plague comes (`src/plague.lua`), the one end of the world that goes
+from town to town. Crows gather over the towns, and everyone is told which
+will fall sick first. From there it is carried: to the towns near a sick
+one, more along a river or a coast they share, by anyone who walks out of a
+sick town or past one, by a settler who founds a town with it, and in the
+great dying by swarms of rats that run out of the sick towns for the well
+ones. A sick town goes hungry, stops growing and loses its people one by
+one, its farms going fallow, until it mends and is spared a while; on turn
+150 the great pestilence takes a third of every sick town and sickens the
+open towns near them. The way to hold on is to keep people out: any town can
+be shut, so no one walks in or out and the sickness hardly reaches it, at
+the cost of its growth and its gold; and a lazaret (a long low whitewashed
+house of the sick) halves its deaths and mends it sooner. The computer
+shuts its towns when the sickness is near and opens them when it has
+passed. A sick town's houses are daubed with crosses, its windows go dark,
+a miasma drifts over it and its land, crows wheel over it, its dead are
+buried in rows where its houses stood, and a pyre burns beside it under a
+black column of smoke; a shut town flies pale flags banded dark on poles at
+its corners, a rope slung between them. Fallow farms are overgrown, their
+farmhouses fallen in, and a knell tolls for every death.
+
+![The plague: a sick town under its miasma, its houses daubed, its dead buried and a pyre burning; a shut town flying its flags; rats running](shots/46-plague.png)
+![Towns the plague is in: daubed, their dead buried, with a lazaret](shots/47-plague-towns.png)
+![The plague at night: the sick town's lamps gone dark, its pyre burning](shots/48-plague-night.png)
+![The plague moving: the miasma drifting and its wisps rising over a sick town, crows wheeling, smoke from its pyre](shots/50-plague.gif)
+![The plague's models: rats, a shut town's flag waving, a pyre, a farm and its ruin; towns well, sick, burying their dead, with a lazaret](shots/49-plague-models.png)
+
 ## Running it
 
 ```
 love .
 ```
 
-Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|sun|none` picks how the world ends, `--play` skips
+Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|sun|plague|none` picks how the world ends, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen|plague] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits (`--size WxH` makes the window that big; `--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds

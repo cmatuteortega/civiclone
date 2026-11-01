@@ -547,7 +547,7 @@ M.CITY_PLOTS = PLOTS
 -- What each building takes, of the plots: it stands in that plot instead of
 -- a house.
 local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10, sanctum = 11,
-    hearth = 8 }
+    hearth = 8, lazaret = 9 }
 
 -- A little hash, so the same city is laid out the same way every time.
 local function hash(a, b)
@@ -673,6 +673,36 @@ local function windows(floors, door)
     end
 end
 
+-- The plague's mark (src/plague.lua): a great cross daubed across the
+-- ground storey of a house the sickness has been in, ink over its door and
+-- its windows. `across` is how far along the wall (-1..1), `uy` how high.
+local function daubed(across, uy)
+    if uy < 0.1 or uy > 0.9 or abs(across) > 0.6 then return nil end
+    local v = (uy - 0.5) / 0.4 * 0.6
+    if abs(abs(across) - abs(v)) < 0.16 then return IDX.o end
+end
+
+-- A wall print with the plague's cross laid over it, on every face.
+local function crossed(print)
+    return function(ux, uy, uz, lev, ...)
+        if abs(uz) > 0.98 or abs(ux) > 0.98 then
+            local k = daubed(abs(uz) > 0.98 and ux or uz, uy)
+            if k then return k end
+        end
+        if print then return print(ux, uy, uz, lev, ...) end
+    end
+end
+
+-- The cross daubed on each slope of a gabled roof too, where it shows from
+-- above: ink, or pale on a dark roof.
+local function crossedRoof(print, pale)
+    return function(ux, uy, uz, lev, ...)
+        local a, b = ux / 0.6, (abs(uz) - 0.5) / 0.42
+        if abs(a) < 1 and abs(b) < 1 and abs(abs(a) - abs(b)) < 0.2 then return pale and IDX.w or IDX.o end
+        if print then return print(ux, uy, uz, lev, ...) end
+    end
+end
+
 -- Thatch: the roof's own colour a step darker in courses, a dark eave.
 local function thatched(L, courses)
     return function(ux, uy, uz, lev)
@@ -688,7 +718,7 @@ local function snowed(ux, uy, uz, lev)
     return lev <= 2 and IDX.w or IDX.c
 end
 
-local function house(parts, x, y, z, L, id, size, storeys, turn, biome, snow)
+local function house(parts, x, y, z, L, id, size, storeys, turn, biome, snow, marked)
     local h = turn and math.pi / 2 or 0
     local w, d = 4 * size, 3.4 * size
     if turn then w, d = w * 0.92, d * 1.08 end
@@ -697,10 +727,26 @@ local function house(parts, x, y, z, L, id, size, storeys, turn, biome, snow)
         -- A round hut, thatched to a cone, a dark band where the thatch ends.
         parts[#parts + 1] = part(Sh.prism(8, x, y, z, 1.75 * size, ht * 0.95, 0, math.pi / 8), R.wall, id,
             function(ux, uy, uz)
+                if marked and uz > 0.6 then
+                    local k = daubed(ux, uy)
+                    if k then return k end
+                end
                 if uz > 0.7 and math.abs(ux) < 0.3 and uy < 0.75 then return IDX.u, true end
             end)
+        local thatch = thatched(L, 7)
+        local cone = thatch
+        if marked then
+            -- The cross on the thatch, on the side to the front.
+            cone = function(ux, uy, uz, lev, ...)
+                if uz > 0.15 then
+                    local a, b = ux / 0.55, (uy - 0.4) / 0.32
+                    if abs(a) < 1 and abs(b) < 1 and abs(abs(a) - abs(b)) < 0.22 then return L == LOOK.dark and IDX.w or IDX.o end
+                end
+                return thatch(ux, uy, uz, lev, ...)
+            end
+        end
         parts[#parts + 1] = part(Sh.pyramid(8, x, y + ht * 0.9, z, 2.45 * size, 3.4 * size, 0, math.pi / 8), L.roof,
-            id + 1, thatched(L, 7))
+            id + 1, cone)
         return
     end
     if biome == "desert" then
@@ -708,7 +754,9 @@ local function house(parts, x, y, z, L, id, size, storeys, turn, biome, snow)
         -- a terrace; an awning in the city's colours on the top one.
         local ww, dd, yy = w, d, y
         for s = 1, storeys do
-            parts[#parts + 1] = part(Sh.box(x, yy, z, ww, dd, ht, h), R2.mud, id, windows(1, s == 1))
+            local print = windows(1, s == 1)
+            if marked and s == 1 then print = crossed(print) end
+            parts[#parts + 1] = part(Sh.box(x, yy, z, ww, dd, ht, h), R2.mud, id, print)
             parts[#parts + 1] = part(Sh.box(x, yy + ht, z, ww + 0.3, dd + 0.3, 0.45, h), R2.slab, id + 1)
             yy = yy + ht + 0.45
             if s < storeys then ww, dd = ww * 0.72, dd * 0.75 end
@@ -754,12 +802,14 @@ local function house(parts, x, y, z, L, id, size, storeys, turn, biome, snow)
                 if lev ~= 1 and floor(uy * 4) % 2 == 0 and floor((ux + uz + 2) * 4) % 3 == 0 then return IDX.k end
             end
         end
+        if marked and s == 1 then print = crossed(print) end
         parts[#parts + 1] = part(Sh.box(x, yy, z, w + jut, d + jut, ht, h), wall, id, print)
         yy = yy + ht
     end
     local roofHt = (biome == "plains" and 3.2 or 2.6) * size
-    parts[#parts + 1] = part(Sh.roof(x, yy, z, w + 1, d + 1.2, roofHt, h), L.roof, id + 1,
-        snow and snowed or (biome == "plains" and thatched(L, 6) or banded(L)))
+    local roofPrint = snow and snowed or (biome == "plains" and thatched(L, 6) or banded(L))
+    if marked then roofPrint = crossedRoof(roofPrint, L == LOOK.dark) end
+    parts[#parts + 1] = part(Sh.roof(x, yy, z, w + 1, d + 1.2, roofHt, h), L.roof, id + 1, roofPrint)
 end
 
 -- What stands on a plot no one has built on yet, by the land: a tree and a
@@ -1025,8 +1075,13 @@ end
 -- seed }). A city on the water is told `shore`, the way (0..5) to the water
 -- it faces, and `drop`, how far below its ground (in room units) the
 -- water's top is.
-function M.city(look, pop, capital, built, shore, drop, site)
+-- `pest`, in the plague (src/plague.lua): { marked = the sickness is in
+-- it, its houses daubed with crosses; graves = how many it has buried, in
+-- rows on its empty plots }.
+function M.city(look, pop, capital, built, shore, drop, site, pest)
     local b = built or {}
+    local marked = pest and pest.marked or nil
+    local graves = pest and math.min(pest.graves or 0, 9) or 0
     site = site or {}
     local biome = site.biome or "grass"
     local lay = M.cityLayout(pop, b, site)
@@ -1034,7 +1089,7 @@ function M.city(look, pop, capital, built, shore, drop, site)
     local key = table.concat({ "c", look, #lay.houses, lay.tier, capital and 1 or 0, b.walls and 1 or 0,
         b.granary and 1 or 0, b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
         b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, b.levee and 1 or 0, b.shelter and 1 or 0, b.sanctum and 1 or 0, b.hearth and 1 or 0,
-        siteKey(site) }, ":")
+        b.lazaret and 1 or 0, marked and 1 or 0, graves, siteKey(site) }, ":")
     return kept(key, function()
         local L = LOOK[look]
         local parts = {}
@@ -1061,14 +1116,37 @@ function M.city(look, pop, capital, built, shore, drop, site)
                     if floor((ux + 1) * 5 + (uy > 0.5 and 0.5 or 0)) % 2 == 0 then return IDX.k end
                 end)
             end
-            house(parts, h.x, h.y, h.z, L, 10 + k * 4, h.size, h.storeys, h.turn, site.hills and "hills" or biome, site.snow)
+            -- Two houses in three bear the plague's cross, while it is there.
+            local daub = marked and hash((site.seed or 0) + k, 7) < 0.67
+            house(parts, h.x, h.y, h.z, L, 10 + k * 4, h.size, h.storeys, h.turn, site.hills and "hills" or biome, site.snow,
+                daub)
+        end
+        -- The plague's dead, buried on the plots their houses stood on: rows
+        -- of three low mounds of fresh earth, a cross of sticks at the head of
+        -- each.
+        local dug = {}
+        for _, e in ipairs(lay.empty) do
+            if graves <= 0 then break end
+            if not e.what then
+                dug[e.plot] = true
+                for r = 0, math.min(2, graves - 1) do
+                    local gx, gz = e.x - 1.6 + r * 1.6, e.z + (r % 2) * 0.4
+                    parts[#parts + 1] = part(Sh.ell(gx, e.y, gz, 0.6, 0.45, 1.3), R2.soil, 140 + r, function(ux, uy, uz)
+                        if hash(floor(ux * 5), floor(uz * 5)) > 0.75 then return IDX.n end
+                    end)
+                    parts[#parts + 1] = part(Sh.seg(gx, e.y, gz - 1.5, gx, e.y + 1.7, gz - 1.5, 0.16), R.wood, 143)
+                    parts[#parts + 1] = part(Sh.seg(gx - 0.55, e.y + 1.2, gz - 1.5, gx + 0.55, e.y + 1.2, gz - 1.5, 0.14),
+                        R.wood, 143)
+                end
+                graves = graves - 3
+            end
         end
         -- Gardens on a few of the plots not built on yet: fewer as it grows.
         local gardens = ({ 4, 3, 2, 1 })[lay.tier]
         for k, e in ipairs(lay.empty) do
             if e.what == "windmill" then
                 windmill(parts, e.x, e.y, e.z, L)
-            elseif not e.what and gardens > 0 and (e.plot + (site.seed or 0)) % 3 ~= 0 then
+            elseif not e.what and not dug[e.plot] and gardens > 0 and (e.plot + (site.seed or 0)) % 3 ~= 0 then
                 gardens = gardens - 1
                 garden(parts, e, L, 120 + k * 4, site.hills and "hills" or biome, e.plot + (site.seed or 0))
             end
@@ -1160,6 +1238,24 @@ function M.city(look, pop, capital, built, shore, drop, site)
                 local lz = z + 0.8 + (k - 1) * 0.75
                 parts[#parts + 1] = part(Sh.seg(x - 4.2, 0.35 + (k % 2) * 0.7, lz, x - 2.6, 0.35 + (k % 2) * 0.7, lz, 0.38),
                     R.wood, 97)
+            end
+        end
+        if b.lazaret then
+            -- The lazaret, against the plague: a long low house of the sick,
+            -- whitewashed, a row of small windows down its side lit at night,
+            -- its roof the city's colours, a plain cross on its gable end,
+            -- and a herb garden in beds before it.
+            local x, z = at("lazaret")
+            parts[#parts + 1] = part(Sh.box(x, 0, z, 6.2, 3, 2.6, 0.5), R.wall, 98, function(ux, uy, uz)
+                if abs(uz) > 0.98 and uy > 0.35 and uy < 0.7 and floor((ux + 1) * 5) % 2 == 1 then return IDX.n, true end
+                if abs(ux) > 0.98 and abs(uz) < 0.2 and uy < 0.75 then return IDX.u, true end
+            end)
+            parts[#parts + 1] = part(Sh.roof(x, 2.6, z, 6.8, 3.6, 1.7, 0.5), L.roof, 99, banded(L))
+            local gx, gz = x + cos(0.5) * 3.7, z - sin(0.5) * 3.7
+            parts[#parts + 1] = part(Sh.seg(gx, 2.7, gz, gx, 5.1, gz, 0.2), R.wood, 100)
+            parts[#parts + 1] = part(Sh.seg(gx, 4.3, gz - 0.7, gx, 4.3, gz + 0.7, 0.18), R.wood, 100)
+            for r = -1, 1 do
+                parts[#parts + 1] = part(Sh.box(x + 0.6 * r, 0, z + 2.8, 1.4, 0.7, 0.4, 0.5), R2.hedge, 101)
             end
         end
         if b.levee then
@@ -1983,14 +2079,132 @@ function BEAST.abyss(pose)
     return p
 end
 
+-- The plague's rats (src/plague.lua): a swarm of five, dark and sleek,
+-- long naked tails curling behind, pale eyes; 1 and 2 scurrying (each
+-- rat's own way), 4 one up on its haunches sniffing the air.
+local RAT = ramp("k", "n", "u", "o")
+local TAIL = ramp("s", "t", "k", "n")
+function BEAST.rats(pose)
+    local p = {}
+    local spots = { { 3.4, 0, 0 }, { -0.4, 3.0, 0.6 }, { -1.2, -3.2, -0.5 }, { -5, 0.8, 0.3 }, { 1.4, -0.6, 2.6 } }
+    for k, s in ipairs(spots) do
+        local x, z, a = s[1], s[2], s[3]
+        -- Scurrying: each a little forward or back, by the pose.
+        if pose == 1 then x = x + (k % 2 == 0 and 1.2 or -0.8) elseif pose == 2 then x = x + (k % 2 == 0 and -0.8 or 1.2) end
+        local up = pose == 4 and k == 1
+        local side = (k % 2 == 0) and 1 or -1
+        local q = {}
+        if up then
+            q[#q + 1] = part(Sh.ell(0, 2.0, 0, 1.1, 2.0, 1.0, A.rotZ(-0.35)), RAT, 1)
+            q[#q + 1] = part(Sh.ell(0.8, 4.1, 0, 1.0, 0.8, 0.75), RAT, 2)
+            q[#q + 1] = part(Sh.seg(-0.8, 0.4, 0, -3.6, 0.3, 1.2, 0.26, 0.14), TAIL, 3)
+        else
+            q[#q + 1] = part(Sh.ell(0, 1.15, 0, 2.2, 1.15, 1.15), RAT, 1, function(ux, uy) if uy > 0.6 then return IDX.u end end)
+            q[#q + 1] = part(Sh.ell(2.2, 1.0, 0, 1.05, 0.75, 0.75), RAT, 2)
+            q[#q + 1] = part(Sh.seg(3.1, 0.85, 0, 3.6, 0.7, 0, 0.3, 0.15), TAIL, 6)
+            q[#q + 1] = part(Sh.seg(-2.0, 0.7, 0, -4.4, 0.4, side * 1.5, 0.26, 0.16), TAIL, 3)
+            q[#q + 1] = part(Sh.seg(-4.4, 0.4, side * 1.5, -5.8, 0.4, side * 0.3, 0.16, 0.1), TAIL, 3)
+        end
+        local hx, hy = up and 1.2 or 2.6, up and 4.4 or 1.35
+        for _, e in ipairs({ -1, 1 }) do
+            q[#q + 1] = part(Sh.ell(hx - 0.5, hy + 0.55, e * 0.45, 0.35, 0.4, 0.28), TAIL, 4)
+        end
+        q[#q + 1] = part(Sh.ell(hx + 0.25, hy + 0.15, 0.42, 0.18, 0.18, 0.18), GLOW, 5)
+        place(q, a, x, 0, z)
+        for _, part_ in ipairs(q) do p[#p + 1] = part_ end
+    end
+    return p
+end
+
 local BEAST_SCALE = { wolf = 0.74, bear = 0.74, boar = 0.68, aurochs = 0.7, horse = 0.82, croc = 0.66, serpent = 0.8,
-    spider = 0.7, brood = 0.95, eye = 0.8, tentacle = 1.0, abyss = 0.95 }
+    spider = 0.7, brood = 0.95, eye = 0.8, tentacle = 1.0, abyss = 0.95, rats = 0.8 }
 -- What each beast's poses past 3 are, for the board to choose among.
 M.BEAST_POSES = {
     wolf = { howl = 4, sniff = 5, lie = 6 }, bear = { rear = 4, root = 5 }, boar = { root = 4 },
     aurochs = { graze = 4 }, horse = { graze = 4, rear = 5 }, croc = { sunk = 4 }, serpent = { roll = 4, sunk = 5 },
     spider = { crouch = 4 }, brood = { crouch = 4 }, eye = { blink = 4 }, tentacle = { coil = 4 }, abyss = { coil = 4 },
+    rats = { sniff = 4 },
 }
+
+--- the plague's ------------------------------------------------------------------
+
+-- A flag of a town shut against the plague, on a tall pole: pale cloth with
+-- a broad dark band down it, so it reads as the sickness's and no one's
+-- banner. `pose` 0..3 its wave in the wind (it streams east, +x).
+M.FLAG_POSES = 4
+function M.plagueFlag(pose)
+    pose = pose or 0
+    return kept("pflag:" .. pose, function()
+        local p = {}
+        p[#p + 1] = part(Sh.seg(0, 0, 0, 0, 9, 0, 0.25), R.wood, 1)
+        p[#p + 1] = part(Sh.ell(0, 9.2, 0, 0.35, 0.35, 0.35), R.wood, 1)
+        -- The cloth, in three strips each a little further on the wave.
+        for k = 0, 2 do
+            local x0 = 0.3 + k * 1.3
+            local lift = sin(pose * math.pi / 2 + k * 1.1) * 0.5
+            p[#p + 1] = part(Sh.box(x0 + 0.65, 6.2 + lift, sin(pose * math.pi / 2 + k) * 0.35, 1.35, 0.2, 2.7), R.wall,
+                2 + k, function(ux, uy, uz)
+                    if k == 1 then return IDX.u end
+                    if uy > 0.9 or uy < 0.1 then return IDX.n end
+                end)
+        end
+        return p
+    end, M.UNIT_SCALE)
+end
+
+-- A pyre of the plague's dead: logs laid crosswise in a stack, shrouded
+-- shapes on it, pale; the board lights it (src/ui/pestilence.lua).
+function M.pyre()
+    return kept("pyre", function()
+        local p = {}
+        for layer = 0, 2 do
+            for k = -1, 1 do
+                local y = 0.45 + layer * 0.8
+                if layer % 2 == 0 then
+                    p[#p + 1] = part(Sh.seg(-2.4, y, k * 1.1, 2.4, y, k * 1.1, 0.42), R.wood, 1 + layer)
+                else
+                    p[#p + 1] = part(Sh.seg(k * 1.1, y, -2.2, k * 1.1, y, 2.2, 0.42), R.wood, 1 + layer)
+                end
+            end
+        end
+        for k = -1, 1, 2 do
+            p[#p + 1] = part(Sh.ell(k * 0.7, 2.75, k * 0.3, 1.9, 0.55, 0.6, A.rotY(0.2 * k)), BONE, 5, function(ux)
+                if abs(ux) > 0.8 then return IDX.s end
+            end)
+        end
+        return p
+    end, M.UNIT_SCALE)
+end
+
+-- A farm left fallow in the plague: its farmhouse abandoned, the thatch
+-- fallen in and the rafters showing, the walls broken down at one side,
+-- the haystack rotted black. Where the farm stood (`layout`).
+function M.farmRuin(layout)
+    layout = layout or M.FARM_LAYOUTS[1]
+    return kept("ruin:" .. layout.home[1] .. ":" .. layout.home[2], function()
+        local parts = {}
+        local hx, hz = layout.home[1], layout.home[2]
+        parts[#parts + 1] = part(Sh.prism(8, hx, 0, hz, 2.4, 2.4, 0, math.pi / 8), R.wall, 1, function(ux, uy, uz)
+            if uz > 0.75 and abs(ux) < 0.3 and uy < 0.85 then return IDX.o end
+            -- Broken down at the back, ragged.
+            if ux < -0.2 and uy > 0.55 + hash(floor(uz * 6), 3) * 0.4 then return IDX.u end
+            if uy > 0.92 then return IDX.n end
+        end)
+        parts[#parts + 1] = part(Sh.prism(8, hx, 0.1, hz, 2.0, 2.2, 0, math.pi / 8), ramp("n", "u", "o", "o"), 2)
+        -- The rafters, bare, two of them fallen in.
+        for k = 0, 3 do
+            local a = k * math.pi / 2 + 0.4
+            local fallen = k >= 2
+            local x0, z0 = hx + cos(a) * 2.2, hz + sin(a) * 2.2
+            local tx, ty, tz = hx, fallen and 1.6 or 5.4, hz
+            if fallen then tx, tz = hx - cos(a) * 1.2, hz - sin(a) * 1.2 end
+            parts[#parts + 1] = part(Sh.seg(x0, 2.4, z0, tx, ty, tz, 0.22), R.wood, 3)
+        end
+        parts[#parts + 1] = part(Sh.ell(hx + layout.hay * 5.4, 0.1, hz + 0.6, 1.9, 1.3, 1.7), R2.soil, 4,
+            function(ux, uy) if hash(floor(ux * 4), floor(uy * 4)) > 0.6 then return IDX.u end end)
+        return parts
+    end, FARM_SCALE)
+end
 
 function M.beast(kind, face, pose)
     face, pose = face or 1, pose or 0

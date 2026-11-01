@@ -219,7 +219,17 @@ function Audio.hear(game, e)
         if seen(e.cell) then at("splash", e.cell, 0.9, 0, 0.5) end
     elseif k == "devour" then
         if seen(e.cell) then at("fallen", e.cell, 0.6, 0, 0.7) end
-    elseif k == "eliminated" or k == "heat" or k == "flood" or k == "sky" or k == "demons" or k == "sun" then
+    elseif k == "pestilence" then
+        -- The plague's dead (src/plague.lua): a knell, nearer for our own.
+        local city = game.cells[e.cell].city
+        if (city and city.owner == 1) or seen(e.cell) then at("knell", e.cell, city and city.owner == 1 and 1 or 0.5) end
+    elseif k == "great" then
+        at("knell", nil, 1) at("knell", nil, 0.8, 1.6, 0.94) at("gong", nil, 0.7, 0.4, 0.7)
+    elseif k == "rats" then
+        if seen(e.cell) then at("squeak", e.cell, 0.8) end
+    elseif k == "sicken" then
+        if e.city.owner == 1 then at("knell", e.cell, 0.7, 0, 1.12) end
+    elseif k == "eliminated" or k == "heat" or k == "flood" or k == "sky" or k == "demons" or k == "sun" or k == "plague" then
         -- A civilization gone, or the cataclysm come a stage nearer.
         at("gong")
     elseif k == "embark" or k == "land" then

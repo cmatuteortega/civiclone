@@ -462,9 +462,10 @@ function Beasts.play(game)
     for _, u in ipairs(game.units) do
         if u.owner == Beasts.WILD then list[#list + 1] = u end
     end
-    -- The demons (src/demons.lua) act in the cataclysm's turn, not here.
+    -- The demons (src/demons.lua) and the plague's rats (src/plague.lua)
+    -- act in the cataclysm's turn, not here.
     for _, u in ipairs(list) do
-        if not u.dead and u.moves > 0 and not u.def.demon then act(game, u) end
+        if not u.dead and u.moves > 0 and not u.def.demon and not u.def.vermin then act(game, u) end
         u.dest = nil
     end
     for _, lair in ipairs(game.lairs) do

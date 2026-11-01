@@ -59,8 +59,15 @@ end
 P.onScreen = onScreen
 
 -- A picture laid down with its pivot at a room point, through a remap. If it
--- has windows, they are put as lamps and the rest of it as walls.
-function P.stamp(pic, x, y, z, remap)
+-- has windows, they are put as lamps and the rest of it as walls; `dark`
+-- of them (0..1, by little blocks of the picture) left unlit, as in a town
+-- the plague has emptied.
+local function dim(pi, pj, dark)
+    local n = math.sin(floor(pi / 3) * 12.9898 + floor(pj / 3) * 78.233) * 43758.5453
+    return n - floor(n) < dark
+end
+
+function P.stamp(pic, x, y, z, remap, dark)
     remap = remap or T.SAME
     local si, sj, d = S.world:toImage(x, y, z)
     local bi, bj = floor(si) - pic.oi, floor(sj) - pic.oj
@@ -71,7 +78,9 @@ function P.stamp(pic, x, y, z, remap)
             local n = pj * w + pi
             local k = pic.key[n]
             if k ~= 0 and visible(bi + pi, bj + pj, d + pic.dep[n]) then
-                put(remap[k], bi + pi, bj + pj, win and (win[n] == 1 and lamp or wall) or nil)
+                local a = win and (win[n] == 1 and lamp or wall) or nil
+                if a == lamp and dark and dim(pi, pj, dark) then a = wall end
+                put(remap[k], bi + pi, bj + pj, a)
             end
         end
     end

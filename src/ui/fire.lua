@@ -91,6 +91,8 @@ local function flame(si, sj, d, tall, wide, seed)
     end
 end
 
+Fire.flame = flame
+
 -- Sparks: single pixels going up from the fire, winking.
 local function sparks(cell, si, sj, d)
     local t = S.clock

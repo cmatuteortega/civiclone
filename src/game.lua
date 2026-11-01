@@ -186,6 +186,9 @@ Game.ALL = math.huge
 -- and leaves none.
 function Game:stepCost(u, from, to)
     if not self:canEnter(u, to) then return nil end
+    -- A town shut against the plague (src/plague.lua): no one comes in or
+    -- goes out.
+    if (to.city and to.city.shut) or (from.city and from.city.shut) then return nil end
     if u.def.sea then return 1 end
     local fw, tw = self:isWater(from), self:isWater(to)
     if fw ~= tw then return Game.ALL end
@@ -257,6 +260,7 @@ function Game:describe(cell)
     if cell.glow then parts[#parts + 1] = "- FRESH CRATER"
     elseif cell.crater then parts[#parts + 1] = "- CRATER" end
     if cell.blight then parts[#parts + 1] = "- BLIGHTED" end
+    if cell.fallow then parts[#parts + 1] = "- FALLOW" end
     if cell.fire then parts[#parts + 1] = "- BURNING"
     elseif cell.scorched then parts[#parts + 1] = "- SCORCHED"
     elseif cell.burnt then parts[#parts + 1] = "- BURNT" end
@@ -777,6 +781,8 @@ function Game:found(u)
     self:look(p)
     self:emit({ kind = "found", cell = cell.id, city = city })
     self:tell(u.owner, name .. " WAS FOUNDED")
+    local K = Cat.kindOf(self)
+    if K and K.founded then K.founded(self, u, city) end
     return city
 end
 
@@ -848,6 +854,8 @@ function Game:cityYield(city)
         sci, cul = sci + (def.science or 0), cul + (def.culture or 0)
     end
     f = f - Cat.thirst(self, city)
+    local K = Cat.kindOf(self)
+    if K and K.gold then g = K.gold(self, city, g) end
     return f, p, g, sci, cul
 end
 
@@ -1140,6 +1148,10 @@ function Game:finishTurn(p)
         sci, gold = sci + s, gold + g
         -- Food: two a citizen; the rest stored towards the next.
         city.food = city.food + f - city.pop * 2
+        -- A town the cataclysm keeps from growing (the plague's sick and
+        -- shut, src/plague.lua) stores up to the brink.
+        local K = Cat.kindOf(self)
+        if K and K.stunted and K.stunted(self, city) then city.food = min(city.food, self:growthNeed(city) - 1) end
         if city.food >= self:growthNeed(city) then
             city.food = city.food - self:growthNeed(city)
             city.pop = city.pop + 1
@@ -1325,6 +1337,11 @@ function Game:improve(u, what)
     if not ok then return false end
     local cell = self.cells[u.cell]
     cell.improvement = what
+    -- A fallow field (src/plague.lua) is worked again.
+    if what == "farm" and cell.fallow then
+        cell.fallow = nil
+        self:emit({ kind = "terrain", cell = cell.id })
+    end
     u.moves, u.acted = 0, true
     u.charges = u.charges - 1
     self:emit({ kind = "improve", cell = cell.id })

@@ -158,6 +158,14 @@ function Anim.events(game)
                 S.effects[#S.effects + 1] = { kind = "dust", t = 0, life = 1.0, x = cell.x, y = cell.top, z = cell.z,
                     seed = e.cell }
             end
+        elseif e.kind == "sicken" or e.kind == "mend" or e.kind == "pestilence" then
+            -- The plague (src/plague.lua): a town falling sick, mending, or
+            -- losing its people, the word rising over it.
+            local cell = game.cells[e.cell]
+            local text = e.kind == "sicken" and "PLAGUE" or (e.kind == "mend" and "MENDED" or ("-" .. e.n .. " POP"))
+            S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = text,
+                x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.3 }
+            if e.kind ~= "mend" and cell.city then cell.city.flash = 0.4 end
         elseif e.kind == "tame" then
             -- The wild horses gone over to their new people.
             S.anim[e.unit.id] = nil
