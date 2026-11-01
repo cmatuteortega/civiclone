@@ -1,10 +1,10 @@
-# Sepia: the guide
+# HEXTINCT: the guide
 
 Everything the game does, and every number behind it, as built. The rules
 live in `src/game.lua` and `src/ai.lua`. Every number is in `src/defs.lua`, so
 that is the file to edit to tune the game.
 
-1. [Starting a game](#starting-a-game)
+1. [Starting a game](#starting-a-game) · [Keeping a game](#keeping-a-game)
 2. [Controls](#controls)
 3. [The screen](#the-screen)
 4. [The map](#the-map)
@@ -21,7 +21,7 @@ that is the file to edit to tune the game.
 15. [Sight and fog of war](#sight-and-fog-of-war)
 16. [The rival civilizations](#the-rival-civilizations)
 17. [The wild](#the-wild)
-18. [The heat death](#the-heat-death) · [The deluge](#the-deluge) · [The sky falls](#the-sky-falls) · [The demons](#the-demons) · [The still sun](#the-still-sun) · [The plague](#the-plague) · [The sundering](#the-sundering)
+18. [The heat death](#the-heat-death) · [The deluge](#the-deluge) · [The sky falls](#the-sky-falls) · [The abyss](#the-abyss) · [The still sun](#the-still-sun) · [The plague](#the-plague) · [The shattering](#the-shattering)
 19. [Winning and losing](#winning-and-losing)
 20. [How it is drawn](#how-it-is-drawn)
 21. [How it sounds](#how-it-sounds)
@@ -31,25 +31,59 @@ that is the file to edit to tune the game.
 
 ## Starting a game
 
-Run `love .` in the repository (LÖVE 11). The title screen has **NEW GAME**
-and **QUIT** buttons; Enter or Space also open the new game window.
+Run `love .` in the repository (LÖVE 11). The title screen has **NEW GAME**,
+**SETTINGS** and **QUIT**, and **CONTINUE** when there is a game kept (see
+[Keeping a game](#keeping-a-game)). Enter or Space takes up the kept game if
+there is one, and otherwise opens the new game window.
 
-The **new game** window asks how the world ends, then **START** (or Enter)
-begins:
+The **new game** window asks how the world ends. The endings come under four
+kinds, across the top of the window; choosing a kind shows its endings, what
+to expect of the one in hand, and a close picture of something only that one
+does. **START** (or Enter) begins.
 
-| Cataclysm | What it means |
-| --- | --- |
-| **Heat death** | The [heat death](#the-heat-death): drought, wildfires and the scorch, the rivers running dry and at last the sea drawing back, and the game ends at turn 160 |
-| **The deluge** | The [deluge](#the-deluge): the long rains, the floods and the rising sea, and at last the great flood over the lowlands and the uplands, and the game ends at turn 160 |
-| **Skyfall** | The [sky falls](#the-sky-falls): the starfall, the bombardment and the long night, and the game ends at turn 160 |
-| **Demons** | [The demons](#the-demons): the rifts, the deep and the hellgate, a citadel to raze, and the game ends at turn 160 |
-| **The still sun** | [The sun stands still](#the-still-sun): endless day on one side of a line no one can foresee, endless night and ice on the other, and at last a great storm of cyclones along the line, and the game ends at turn 160 |
-| **The plague** | [The plague](#the-plague): the fever, the great dying and the dance of death, going from town to town with people and rats, and the game ends at turn 160 |
-| **The sundering** | [The sundering](#the-sundering): the tremors, the rift and the fire below; quakes, faults, a rift the sea comes in by, mountains rising, volcanoes and waves, and the game ends at turn 160 |
-| **None** | No cataclysm, no cisterns, levees, hearths, lazarets, buttresses or shelters: the game ends at turn 150 on score |
+| Kind | Ending | What it means |
+| --- | --- | --- |
+| **Destruction** | **Skyfall** | The [sky falls](#the-sky-falls): the starfall, the bombardment and the long night, and the game ends at turn 160 |
+| | **The shattering** | The [shattering](#the-shattering): the tremors, the sundering and the fire below; quakes, faults, a rift the sea comes in by, mountains rising, volcanoes and waves, and the game ends at turn 160 |
+| **Dilation** | **Heat death** | The [heat death](#the-heat-death): drought, wildfires and the scorch, the rivers running dry and at last the sea drawing back, and the game ends at turn 160 |
+| | **The deluge** | The [deluge](#the-deluge): the long rains, the floods and the rising sea, and at last the great flood over the lowlands and the uplands, and the game ends at turn 160 |
+| | **The still sun** | [The sun stands still](#the-still-sun): endless day on one side of a line no one can foresee, endless night and ice on the other, and at last a great storm of cyclones along the line, and the game ends at turn 160 |
+| **Contagion** | **The abyss** | [The demons](#the-abyss): the rifts, the deep and the hellgate, a citadel to raze, and the game ends at turn 160 |
+| | **The plague** | [The plague](#the-plague): the fever, the great dying and the dance of death, going from town to town with people and rats, and the game ends at turn 160 |
+| **None** | **No cataclysm** | No cataclysm, no cisterns, levees, hearths, lazarets, buttresses or shelters: the game ends at turn 150 on score |
 
 The choice is kept for the next game. `love . --cataclysm none` (or `heat`,
-`flood`, `sky`, `demons`, `sun`, `plague` or `quake`) overrides it.
+`flood`, `sky`, `demons`, `sun`, `plague` or `quake` -- the names in the code
+have not moved) overrides it.
+
+The pictures are in `assets/menu/`, one for each ending, 160 by 96 pixels of
+the board at its own scale. They are made with the shot tools (see
+[Developer notes](#developer-notes)): `--bare` takes a picture of the map
+alone, with no HUD over it, and the middle of it is cropped out.
+
+### Keeping a game
+
+There is one kept game, in the save folder beside the settings
+(`src/save.lua`). It is written:
+
+- as each turn begins, so the kept game is never more than a turn behind;
+- when **SAVE GAME** is chosen in the menu (Escape), which keeps the turn
+  being played, half-played;
+- on **MAIN MENU**, on **QUIT GAME** and when the window is closed.
+
+**CONTINUE** on the title screen takes it up again, in the state it was left
+in, under a line saying which turn and which ending it is. There is nothing
+to ask before leaving a game: it is kept. **NEW GAME** asks, because the game
+that is kept is the one last played, and the new one takes its place.
+
+A game that is over is not kept: the kept game is thrown away as the world
+ends, so CONTINUE never puts you back into a world that has already finished.
+
+What is written is the whole state -- every hex and what has happened to it,
+every unit, city and player, the news, and the cataclysm's own marks -- as
+Lua that builds it again, squeezed with zlib. The map's picture is not
+written: it is traced again from the hexes behind the same "SURVEYING THE
+LAND" bar. A save is about 50 KB.
 
 Every game makes a new map from a seed: random by default, or chosen with
 `love . --seed 1234`. The same seed always makes the same map. While the map
@@ -482,12 +516,12 @@ below 1) and the store empties.
 | Harbour | 90 | +1 food on each worked water hex | Shipbuilding; a city on the water |
 | Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
 | Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less. The same against the day of [the still sun](#the-still-sun) | Masonry; only in the heat death or under the still sun |
-| Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less, and the city holds through the first rising of the great flood (not the second). Against the waves of [the sundering](#the-sundering): a wave does the city no harm | Masonry; only in the deluge or the sundering |
+| Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less, and the city holds through the first rising of the great flood (not the second). Against the waves of [the shattering](#the-shattering): a wave does the city no harm | Masonry; only in the deluge or the shattering |
 | Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Mining; only when there is a cataclysm |
-| Sanctum | 70 | Against [the demons](#the-demons): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Writing; only against the demons |
+| Sanctum | 70 | Against [the demons](#the-abyss): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Writing; only against the demons |
 | Hearth | 70 | Against the night of [the still sun](#the-still-sun): its land freezes a quarter as fast, its farms keep their food through the night, its people go 2 less cold. The same against the long night of [the sky's falling](#the-sky-falls) | Pottery; only under the still sun or the falling sky |
 | Lazaret | 70 | Against [the plague](#the-plague): half as many of its sick die, it mends sooner (+12% a turn), and its people go hungry 1 less, sick or well | Writing; only in the plague |
-| Buttress | 70 | Against [the sundering](#the-sundering): a quake does it half the harm, brings none of its buildings down and kills half as many, the great quake none; no fault opens on its land, and its people fear 2 less | Masonry; only in the sundering |
+| Buttress | 70 | Against [the shattering](#the-shattering): a quake does it half the harm, brings none of its buildings down and kills half as many, the great quake none; no fault opens on its land, and its people fear 2 less | Masonry; only in the shattering |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
@@ -990,7 +1024,7 @@ cistern or levee is up. Against the long night's cold a **hearth**
 freezes a quarter as fast, and its farms keep their food in the dark. The
 AI builds one once its shelter is up.
 
-## The demons
+## The abyss
 
 The world ends in the abyss. From turn 90 a blood moon hangs in the night,
 and the game ends when turn 160 is played out. It is the one cataclysm that
@@ -1232,7 +1266,7 @@ on the sky is overcast: more clouds' shadows go over the land. Its banner shows 
 blinking, while it is sick, and a flag while it is shut, and on the minimap
 it blinks pale. A death tolls a knell; the great pestilence two.
 
-## The sundering
+## The shattering
 
 The world ends with the land itself breaking. From turn 90 the ground
 trembles, and the game ends when turn 160 is played out. It is the one
@@ -1319,7 +1353,7 @@ takes 40 HP, ships and boats beside it 20; flat land is flooded 2 turns and
 then left silted, its farm or mine washed away; a city takes 30 unless it
 has a **levee**.
 
-**The buttress** (Masonry, 70, only in the sundering) shores a city up with
+**The buttress** (Masonry, 70, only in the shattering) shores a city up with
 sloping stone buttresses and timbers braced in an X: a quake does it half
 the harm, brings none of its buildings down and kills half as many of its
 people, the great quake kills none, no fault opens on its land, and its
@@ -1340,7 +1374,7 @@ blasts and roars, a wave rushes in and breaks.
 | Outcome | How |
 | --- | --- |
 | **Domination victory** | Every rival is destroyed, or you hold every capital |
-| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), the [deluge](#the-deluge), [the sky's falling](#the-sky-falls), [the demons](#the-demons), [the still sun](#the-still-sun) or [the plague](#the-plague), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
+| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), the [deluge](#the-deluge), [the sky's falling](#the-sky-falls), [the demons](#the-abyss), [the still sun](#the-still-sun) or [the plague](#the-plague), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
 | **Defeat** | Your civilization is destroyed, or that last turn passes and a rival scores higher |
 
 **Elimination:** a civilization with no cities and no settler is destroyed,
@@ -1352,7 +1386,7 @@ turn 5.
 - 5 per city, plus 2 per citizen
 - 4 per technology
 - 0.05 per hex explored
-- 1 per glory: won against [the demons](#the-demons)
+- 1 per glory: won against [the demons](#the-abyss)
 
 **At the end**, a panel shows the result, why, and every civilization's
 cities and score. **NEW GAME** starts again; **KEEP LOOKING** closes the
@@ -1710,10 +1744,13 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, the rivers running dry from their springs, the great ebb and the salt flats walked on, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, the great flood over the lowland and then the upland, towns sunk to ruins and a levee holding through the first, a civilization gone with its towns, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, the great storm's cyclones formed on the line, seen coming, running along it and striking, the gales, a whole game to its end), the sundering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, the rivers running dry from their springs, the great ebb and the salt flats walked on, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, the great flood over the lowland and then the upland, towns sunk to ruins and a levee holding through the first, a civilization gone with its towns, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, the great storm's cyclones formed on the line, seen coming, running along it and striking, the gales, a whole game to its end), the shattering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
+| `love . --resume` | Straight into the game that was kept, as CONTINUE does |
+| `love . --shot title.png` | With no `--play`, a picture of the title screen; `--open newgame` or `--open settings` shows that window over it |
+| `love . --play --shot x.png --bare --select abyss --size 640x400` | The map alone, with no HUD, nothing chosen and nothing under the pointer. The new game window's pictures (`assets/menu/`, 160 by 96) are the middle of pictures taken so |
 | `love . --play --shot out.png --turns 40 --select city` | Let the AI play your side for 40 turns, select your capital, screenshot into LÖVE's save folder, and quit (silently) |
 | `love . --play --shot night.png --turns 40 --hour 0` | The same at midnight: `--hour H` plays every turn at H o'clock |
 | `love . --play --shot port.png --turns 80 --select harbour --hour 11` | The player's city on the water (one founded on the nearest shore if there is none) given a harbour and a lighthouse, with a galley, a quadrireme, a warrior in a boat and fishing boats round it. `--select port` looks at the best city on the water you know, `--select fleet` at one of your ships |
@@ -1723,7 +1760,7 @@ and picks up where it left off.
 | `love . --play --shot fire.png --turns 128 --select fire` | The camera over the most fire on the map, with the land round it shown. `--select scorch` for the most baked earth, `--select burnt` for the most burnt land; `--select cistern` gives your capital a cistern and looks at it |
 | `love . --play --cataclysm flood --shot flood.png --skip 130 --select flood --film 60` | The deluge: the camera over the most floodwater, in the storm, sixty pictures a few frames apart. `--select marsh`, `silt` or `drowned` for the most of each; `--select levee` gives your capital a levee |
 | `love . --play --cataclysm sky --shot fall.png --skip 124 --select mark --hour 12 --next --film 12` | The sky's falling: the camera over the most hexes stones are falling on, then the turn ended (`--next`) so they come down in the pictures; [shots/33-starfall.png](shots/33-starfall.png) was made so. `--select crater` or `glow` for the most craters (or hot ones), `heart` for the heart of the comet's hexes once it is told; `--select shelter` gives your capital a shelter; `--select skyfall` puts one of every crater and a stone of each size coming round your start; `--select bigfall` a great stone coming beside a forest near your capital ([shots/36-great-stone.gif](shots/36-great-stone.gif) was made so, with `--skip 124 --zoom 2 --next --film 40`; [shots/37-heart-of-the-comet.gif](shots/37-heart-of-the-comet.gif) with `--skip 149 --select heart --hour 0 --next --film 80`) |
-| `love . --play --cataclysm quake --shot q.png --select sundering --hour 15` | The sundering round your start: faults, the rift at every step (cracked, chasm, the sea in, sea), a range risen, a volcano erupting with its lava, black rock and ash, the sea's floor come up, a quake and a wave coming; [shots/51-sundering.png](shots/51-sundering.png) was made so (with `--at N`, the camera over hex N). `--select rift` looks along the rift where the sea comes in; with `--next --film 60` the volcano erupts, the quake strikes and the wave runs in as the next turn begins ([shots/54-sundering.gif](shots/54-sundering.gif)); `--select buttress` gives your capital a buttress |
+| `love . --play --cataclysm quake --shot q.png --select sundering --hour 15` | The shattering round your start: faults, the rift at every step (cracked, chasm, the sea in, sea), a range risen, a volcano erupting with its lava, black rock and ash, the sea's floor come up, a quake and a wave coming; [shots/51-sundering.png](shots/51-sundering.png) was made so (with `--at N`, the camera over hex N). `--select rift` looks along the rift where the sea comes in; with `--next --film 60` the volcano erupts, the quake strikes and the wave runs in as the next turn begins ([shots/54-sundering.gif](shots/54-sundering.gif)); `--select buttress` gives your capital a buttress |
 | `love . --play --cataclysm sun --shot sun.png --skip 135 --select world --size 1920x1200 --zoom -1` | The still sun: the whole map shown in a bigger window (`--size`), a step further out (`--zoom -1`), the camera on the line; [shots/39-still-sun.png](shots/39-still-sun.png) was made so. `--select twilight` looks at the land on the line, `frost`, `tundra`, `snow` or `ice` at the most of it; `--select hearth` gives your capital a hearth |
 | `love . --play --cataclysm heat --shot ebb.png --skip 152 --select ebbed --hour 11` | The heat death's great ebb: the camera over the most salt flats; [shots/57-great-ebb.png](shots/57-great-ebb.png) was made so (seed 5). `--select dry` (with `--skip 135`) looks at the most dry riverbeds ([shots/56-dry-rivers.png](shots/56-dry-rivers.png)) |
 | `love . --play --cataclysm flood --shot sunk.png --skip 156 --select ruin --hour 12 --zoom 1` | The deluge's great flood: the camera over the most sunken towns; [shots/58-great-flood.png](shots/58-great-flood.png) was made so (seed 5). With `--skip 149 --next --film 60` the sea rises over the lowland as the next turn begins |

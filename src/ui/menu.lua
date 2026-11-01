@@ -14,6 +14,8 @@ local Win = require "src.ui.windows"
 local View = require "src.ui.view"
 local Settings = require "src.settings"
 local Font = require "src.font"
+local D = require "src.defs"
+local Save = require "src.save"
 
 local floor, max, min, ceil = math.floor, math.max, math.min, math.ceil
 local text, rect, button = Draw.text, Draw.rect, Draw.button
@@ -261,8 +263,18 @@ end
 
 function Menu.openPause() S.pause = true end
 
--- The new game window: which cataclysm ends the world, then START.
-function Menu.openNewGame() S.choosing = true end
+-- The new game window: which kind of ending, which cataclysm, then START.
+function Menu.openNewGame()
+    S.choosing = true
+    Menu.syncType()
+end
+
+-- Enter or Space on the title screen: on with the game that was kept, or
+-- else the new game window.
+function Menu.titleStart()
+    if Save.info() and S.resume and S.resume() then return end
+    Menu.openNewGame()
+end
 
 -- The developer tools' window (the DEVELOPER TOOLS setting).
 function Menu.openDev() S.dev = true end
@@ -449,9 +461,18 @@ end
 
 --- the pause menu, and questions ---------------------------------------------------------
 
+-- The game is kept where it stands, and said to be.
+local savedAt = -99
+function Menu.keep()
+    if not S.game or S.over then return false end
+    local ok = Save.write(S.game)
+    if ok then savedAt = S.clock end
+    return ok
+end
+
 local function pauseWindow()
     local dev = Settings.get("devTools")
-    local w, h = 120, 11 + (dev and 6 or 5) * 15 + 6
+    local w, h = 120, 11 + (dev and 7 or 6) * 15 + 6
     Win.add({
         id = "pause", title = "MENU", w = w, h = h, modal = true,
         x = floor((S.vw - w) / 2), y = floor((S.vh - h) / 2),
@@ -464,6 +485,8 @@ local function pauseWindow()
                 yy = yy + 15
             end
             item("RESUME", function() S.pause = false end, { strong = true })
+            local just = S.clock - savedAt < 2
+            item(just and "GAME SAVED" or "SAVE GAME", Menu.keep, { off = just or S.over ~= nil })
             item("SETTINGS", Menu.openSettings)
             if dev then item("DEV TOOLS", function() S.pause = false Menu.openDev() end) end
             item("NEW GAME", function()
@@ -472,14 +495,16 @@ local function pauseWindow()
                     Menu.openNewGame()
                 end)
             end)
+            -- Leaving keeps the game, so there is nothing to ask: it is
+            -- waiting on the title screen under CONTINUE.
             item("MAIN MENU", function()
-                Menu.ask("LEAVE FOR THE MAIN MENU? THIS GAME WILL BE LOST.", "LEAVE", function()
-                    S.pause = false
-                    S.mode = "title"
-                end)
+                Menu.keep()
+                S.pause = false
+                S.mode = "title"
             end)
             item("QUIT GAME", function()
-                Menu.ask("QUIT? THIS GAME WILL BE LOST.", "QUIT", function() love.event.quit() end)
+                Menu.keep()
+                love.event.quit()
             end)
         end,
     })
@@ -487,52 +512,152 @@ end
 
 --- a new game: how the world ends ------------------------------------------------------
 
--- The cataclysms, in the order the window lists them. Those not built yet
--- show, greyed, so the player knows they are coming.
-Menu.CATACLYSMS = {
-    { id = "heat", name = "HEAT DEATH", about = { "THE SUN GROWS CRUEL: DROUGHT, WILDFIRES,", "THEN THE SCORCH. THE WORLD ENDS AT TURN 160" } },
-    { id = "flood", name = "THE DELUGE", about = { "THE RAINS WILL NOT STOP: MARSHES, FLOODS,", "THEN THE RISING SEA. THE WORLD ENDS AT TURN 160" } },
-    { id = "sky", name = "SKYFALL", about = { "THE SKY FALLS: STONES SEEN COMING, CRATERS,", "THEN THE LONG NIGHT. THE WORLD ENDS AT TURN 160" } },
-    { id = "demons", name = "DEMONS", about = { "THE ABYSS OPENS: A CITADEL, RIFTS, SPIDERS,", "EYES AND TENTACLES. THE WORLD ENDS AT TURN 160" } },
-    { id = "sun", name = "THE STILL SUN", about = { "THE SUN STOPS: ENDLESS DAY ON ONE SIDE, ENDLESS", "NIGHT AND ICE ON THE OTHER. ENDS AT TURN 160" } },
-    { id = "plague", name = "THE PLAGUE", about = { "SICKNESS GOES FROM TOWN TO TOWN: SHUT THE GATES,", "BUILD LAZARETS, HUNT THE RATS. ENDS AT TURN 160" } },
-    { id = "quake", name = "THE SUNDERING", about = { "THE LAND BREAKS: QUAKES, FAULTS, A RIFT THE SEA COMES", "IN BY, RISING MOUNTAINS, VOLCANOES, WAVES. ENDS AT 160" } },
-    { id = "none", name = "NONE", about = { "NO CATACLYSM: THE GAME ENDS AT TURN 150", "AND THE HIGHEST SCORE WINS" } },
+-- The cataclysms, under the three kinds of ending they fall into. Each is
+-- told in a line or two -- enough to choose by, not enough to spoil it --
+-- beside a close picture of something only that ending does (assets/menu/,
+-- taken by the shot tools; GUIDE.md says how).
+Menu.TYPES = {
+    {
+        id = "destruction", name = "DESTRUCTION",
+        about = "THE WORLD IS BROKEN BY FORCE, FROM ABOVE OR FROM BELOW",
+        list = {
+            { id = "sky", name = "SKYFALL", shot = "skyfall",
+                about = "SOMETHING IS COMING DOWN. YOU ARE SHOWN WHERE IT MEANS TO LAND, A LITTLE BEFORE IT LANDS THERE." },
+            { id = "quake", name = "THE SHATTERING", shot = "shattering",
+                about = "THE GROUND IS NO LONGER TO BE TRUSTED. IT WILL OPEN, AND THE SEA WILL FIND THE OPENING." },
+        },
+    },
+    {
+        id = "dilation", name = "DILATION",
+        about = "THE SKY LOSES ITS MEASURE: TOO MUCH SUN, TOO MUCH WATER, OR NO TURNING",
+        list = {
+            { id = "heat", name = "HEAT DEATH", shot = "heat",
+                about = "THE SUN WILL NOT RELENT. THE GREEN GOES FIRST, THEN THE RIVERS, AND AT THE LAST THE SEA ITSELF." },
+            { id = "flood", name = "THE DELUGE", shot = "deluge",
+                about = "THE RAIN SETS IN AND DOES NOT LIFT. THE LOW GROUND GOES FIRST. LEARN WHICH OF YOURS IS LOW." },
+            { id = "sun", name = "THE STILL SUN", shot = "stillsun",
+                about = "THE TURNING STOPS. ONE FACE BURNS AND THE OTHER FREEZES, AND WHAT IS LEFT TO LIVE ON IS A NARROW BAND." },
+        },
+    },
+    {
+        id = "contagion", name = "CONTAGION",
+        about = "SOMETHING TAKES HOLD AND GOES ON SPREADING, HEX BY HEX",
+        list = {
+            { id = "demons", name = "THE ABYSS", shot = "abyss",
+                about = "SOMETHING HAS MADE A DOOR AND IS BUILDING ON YOUR SIDE OF IT. IT BRINGS ITS OWN KIND, AND THEY DO NOT TIRE." },
+            { id = "plague", name = "THE PLAGUE", shot = "plague",
+                about = "IT BEGINS IN ONE TOWN AND TRAVELS BY ROAD AND BY SHIP. YOU WILL WISH YOU HAD SHUT THE GATES EARLIER." },
+        },
+    },
+    {
+        id = "quiet", name = "NONE",
+        about = "NOTHING IS COMING FOR THE WORLD, AND THE HIGHEST SCORE WINS",
+        list = {
+            { id = "none", name = "NO CATACLYSM", shot = "none", last = D.PLAIN_LAST_TURN,
+                about = "NOTHING IS COMING. BUILD, AND BE JUDGED ON WHAT YOU HAVE BUILT WHEN THE CLOCK RUNS OUT." },
+        },
+    },
 }
 
+-- Every cataclysm by its id, and the type it is under.
+Menu.CATACLYSMS, Menu.TYPE_OF = {}, {}
+for _, ty in ipairs(Menu.TYPES) do
+    for _, c in ipairs(ty.list) do
+        Menu.CATACLYSMS[c.id] = c
+        Menu.TYPE_OF[c.id] = ty
+    end
+end
+
+-- The pictures, read the first time one is wanted and kept. A build without
+-- them (or a picture that will not open) shows an empty frame instead.
+local shots = {}
+local function shotOf(name)
+    if shots[name] == nil then
+        local ok, img = pcall(love.graphics.newImage, "assets/menu/" .. name .. ".png")
+        shots[name] = ok and img or false
+    end
+    return shots[name] or nil
+end
+
+Menu.SHOT_W, Menu.SHOT_H = 160, 96
+
+-- The type whose list the window is showing.
+local newType = 1
+
+-- The window opens on the type the last cataclysm chosen is under.
+function Menu.syncType()
+    local ty = Menu.TYPE_OF[Settings.get("cataclysm")]
+    for k, t in ipairs(Menu.TYPES) do if t == ty then newType = k end end
+end
+
 local function newGameWindow()
-    local w, h = 220, 11 + 14 + #Menu.CATACLYSMS * 14 + 26 + 22
+    local w = min(300, S.vw - 4)
+    local top = S.mode == "play" and 11 or 0
+    local h = min(154, S.vh - top - 4)
     Win.add({
         id = "newgame", title = "NEW GAME", w = w, h = h, modal = true,
-        x = floor((S.vw - w) / 2), y = floor((S.vh - h) / 2),
+        x = floor((S.vw - w) / 2), y = top + floor((S.vh - top - h) / 2),
         close = function() S.choosing = false end,
         draw = function(x, y, ww, hh)
-            text("w", "HOW DOES THE WORLD END?", x + 6, y + 4)
             local pick = Settings.get("cataclysm")
+            -- The kinds of ending, across the top.
+            local tw = floor((ww - 6) / #Menu.TYPES)
+            for k, t in ipairs(Menu.TYPES) do
+                button(t.name, x + 3 + (k - 1) * tw, y + 2, tw - 1, 11, function()
+                    newType = k
+                    -- Moving to another kind takes its first ending, so what
+                    -- is shown and what START begins are never two things.
+                    if Menu.TYPE_OF[Settings.get("cataclysm")] ~= t then
+                        Settings.set("cataclysm", t.list[1].id)
+                        Settings.save()
+                    end
+                end, { on = k == newType })
+            end
+            rect("o", x + 2, y + 14, ww - 4, 1)
+            local ty = Menu.TYPES[newType]
+            text("s", Font.cut(ty.about, floor((ww - 10) / 4)), x + 5, y + 17)
+
+            -- Its endings down the left, with what to expect of the one in
+            -- hand under them; the picture of it on the right.
+            local sw, sh = Menu.SHOT_W, Menu.SHOT_H
+            local sx = x + ww - sw - 5
+            local bw = sx - x - 11
+            local body = y + 25
             local under
-            local yy = y + 15
-            for _, c in ipairs(Menu.CATACLYSMS) do
-                local label = c.soon and (c.name .. " - COMING") or c.name
-                button(label, x + 6, yy, ww - 12, 12, function()
-                    if c.soon then return end
+            local yy = body
+            for _, c in ipairs(ty.list) do
+                button(c.name, x + 6, yy, bw, 13, function()
                     Settings.set("cataclysm", c.id)
                     Settings.save()
-                end, { on = c.id == pick, off = c.soon })
-                if hovering(x + 6, yy, ww - 12, 12) then under = c end
-                yy = yy + 14
+                end, { on = c.id == pick, left = true })
+                if hovering(x + 6, yy, bw, 13) then under = c end
+                yy = yy + 15
             end
-            -- What the one under the pointer (or the one chosen) does.
-            local about = under and under.about
-            if not about then
-                for _, c in ipairs(Menu.CATACLYSMS) do if c.id == pick then about = c.about end end
+            local shown = under
+            if not shown or Menu.TYPE_OF[shown.id] ~= ty then shown = Menu.CATACLYSMS[pick] end
+            if not shown or Menu.TYPE_OF[shown.id] ~= ty then shown = ty.list[1] end
+            text("k", "ENDS AT TURN " .. (shown.last or D.LAST_TURN), x + 7, yy + 3)
+            yy = yy + 13
+            for k, l in ipairs(Font.wrap(shown.about, floor(bw / 4), 6)) do
+                text("c", l, x + 7, yy + (k - 1) * 8)
             end
-            for k, l in ipairs(about or {}) do text("s", l, x + 6, yy + 2 + (k - 1) * 8) end
-            local bw = 60
-            button("START", x + floor(ww / 2) - bw - 2, y + hh - 16, bw, 12, function()
+
+            -- The picture: a close look at something only this ending does.
+            rect("o", sx - 1, body - 1, sw + 2, sh + 2)
+            local img = shotOf(shown.shot)
+            if img then
+                love.graphics.setColor(1, 1, 1)
+                love.graphics.draw(img, sx, body)
+            else
+                rect("n", sx, body, sw, sh)
+            end
+
+            local bbw = 60
+            button("START", x + floor(ww / 2) - bbw - 2, y + hh - 16, bbw, 12, function()
                 S.choosing = false
                 S.newGame()
             end, { strong = true })
-            button("CANCEL", x + floor(ww / 2) + 2, y + hh - 16, bw, 12, function() S.choosing = false end)
+            button("CANCEL", x + floor(ww / 2) + 2, y + hh - 16, bbw, 12, function() S.choosing = false end)
         end,
     })
 end

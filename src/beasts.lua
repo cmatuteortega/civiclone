@@ -131,6 +131,28 @@ function Beasts.addLair(game, kind, cellId)
     return lair
 end
 
+-- What each herd wants of the land, how far apart they are put, and how
+-- many go together. The tests of the land are here, outside a game, so a
+-- game read back from a file (src/save.lua) can have them hung back on --
+-- the herds keep how many of each the map should hold, not how to tell
+-- where they belong.
+function Beasts.herds(game)
+    local function land_(cell) return game:passable(cell) end
+    local function besideForest(cell)
+        for _, n in ipairs(game:neighbours(cell)) do if n.feature == "forest" then return true end end
+    end
+    return {
+        boar = { 2, function(c) return land_(c) and (c.feature == "forest" or besideForest(c)) end, 1 },
+        aurochs = { 3, function(c) return land_(c) and c.terrain == "grass" and c.elev == "flat" and not c.feature end, 2 },
+        horse = { 3, function(c) return land_(c) and c.terrain == "plains" and c.elev == "flat" and not c.feature end, 2 },
+        croc = { 3, function(c) return land_(c) and game:onRiver(c) end, 1 },
+        serpent = { 5, function(c) return c.terrain == "ocean" end, 1 },
+    }
+end
+
+-- The order the herds are put down in, and the only kinds there are.
+Beasts.HERDS = { "serpent", "croc", "aurochs", "horse", "boar" }
+
 -- Lairs and herds over the map at the start, away from where anyone starts.
 function Beasts.populate(game)
     local starts = {}
@@ -160,9 +182,6 @@ function Beasts.populate(game)
     local function nextToMountain(cell)
         for _, n in ipairs(game:neighbours(cell)) do if n.elev == "mountain" then return true end end
     end
-    local function besideForest(cell)
-        for _, n in ipairs(game:neighbours(cell)) do if n.feature == "forest" then return true end end
-    end
     local land_ = function(cell) return game:passable(cell) end
     -- The lairs, each with its beasts about it.
     place(count(W.caves, land), 4, function(c) return land_(c) and c.elev == "hills" and nextToMountain(c) end,
@@ -181,17 +200,11 @@ function Beasts.populate(game)
         function(cell) Beasts.addLair(game, "hive", cell.id) return true end)
     -- The herds.
     game.wildWant = {}
-    local herds = {
-        boar = { 2, function(c) return land_(c) and (c.feature == "forest" or besideForest(c)) end, 1 },
-        aurochs = { 3, function(c) return land_(c) and c.terrain == "grass" and c.elev == "flat" and not c.feature end, 2 },
-        horse = { 3, function(c) return land_(c) and c.terrain == "plains" and c.elev == "flat" and not c.feature end, 2 },
-        croc = { 3, function(c) return land_(c) and game:onRiver(c) end, 1 },
-        serpent = { 5, function(c) return c.terrain == "ocean" end, 1 },
-    }
-    for _, kind in ipairs({ "serpent", "croc", "aurochs", "horse", "boar" }) do
+    local herds = Beasts.herds(game)
+    for _, kind in ipairs(Beasts.HERDS) do
         local h = herds[kind]
         local n = count(W[kind], kind == "serpent" and ocean or land)
-        game.wildWant[kind] = { n = n, ok = h[2], size = h[3] }
+        game.wildWant[kind] = { n = n, size = h[3] }
         place(n, h[1], h[2], function(cell)
             local first = Beasts.spawn(game, kind, cell.id)
             for _ = 2, h[3] do if first then Beasts.spawn(game, kind, cell.id, first.home) end end
@@ -488,13 +501,15 @@ function Beasts.play(game)
         for _, v in ipairs(game.units) do
             if v.owner == Beasts.WILD then have[v.kind] = (have[v.kind] or 0) + 1 end
         end
-        for _, kind in ipairs({ "serpent", "croc", "aurochs", "horse", "boar" }) do
+        local herds = Beasts.herds(game)
+        for _, kind in ipairs(Beasts.HERDS) do
             local want = game.wildWant[kind]
             if want and (have[kind] or 0) < want.n * want.size then
+                local ok = herds[kind][2]
                 -- Somewhere no one sees, away from the towns.
                 local list2 = {}
                 for _, cell in ipairs(game.cells) do
-                    if want.ok(cell) and not game.mil[cell.id] and cityDistance(game, cell) >= D.WILD.clear then
+                    if ok(cell) and not game.mil[cell.id] and cityDistance(game, cell) >= D.WILD.clear then
                         local seen = false
                         for _, p in ipairs(game.players) do seen = seen or p.visible[cell.id] end
                         if not seen then list2[#list2 + 1] = cell end

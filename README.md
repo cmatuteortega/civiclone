@@ -1,4 +1,4 @@
-# Sepia
+# HEXTINCT
 
 A small Civilization VI–style strategy game for [LÖVE](https://love2d.org) 11,
 drawn in eight shades of sepia and nothing else:
@@ -256,7 +256,7 @@ farmhouses fallen in, and a knell tolls for every death.
 ![The plague moving: the miasma drifting and its wisps rising over a sick town, crows wheeling, smoke from its pyre](shots/50-plague.gif)
 ![The plague's models: rats, a shut town's flag waving, a pyre, a farm and its ruin; towns well, sick, burying their dead, with a lazaret](shots/49-plague-models.png)
 
-Or the land itself breaks (`src/quake.lua`): the sundering. The ground
+Or the land itself breaks (`src/quake.lua`): the shattering. The ground
 trembles, and a line is seen across the land from sea to sea where the great
 rift will tear. Quakes strike, each seen coming the turn before: they shake
 the cities (a building may come down, people may die), wreck mines and farms
@@ -273,11 +273,30 @@ once. A buttress shores a city up against it all. The board shakes with
 every quake, an eruption throws up a column of ash, fire and bombs of lava,
 and a wave comes in as a wall of water breaking white.
 
-![The sundering: faults and the rift's crack, a volcano erupting, lava running, the sea drawn back before a wave](shots/51-sundering.png)
+![The shattering: faults and the rift's crack, a volcano erupting, lava running, the sea drawn back before a wave](shots/51-sundering.png)
 ![The rift where the sea comes in: the land split into a chasm, white water pouring in, then sea](shots/52-rift.png)
-![The sundering at night: the lava lighting the land](shots/53-sundering-night.png)
-![The sundering playing out: an eruption, a quake shaking the board and a wave running in](shots/54-sundering.gif)
+![The shattering at night: the lava lighting the land](shots/53-sundering-night.png)
+![The shattering playing out: an eruption, a quake shaking the board and a wave running in](shots/54-sundering.gif)
 ![Towns without and with a buttress: every house shored up with stone props and timbers braced across](shots/55-buttress.png)
+
+## Starting, and going on
+
+The title screen offers **NEW GAME**, and **CONTINUE** when there is a game
+kept, with the turn and the ending it is under. The new game window asks how
+the world ends: the seven endings come under three kinds -- **destruction**
+(skyfall, the shattering), **dilation** (the heat death, the deluge, the
+still sun) and **contagion** (the abyss, the plague) -- and a fourth,
+**none**, for a game with no ending written. Choosing one shows a line or two
+of what to expect and a close picture of something only that ending does
+(`assets/menu/`).
+
+![The title screen, with a game kept](shots/00-title.png)
+![The new game window: the kinds of ending, what to expect, and a picture of one](shots/60-newgame.png)
+
+The game is kept as each turn begins, when **SAVE GAME** is chosen in the
+menu, and when you leave or close the window; **CONTINUE** takes it up where
+it was left (`src/save.lua`). There is one kept game, in the save folder
+beside the settings, and it is thrown away when the world ends.
 
 ## Running it
 
@@ -286,9 +305,9 @@ love .
 ```
 
 Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|sun|plague|quake|none` picks how the world ends, `--play` skips
-the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
+the title, `--resume` goes straight into the game that was kept, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
 city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen|plague|sundering|rift|buttress|dry|ebbed|ruin|storm] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
-LÖVE's save folder, and quits (`--size WxH` makes the window that big; `--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
+LÖVE's save folder, and quits (`--size WxH` makes the window that big; `--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out; `--bare` leaves the HUD off, which is how the new game window's pictures in `assets/menu/` are made; without `--play` it takes a picture of the title screen). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds
 
@@ -452,6 +471,7 @@ in about two seconds while the title is up, so no frame waits on it.
 | `src/world.lua`, `src/models.lua` | The map's picture, and everything on it |
 | `src/synth.lua`, `src/audiothread.lua` | Every sound and the music, synthesised |
 | `src/settings.lua` | The player's settings and key bindings, and where windows were left |
+| `src/save.lua` | A game written out whole and read back, for CONTINUE |
 | `src/ui/` | Camera, overlay, board, HUD, windows, menus, orders, input, animation, sound |
 | `tools/` | Sheets of models drawn outside the game: the sea's (`designs.lua`) and cities' (`cities.lua`) |
 

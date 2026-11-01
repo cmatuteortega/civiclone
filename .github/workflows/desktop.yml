@@ -5,16 +5,16 @@
 # Android build: commits that only touch docs don't build. Nothing is patched
 # or compiled: each job is a download, a zip and a copy (and an icon), which is
 # why it runs in a couple of minutes where the APK takes most of an hour. The
-# same workflow as underroot's (Mycelio TD), building the game as Sepia.
+# same workflow as underroot's (Mycelio TD), building the game as HEXTINCT.
 #
 # Outputs (workflow artifacts):
-#   - "Sepia (Windows)"  a folder: Sepia.exe (love.exe with game.love appended
+#   - "HEXTINCT (Windows)"  a folder: HEXTINCT.exe (love.exe with game.love appended
 #     -- LÖVE's own fusing) and the DLLs it loads. 64-bit.
-#   - "Sepia (macOS)"    Sepia.app, zipped with ditto so the frameworks'
+#   - "HEXTINCT (macOS)"    HEXTINCT.app, zipped with ditto so the frameworks'
 #     symlinks survive. Universal (Intel and Apple Silicon).
-#   - "Sepia (Linux)"    Sepia.AppImage (x86_64). The artifact zip drops the
+#   - "HEXTINCT (Linux)"    HEXTINCT.AppImage (x86_64). The artifact zip drops the
 #     executable bit: chmod +x it once after unzipping.
-#   - "Sepia (love)"     the bare game.love, for anyone with LÖVE 11.x.
+#   - "HEXTINCT (love)"     the bare game.love, for anyone with LÖVE 11.x.
 #   - tags v*: all four attached to the GitHub Release (the Android workflow
 #     attaches the APK to the same one).
 #
@@ -57,7 +57,7 @@ env:
   # The desktop engine the game is written for (README). Bump on
   # purpose: the asset names below follow LÖVE's release naming.
   LOVE_VERSION: '11.5'
-  APP_NAME: Sepia
+  APP_NAME: HEXTINCT
   MAC_BUNDLE_ID: ${{ vars.MAC_BUNDLE_ID || 'com.cmatute.sepia' }}
 
 jobs:

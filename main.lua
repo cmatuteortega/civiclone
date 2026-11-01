@@ -1,4 +1,5 @@
--- Sepia: a small Civilization in eight shades of sepia.
+-- HEXTINCT: a small Civilization in eight shades of sepia, played out
+-- under the ending you choose for it.
 --
 -- A hex map traced once into a picture with a depth buffer behind it
 -- (src/world.lua), by underroot's 3D method (src/tracer.lua): hexes standing
@@ -36,6 +37,7 @@ local Audio = require "src.ui.audio"
 local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
 local Settings = require "src.settings"
+local Save = require "src.save"
 local Sea = require "src.ui.sea"
 local Daylight = require "src.ui.daylight"
 local Wild = require "src.ui.wild"
@@ -65,7 +67,12 @@ local visible, focused = true, true
 local function away() return not visible or (Settings.get("muteAway") and not focused) end
 function love.visible(v) visible = v Audio.hide(away()) end
 function love.focus(f) focused = f Audio.hide(away()) end
-function love.quit() Audio.stop() end
+-- Closing the window keeps the game where it stands, so it is there under
+-- CONTINUE next time.
+function love.quit()
+    if S.mode == "play" and S.game and not S.over then Save.write(S.game) end
+    Audio.stop()
+end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
 -- bar fills, then the first turn. The world ends by the cataclysm chosen in
@@ -83,6 +90,29 @@ function S.newGame(seed)
     S.progress = 0
     S.mode = "loading"
     S.painter = coroutine.create(function() S.world:paint(coroutine.yield) end)
+end
+
+-- The game that was kept, taken up where it was left (src/save.lua): the
+-- same state, its map traced again from its own cells behind the same
+-- loading bar. Answers whether there was one to take up.
+function S.resume()
+    local g, why = Save.read()
+    if not g then
+        S.titleNote = (why or "THE KEPT GAME CANNOT BE READ"):upper()
+        return false
+    end
+    S.titleNote = nil
+    S.game = g
+    S.world = World.new(g)
+    S.anim, S.effects, S.msgs, S.wakes = {}, {}, {}, {}
+    S.selected, S.panel, S.over, S.hover = nil, nil, nil, nil
+    S.pause, S.ask = false, nil
+    -- The news already read when it was saved stays read.
+    O.resetLog(#g.log)
+    S.progress = 0
+    S.mode = "loading"
+    S.painter = coroutine.create(function() S.world:paint(coroutine.yield) end)
+    return true
 end
 
 local function startPlay()
@@ -118,6 +148,8 @@ function love.load(args)
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
+        -- `--resume`: straight into the game that was kept, as CONTINUE does.
+        if a == "--resume" then S.play, S.resumeKept = true, true end
         -- `--cataclysm heat|flood|sky|demons|sun|plague|quake|none`: how the world ends, whatever the new game
         -- window last had.
         if a == "--cataclysm" and args[n + 1] then S.cataclysmArg = args[n + 1] end
@@ -150,6 +182,9 @@ function love.load(args)
         if a == "--clock" then require("src.ui.clock").force = args[n + 1] end
         -- `--open settings:audio` (or `pause`, `newgame`, `dev`) shows a menu in the picture.
         if a == "--open" and S.plan then S.plan.open = args[n + 1] end
+        -- `--bare`: the map alone, with no HUD, banners or windows over it.
+        -- The new game window's pictures (assets/menu/) are taken so.
+        if a == "--bare" and S.plan then S.plan.bare = true end
         -- `--sounds` writes every sound as a .wav into the save folder, and quits.
         if a == "--sounds" then
             print("wrote " .. Audio.dump())
@@ -840,6 +875,12 @@ local function followPlan()
             end
             if best then View.lookAt(best, true) end
         end
+        -- A bare picture is of the map alone: nothing chosen, nothing
+        -- pointed at, so the marks of either stay out of it.
+        if plan.bare then
+            S.selected, S.panel = nil, nil
+            S.mouse.x, S.mouse.y, S.mouse.wx, S.mouse.wy = -99, -99, -99, -99
+        end
         -- The pointer over the furthest hex the chosen unit can reach.
         local u = S.selected and S.selected.unit
         if u then
@@ -885,7 +926,15 @@ end
 
 function love.update(dt)
     Menu.throttle()
-    if S.play then S.play = nil S.newGame() end
+    if S.play then
+        S.play = nil
+        if S.resumeKept then
+            S.resumeKept = nil
+            if not S.resume() then S.newGame() end
+        else
+            S.newGame()
+        end
+    end
     dt = math.min(dt, 1 / 20)
     S.clock = S.clock + dt
     S.dt = dt
@@ -907,6 +956,19 @@ function love.update(dt)
         end
         return
     end
+    -- A picture of the title screen itself (`--shot title.png` with no
+    -- `--play`), or of a menu over it.
+    if S.plan and S.mode == "title" then
+        local plan = S.plan
+        plan.frames = plan.frames + 1
+        if plan.frames == 3 and plan.open == "newgame" then Menu.openNewGame() end
+        if plan.frames == 3 and plan.open and plan.open:match("^settings") then
+            Menu.openSettings(plan.open:match("^settings:(%a+)$"))
+        end
+        if plan.frames == 8 then S.shot = plan.file end
+        if plan.frames == 10 then love.event.quit() end
+        return
+    end
     if S.mode ~= "play" then return end
     if S.plan then followPlan() end
     View.update(dt)
@@ -924,18 +986,31 @@ function love.update(dt)
     Input.findHover()
     if not S.over then
         local result, why = S.game:outcome()
-        if result then S.over = { result = result, why = why } end
+        if result then
+            S.over = { result = result, why = why }
+            -- Over is over: there is nothing left to take up.
+            Save.clear()
+        end
     end
     O.collectLog()
 end
 
 --- the title and the loading bar ------------------------------------------------
 
--- The paper map the fog is drawn as, for behind the title: hex outlines,
--- squashed as the board's are, on cream.
+-- The paper the title stands on: a field of hex outlines, squashed as the
+-- board's are, that breaks up towards the bottom -- the map going, hex by
+-- hex -- and darkens at the edges. It never moves, so it is drawn once a
+-- size into a canvas of its own and laid down from there.
+local back, backW, backH
+
+-- A number in 0..1 for a hex, the same every time: which hexes are gone.
+local function hexHash(c, r)
+    local n = math.sin(c * 12.9898 + r * 78.233) * 43758.5453
+    return n - floor(n)
+end
+
 local function hexField()
     Draw.rect("c", 0, 0, S.vw, S.vh)
-    Draw.color("t")
     local R, sq = 9, T.SE
     local w, rowStep = R * math.sqrt(3), R * 1.5
     local function line(x0, y0, x1, y1)
@@ -945,16 +1020,61 @@ local function hexField()
             love.graphics.rectangle("fill", floor(x0 + (x1 - x0) * f), floor(y0 + (y1 - y0) * f), 1, 1)
         end
     end
-    for r = -1, floor(S.vh / (rowStep * sq)) + 1 do
+    local rows = floor(S.vh / (rowStep * sq)) + 1
+    for r = -1, rows + 1 do
+        -- Nothing is missing at the top; by the last rows almost all is.
+        local gone = math.max(0, (r / math.max(1, rows) - 0.35) / 0.6)
+        Draw.color(gone > 0.45 and "s" or "t")
         for c = -1, floor(S.vw / w) + 1 do
-            local cx, cy = c * w + (r % 2) * w / 2, r * rowStep * sq
-            -- Three edges a hex, so each is drawn once: north-west, north-east, east.
-            for _, e in ipairs({ 4, 5, 0 }) do
-                local a0, a1 = math.rad(60 * e - 30), math.rad(60 * e + 30)
-                line(cx + R * math.cos(a0), cy + R * math.sin(a0) * sq, cx + R * math.cos(a1), cy + R * math.sin(a1) * sq)
+            if hexHash(c, r) >= gone then
+                local cx, cy = c * w + (r % 2) * w / 2, r * rowStep * sq
+                -- Three edges a hex, so each is drawn once: north-west, north-east, east.
+                for _, e in ipairs({ 4, 5, 0 }) do
+                    local a0, a1 = math.rad(60 * e - 30), math.rad(60 * e + 30)
+                    line(cx + R * math.cos(a0), cy + R * math.sin(a0) * sq, cx + R * math.cos(a1), cy + R * math.sin(a1) * sq)
+                end
             end
         end
     end
+end
+
+-- The paper grubby at its edges, drawn in as everything else is: no
+-- blending, every other pixel, thickening towards the border.
+local function vignette()
+    local data = love.image.newImageData(S.vw, S.vh)
+    local ink = Draw.rgb("t")
+    local reach = math.max(6, floor(math.min(S.vw, S.vh) * 0.14))
+    data:mapPixel(function(i, j)
+        local edge = math.min(i, j, S.vw - 1 - i, S.vh - 1 - j)
+        local f = 1 - edge / reach
+        local on
+        if f > 0.8 then on = true
+        elseif f > 0.4 then on = (i + j) % 2 == 0
+        elseif f > 0 then on = i % 2 == 0 and j % 2 == 0
+        end
+        if on then return ink[1], ink[2], ink[3], 1 end
+        return 0, 0, 0, 0
+    end)
+    local img = love.graphics.newImage(data)
+    img:setFilter("nearest", "nearest")
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.draw(img, 0, 0)
+end
+
+local function backdrop()
+    if not back or backW ~= S.vw or backH ~= S.vh then
+        local was = love.graphics.getCanvas()
+        back = love.graphics.newCanvas(S.vw, S.vh)
+        back:setFilter("nearest", "nearest")
+        love.graphics.setCanvas(back)
+        love.graphics.clear(0, 0, 0, 0)
+        hexField()
+        vignette()
+        love.graphics.setCanvas(was)
+        backW, backH = S.vw, S.vh
+    end
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.draw(back, 0, 0)
 end
 
 local function bigText(k, s, cx, y, scale)
@@ -965,19 +1085,48 @@ local function bigText(k, s, cx, y, scale)
     love.graphics.pop()
 end
 
+-- What the kept game is, for under CONTINUE: "TURN 42 - THE DELUGE".
+local function keptLine(info)
+    local c = Menu.CATACLYSMS[info.cataclysm] or Menu.CATACLYSMS.none
+    return "TURN " .. info.turn .. " - " .. (c and c.name or "NO CATACLYSM")
+end
+
 local function title()
-    hexField()
+    backdrop()
     local cx = floor(S.vw / 2)
-    local y = floor(S.vh / 2) - 56
-    Draw.rect("o", cx - 130, y - 10, 260, 124)
-    Draw.frame("k", cx - 128, y - 8, 256, 120)
-    bigText("o", "SEPIA", cx + 1, y + 1, 4)
-    bigText("w", "SEPIA", cx, y, 4)
-    local sub = "BUILD AN EMPIRE ON A MAP OF SEPIA HEXES"
-    Draw.text("c", sub, cx - floor(Font.width(sub) / 2), y + 26)
-    Draw.button("NEW GAME", cx - 40, y + 38, 80, 14, Menu.openNewGame, { strong = true })
-    Draw.button("SETTINGS", cx - 40, y + 54, 39, 12, Menu.openSettings)
-    Draw.button("QUIT", cx + 1, y + 54, 39, 12, function() love.event.quit() end)
+    local info = Save.info()
+    -- The panel grows a row and a line when there is a game to go back to.
+    local ph = 102 + (info and 25 or 0)
+    local pw = math.min(S.vw - 8, 272)
+    local y = math.max(2, floor((S.vh - ph) / 2) - 20)
+    Draw.rect("o", cx - floor(pw / 2), y, pw, ph)
+    Draw.frame("k", cx - floor(pw / 2) + 2, y + 2, pw - 4, ph - 4)
+
+    bigText("u", "HEXTINCT", cx + 2, y + 10, 5)
+    bigText("w", "HEXTINCT", cx, y + 8, 5)
+    Draw.rect("n", cx - floor(pw / 2) + 10, y + 38, pw - 20, 1)
+    local sub = "BUILD AN EMPIRE. CHOOSE HOW IT ENDS."
+    Draw.text("c", sub, cx - floor(Font.width(sub) / 2), y + 43)
+
+    local bw = 160
+    local yy = y + 54
+    if info then
+        Draw.button("CONTINUE", cx - floor(bw / 2), yy, bw, 14, function() S.resume() end, { strong = true })
+        local l = keptLine(info)
+        Draw.text("t", l, cx - floor(Font.width(l) / 2), yy + 17)
+        yy = yy + 25
+    end
+    Draw.button("NEW GAME", cx - floor(bw / 2), yy, bw, 14, Menu.openNewGame, { strong = not info })
+    yy = yy + 16
+    local hw = floor((bw - 4) / 2)
+    Draw.button("SETTINGS", cx - floor(bw / 2), yy, hw, 14, Menu.openSettings)
+    Draw.button("QUIT", cx - floor(bw / 2) + hw + 4, yy, hw, 14, function() love.event.quit() end)
+
+    local below = y + ph + 6
+    if S.titleNote then
+        Draw.text("w", S.titleNote, cx - floor(Font.width(S.titleNote) / 2), below)
+        below = below + 9
+    end
     local help = S.touch and {
         "TAP: SELECT, OR SEND THE CHOSEN UNIT THERE",
         "DRAG: PAN   PINCH: ZOOM",
@@ -996,11 +1145,15 @@ local function title()
             k("sound") .. ": SOUND   ESC: MENU   DRAG A WINDOW BY ITS TITLE",
         }
     end)()
-    for k, l in ipairs(help) do Draw.text("t", l, cx - floor(Font.width(l) / 2), y + 76 + (k - 1) * 7) end
+    -- Only as much of it as there is room for below the panel.
+    for k, l in ipairs(help) do
+        local ly = below + (k - 1) * 7
+        if ly + 6 <= S.vh then Draw.text("n", l, cx - floor(Font.width(l) / 2), ly) end
+    end
 end
 
 local function loading()
-    hexField()
+    backdrop()
     local cx, cy = floor(S.vw / 2), floor(S.vh / 2)
     local s = "SURVEYING THE LAND"
     Draw.rect("o", cx - 70, cy - 14, 140, 26)
@@ -1013,18 +1166,21 @@ function love.draw()
     love.graphics.setCanvas(S.ui)
     love.graphics.clear(0, 0, 0, 0)
     S.buttons, S.panels = {}, {}
+    local bare = S.plan and S.plan.bare
     if S.mode == "title" then
         title()
     elseif S.mode == "loading" then
         loading()
-    else
+    elseif not bare then
         Board.banners()
         Hud.draw(S.dt or 0)
     end
     -- The windows over all the rest, and the menus over them.
-    Menu.draw()
-    Win.flush()
-    Menu.drawFps()
+    if not bare then
+        Menu.draw()
+        Win.flush()
+        Menu.drawFps()
+    end
     if S.mode == "play" then Board.draw() end
     love.graphics.setCanvas()
     love.graphics.setColor(1, 1, 1)

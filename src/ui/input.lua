@@ -218,7 +218,7 @@ function Input.keypressed(key)
     end
     if Menu.open() then return end
     if S.mode ~= "play" then
-        if key == "return" or key == "space" then Menu.openNewGame() end
+        if key == "return" or key == "space" then Menu.titleStart() end
         return
     end
     local u = S.selected and S.selected.unit

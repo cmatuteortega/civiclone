@@ -105,6 +105,25 @@ function Font.cut(text, n)
     return table.concat(out)
 end
 
+-- The text broken into lines of at most `n` characters, at the spaces; a
+-- word longer than a line is cut. With `most`, no more lines than that.
+function Font.wrap(text, n, most)
+    local lines, line = {}, ""
+    for word in text:gmatch("%S+") do
+        if line == "" then
+            line = Font.cut(word, n)
+        elseif Font.length(line) + 1 + Font.length(word) <= n then
+            line = line .. " " .. word
+        else
+            lines[#lines + 1] = line
+            line = Font.cut(word, n)
+        end
+        if most and #lines >= most then break end
+    end
+    if line ~= "" and not (most and #lines >= most) then lines[#lines + 1] = line end
+    return lines
+end
+
 function Font.width(text)
     return Font.length(text) * ADVANCE - 1
 end

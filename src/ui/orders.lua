@@ -7,6 +7,7 @@ local D = require "src.defs"
 local S = require "src.ui.state"
 local View = require "src.ui.view"
 local Anim = require "src.ui.anim"
+local Save = require "src.save"
 local Play = require "src.ui.playback"
 local AI = require "src.ai"
 local Audio = require "src.ui.audio"
@@ -31,7 +32,9 @@ function O.collectLog()
     end
     seen = #log
 end
-function O.resetLog() seen = 0 end
+-- With `n`, the first n lines of the log count as already read: a game
+-- taken up again does not replay its old news.
+function O.resetLog(n) seen = n or 0 end
 
 --- paths ---------------------------------------------------------------------------
 
@@ -274,8 +277,12 @@ function O.endTurn()
     local result, why = g:outcome()
     if result then
         S.over = { result = result, why = why }
+        Save.clear()
         return
     end
+    -- Every turn is kept as it begins, so CONTINUE on the title screen is
+    -- never more than a turn behind (src/save.lua).
+    Save.write(g)
     O.nextUnit()
 end
 
