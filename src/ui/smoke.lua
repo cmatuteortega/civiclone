@@ -91,50 +91,110 @@ end
 -- filled, dark beneath and paler on top, so it reads over the char and over
 -- the sand alike. High up it thins to holes and loses its line.
 local BLAZE = { puffs = 7, life = 7, rise = 50, drift = 30 }
+-- The puffs of the column being drawn, kept in tables used again.
+local pCi, pCj, pR, pAge, pCycle, pN, order = {}, {}, {}, {}, {}, {}, {}
+-- Which pixels this column has laid, over a box round all its puffs: the
+-- pixel at q in the box is this column's while filled[q] (or inked[q]) is
+-- its number.
+local filled, inked, column = {}, {}, 0
 function Smoke.fire(x, y, z, seed, size)
     if Sea.still() then return end
-    local si, sj, d = S.world:toImage(x, y, z)
+    local w = S.world
+    local si, sj, d = w:toImage(x, y, z)
     if not P.onScreen(floor(si), floor(sj), (BLAZE.rise + BLAZE.drift) * size) then return end
+    column = column + 1
     local t = Sea.air()
     local phase = grain(seed, 3, 4)
-    local puffs = {}
-    for n = 0, BLAZE.puffs - 1 do
+    local count = BLAZE.puffs
+    local i0, j0, i1, j1 = math.huge, math.huge, -math.huge, -math.huge
+    for n = 0, count - 1 do
         local f = t / BLAZE.life + n / BLAZE.puffs + phase
         local age, cycle = f % 1, floor(f)
+        local q = n + 1
         local r = (1.5 + age ^ 0.8 * 7.5) * size * (0.85 + grain(seed, cycle, n) * 0.3)
         local ci = si + age ^ 1.5 * BLAZE.drift * size + sin(t * 1.1 + n * 2.3 + seed) * 1.6 * age
         local cj = sj - age * BLAZE.rise * size
-        puffs[#puffs + 1] = { ci = ci, cj = cj, r = r, age = age, cycle = cycle, n = n }
+        pR[q], pCi[q], pCj[q] = r, ci, cj
+        pAge[q], pCycle[q], pN[q] = age, cycle, n
+        order[q] = q
+        local reach = floor(r + 2) + 1
+        i0, i1 = math.min(i0, floor(ci) - reach), math.max(i1, floor(ci) + reach)
+        j0, j1 = math.min(j0, floor(cj) - reach), math.max(j1, floor(cj) + reach)
     end
-    -- Oldest first, so the young puffs at the root are on top.
-    table.sort(puffs, function(a, b) return a.age > b.age end)
-    local function disc(p, grow, f)
-        local r = p.r + grow
+    local bw = i1 - i0 + 1
+    -- Oldest first, so the young puffs at the root are on top. (No two are
+    -- the same age: they are a seventh of a life apart.)
+    for a = 2, count do
+        local v, b = order[a], a - 1
+        while b >= 1 and pAge[order[b]] < pAge[v] do order[b + 1] = order[b] b = b - 1 end
+        order[b + 1] = v
+    end
+    -- Whether a pixel is nearer than the board there is P.visible's test,
+    -- and the holes are grain's, both written out here: this is the most
+    -- of what a fire costs.
+    local deep = d + 6
+    local ww, wh, dep = w.w, w.h, w.dep
+    local put, mark = P.put, column
+    -- Each puff filled, dark beneath and paler on top; high up it thins to
+    -- holes. Where puffs overlap the one on top is what shows, so they are
+    -- taken youngest first and each pixel laid by the first that fills it.
+    for a = count, 1, -1 do
+        local p = order[a]
+        local ci, cj, r, age = pCi[p], pCj[p], pR[p], pAge[p]
+        local holes = (age - 0.4) * 1.5
+        local salt = (pCycle[p] * 7 + pN[p] + seed) * 37.719
+        local rr = r * r + 0.3
         local reach = floor(r + 1)
         for dj = -reach, reach do
+            local j = floor(cj + dj)
+            local row = (j - j0) * bw - i0 + 1
             for di = -reach, reach do
-                if di * di + dj * dj <= r * r + 0.3 then
-                    local i, j = floor(p.ci + di), floor(p.cj + dj)
-                    if P.visible(i, j, d + 6) then f(i, j, di, dj) end
+                if di * di + dj * dj <= rr then
+                    local i = floor(ci + di)
+                    local q = row + i
+                    if filled[q] ~= mark
+                        and (i < 0 or j < 0 or i >= ww or j >= wh or deep >= dep[j * ww + i] - 0.6) then
+                        local g = sin(di * 12.9898 + dj * 78.233 + salt) * 43758.5453
+                        if g - floor(g) >= holes then
+                            filled[q] = mark
+                            local k = IDX.k
+                            if dj > r * 0.4 then k = IDX.n end                     -- the underside
+                            local hx, hy = di + r * 0.35, dj + r * 0.4               -- lit from the upper left
+                            if hx * hx + hy * hy < r * r * 0.18 then k = IDX.t end
+                            if age < 0.12 then k = IDX.u end                     -- black at the root
+                            put(k, i, j)
+                        end
+                    end
                 end
             end
         end
     end
-    for _, p in ipairs(puffs) do
-        if p.age < 0.5 then disc(p, 1, function(i, j) P.put(IDX.o, i, j) end) end
-    end
-    for _, p in ipairs(puffs) do
-        local holes = (p.age - 0.4) * 1.5
-        disc(p, 0, function(i, j, di, dj)
-            if grain(di, dj, p.cycle * 7 + p.n + seed) < holes then return end
-            local k = IDX.k
-            local r = p.r
-            if dj > r * 0.4 then k = IDX.n end                     -- the underside
-            local hx, hy = di + r * 0.35, dj + r * 0.4               -- lit from the upper left
-            if hx * hx + hy * hy < r * r * 0.18 then k = IDX.t end
-            if p.age < 0.12 then k = IDX.u end                     -- black at the root
-            P.put(k, i, j)
-        end)
+    -- An ink line round the young puffs, a pixel out, where no puff is
+    -- filled over it: it reads over the char and over the sand alike.
+    local ink = IDX.o
+    for a = 1, count do
+        local p = order[a]
+        if pAge[p] < 0.5 then
+            local ci, cj, r = pCi[p], pCj[p], pR[p] + 1
+            local rr = r * r + 0.3
+            local reach = floor(r + 1)
+            for dj = -reach, reach do
+                local j = floor(cj + dj)
+                local row = (j - j0) * bw - i0 + 1
+                for di = -reach, reach do
+                    if di * di + dj * dj <= rr then
+                        local i = floor(ci + di)
+                        local q = row + i
+                        if filled[q] ~= mark and inked[q] ~= mark then
+                            inked[q] = mark
+                            if i < 0 or j < 0 or i >= ww or j >= wh or deep >= dep[j * ww + i] - 0.6 then
+                                put(ink, i, j)
+                            end
+                        end
+                    end
+                end
+            end
+        end
     end
 end
 

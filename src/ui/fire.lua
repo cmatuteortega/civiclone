@@ -50,13 +50,34 @@ Fire.spots = spots
 -- One flame from picture point (si, sj) at depth d: `tall` and `wide` its
 -- size in pixels, `seed` sets it apart. Its shape is found first, then laid
 -- with an ink line round it, so it reads against anything.
+--
+-- The shape is kept in tables used again by every flame, rather than made
+-- anew for each: a pixel (i, j) is in this flame's shape while seen[q] is
+-- this flame's number, q = j * 4096 + i, its key in keyAt[q], and listed
+-- once in shapeI, shapeJ.
+local seen, keyAt, inked = {}, {}, {}
+local shapeI, shapeJ, shapeN = {}, {}, 0
+local flameNo = 0
+local function set(i, j, k)
+    local q = j * 4096 + i
+    if seen[q] ~= flameNo then
+        seen[q] = flameNo
+        shapeN = shapeN + 1
+        shapeI[shapeN], shapeJ[shapeN] = i, j
+    end
+    keyAt[q] = k
+end
+local AROUND_I, AROUND_J = { 1, -1, 0, 0 }, { 0, 0, 1, -1 }
+
 local function flame(si, sj, d, tall, wide, seed)
+    -- The tables started again now and then, so they do not grow without end.
+    flameNo = flameNo + 1
+    if flameNo > 20000 then seen, keyAt, inked, flameNo = {}, {}, {}, 1 end
+    shapeN = 0
     local tick = floor(S.clock * FLICKER)
     local h = tall * (0.7 + 0.45 * grain(seed, tick, 3))
     local lean = (grain(seed, floor(tick / 3), 4) - 0.5) * 3
     local rows = floor(h + 0.5)
-    local shape = {}
-    local function set(i, j, k) shape[j * 4096 + i] = { i, j, k } end
     for r = 0, rows do
         local f = r / max(h, 1)
         -- Widest a little above the root, to a point.
@@ -80,14 +101,23 @@ local function flame(si, sj, d, tall, wide, seed)
         set(i, j, IDX.c)
         set(i, j - 1, IDX.s)
     end
-    for _, p in pairs(shape) do
-        for _, o in ipairs({ { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } }) do
-            local i, j = p[1] + o[1], p[2] + o[2]
-            if not shape[j * 4096 + i] and P.visible(i, j, d + 5) then P.put(IDX.o, i, j) end
+    -- The ink round it, each pixel of it once: it is all the one key, and
+    -- never where the shape is, so in what order makes no difference.
+    local ink = IDX.o
+    for n = 1, shapeN do
+        local pi, pj = shapeI[n], shapeJ[n]
+        for o = 1, 4 do
+            local i, j = pi + AROUND_I[o], pj + AROUND_J[o]
+            local q = j * 4096 + i
+            if seen[q] ~= flameNo and inked[q] ~= flameNo then
+                inked[q] = flameNo
+                if P.visible(i, j, d + 5) then P.put(ink, i, j) end
+            end
         end
     end
-    for _, p in pairs(shape) do
-        if P.visible(p[1], p[2], d + 5) then P.put(p[3], p[1], p[2]) end
+    for n = 1, shapeN do
+        local i, j = shapeI[n], shapeJ[n]
+        if P.visible(i, j, d + 5) then P.put(keyAt[j * 4096 + i], i, j) end
     end
 end
 
