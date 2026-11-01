@@ -36,7 +36,7 @@ SkyFx.DUST = { omen = 0, starfall = 0, bombard = 0.15, dark = 0.55 }
 -- How long each stone takes to come down, in seconds, how long it shakes
 -- the ground after, and how far apart one turn's stones fall.
 local FALL = { small = 0.75, big = 1.0, heart = 2.6 }
-local BURST = { small = 0.55, big = 0.8, heart = 2.2 }
+local BURST = { small = 0.9, big = 1.6, heart = 3.5 }
 local APART = 0.3
 local MOST = 4         -- seconds of stones queued, at most
 -- Where a stone comes from: this far up and to the west of where it falls,
@@ -280,32 +280,88 @@ local function falling(f, list)
             return
         end
         local since = (f.t - f.fall) / BURST[f.size]
-        -- The blast going out, a ring of light squashed as the hexes are.
-        local r = (f.size == "heart" and 46 or f.size == "big" and 20 or 13) * (0.25 + since)
-        local steps = floor(r * 4)
-        for s = 0, steps do
-            local a = s / steps * 2 * math.pi
-            if grain(s, f.seed, 41) > since then
-                P.putS(since < 0.4 and IDX.w or IDX.c, floor(x + cos(a) * r), floor(y + sin(a) * r * T.SE))
-            end
+        local big, heart = f.size ~= "small", f.size == "heart"
+        local cx, cy = floor(x), floor(y)
+        -- The cloud thrown up: puffs of dust boiling up and out from where
+        -- it struck, inked round as the smoke is, thinning as it settles.
+        local puffs = heart and 16 or big and 8 or 4
+        local rise = heart and 70 or big and 30 or 14
+        local thin = max(0, since - 0.35) * 1.6
+        local discs = {}
+        for k = 1, puffs do
+            local a = grain(k, f.seed, 44) * 2 * math.pi
+            local out = (0.3 + grain(f.seed, k, 45) * 0.7) * (heart and 46 or big and 18 or 9)
+            local up = (0.2 + grain(k, 7, f.seed) * 0.8) * rise
+            local g = 1 - (1 - min(1, since * 2.2)) ^ 2
+            discs[k] = { cx + cos(a) * out * g, cy + sin(a) * out * g * T.SE - up * g,
+                (heart and 9 or big and 5 or 3) * (0.5 + g * 0.8) * (0.8 + grain(k, k, 46) * 0.4), k }
         end
-        if since < 0.25 then
-            local core = (f.size == "heart" and 12 or 5) * (1 - since * 2)
-            for a = -core, core do
-                for b = -core, core do
-                    if a * a + b * b * 4 <= core * core then P.putS(IDX.w, floor(x + a), floor(y + b)) end
+        table.sort(discs, function(a, b) return a[2] < b[2] end)
+        for _, q in ipairs(discs) do
+            local r = q[3]
+            for b = -floor(r) - 1, floor(r) + 1 do
+                for a = -floor(r) - 1, floor(r) + 1 do
+                    local dd = a * a + b * b
+                    if dd <= (r + 1) * (r + 1) and grain(a, b, q[4] + f.seed) >= thin then
+                        local k = IDX.o
+                        if dd <= r * r then
+                            k = (b < -r * 0.3 and a < 0) and IDX.s or b > r * 0.4 and IDX.n or IDX.t
+                            if f.water then k = (b < 0) and IDX.w or IDX.c end
+                        end
+                        P.putS(k, floor(q[1]) + a, floor(q[2]) + b)
+                    end
                 end
             end
         end
-        -- Rubble, thrown up and out, falling back.
-        local n = f.size == "heart" and 40 or f.size == "big" and 18 or 10
+        -- The blast going out over the ground: two rings of light squashed
+        -- as the hexes are, the outer fading first.
+        if since < 0.7 then
+            local reach = heart and 110 or big and 44 or 20
+            for ring = 0, 1 do
+                local r = reach * (0.12 + since * (1.1 - ring * 0.35))
+                local steps = floor(r * 5)
+                for s2 = 0, steps do
+                    local a = s2 / steps * 2 * math.pi
+                    if grain(s2, f.seed + ring, 41) > since * 1.3 then
+                        local px, py = floor(x + cos(a) * r), floor(y + sin(a) * r * T.SE)
+                        local k = ring == 0 and (since < 0.3 and IDX.w or IDX.c) or IDX.s
+                        P.putS(k, px, py)
+                        if big then P.putS(k, px, py + 1) end
+                    end
+                end
+            end
+        end
+        -- The fireball, white, ringed in the pale keys, shrinking.
+        if since < 0.3 then
+            local core = (heart and 26 or big and 11 or 5) * (1 - since * 2.5)
+            for b = -floor(core) - 2, floor(core) + 2 do
+                for a = -floor(core * 1.4) - 2, floor(core * 1.4) + 2 do
+                    local dd = (a / 1.4) ^ 2 + b * b
+                    if dd <= core * core then P.putS(IDX.w, cx + a, cy + b - floor(core * 0.4))
+                    elseif dd <= (core + 2) ^ 2 then P.putS(IDX.c, cx + a, cy + b - floor(core * 0.4)) end
+                end
+            end
+        end
+        -- Rubble, thrown up and out, falling back: lumps of a few pixels
+        -- from a great stone.
+        local n = heart and 44 or big and 24 or 10
+        local lump = heart and 2 or big and 1 or 0
         for k = 1, n do
             local a = grain(k, f.seed, 42) * 2 * math.pi
-            local speed = (8 + grain(f.seed, k, 43) * 18) * scale
-            local up = (14 + grain(k, k, f.seed) * 22) * scale
-            local px = x + cos(a) * speed * since
-            local py = y + sin(a) * speed * since * T.SE - up * since * (1 - since) * 4
-            P.putS(f.water and (k % 2 == 0 and IDX.w or IDX.c) or (k % 3 == 0 and IDX.s or IDX.n), floor(px), floor(py))
+            local speed = (10 + grain(f.seed, k, 43) * 26) * scale
+            local up = (18 + grain(k, k, f.seed) * 30) * scale
+            local u = min(1, since * 1.3)
+            local px = floor(x + cos(a) * speed * u)
+            local py = floor(y + sin(a) * speed * u * T.SE - up * u * (1 - u) * 4)
+            if u < 1 then
+                for b = 0, lump do
+                    for a2 = 0, lump do
+                        local k2 = f.water and (k % 2 == 0 and IDX.w or IDX.c)
+                            or ((a2 == 0 and b == 0) and IDX.s or IDX.u)
+                        P.putS(k2, px + a2, py + b)
+                    end
+                end
+            end
         end
     end }
 end

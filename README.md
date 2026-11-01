@@ -166,6 +166,8 @@ of turf, holds a city through it, and through the other cataclysms too.
 ![Stones falling, one seen coming, and the craters they leave, under the comet](shots/33-starfall.png)
 ![The long night: the land cratered, the heart of the comet's seven hexes marked](shots/34-long-night.png)
 ![Towns without and with a shelter, on grass, plains and desert](shots/35-shelter.png)
+![A great stone comes down beside a burning forest](shots/36-great-stone.gif)
+![The heart of the comet falls in the long night](shots/37-heart-of-the-comet.gif)
 
 ## Running it
 
@@ -175,7 +177,7 @@ love .
 
 Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|none` picks how the world ends, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds

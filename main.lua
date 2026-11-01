@@ -403,6 +403,30 @@ local function followPlan()
             S.selected = nil
             View.lookAt(from, true)
         end
+        -- `--select bigfall`: a great stone coming on open land beside a
+        -- forest near the player's capital, the only one this turn, the
+        -- camera on it (with `--next`, to watch it come down).
+        if plan.select == "bigfall" then
+            local g, p = S.game, S.game.players[1]
+            local cap = g:citiesOf(1)[1]
+            local from = g.cells[cap and cap.cell or g:unitsOf(1)[1].cell]
+            local best, bd
+            for _, cell in ipairs(g.cells) do
+                if not g:isWater(cell) and cell.elev == "flat" and not cell.city and not cell.feature then
+                    local woods = 0
+                    for _, n in ipairs(g:neighbours(cell)) do if n.feature == "forest" then woods = woods + 1 end end
+                    local d = g:dist(cell, from) - woods * 0.6
+                    if woods > 0 and g:dist(cell, from) >= 2 and (not bd or d < bd) then best, bd = cell, d end
+                end
+            end
+            if best then
+                g.cataclysm.marks = { [best.id] = "big" }
+                for _, cell in ipairs(g:within(best, 5)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+                p.sightChanged = true
+                S.selected = nil
+                View.lookAt(best, true)
+            end
+        end
         local wildKind = plan.select and plan.select:match("^wild:?(%a*)$")
         if wildKind then
             local g, p = S.game, S.game.players[1]
