@@ -23,7 +23,7 @@ local Audio = require "src.ui.audio"
 local Cat = require "src.cataclysm"
 local Quake = require "src.quake"
 
-local floor, sin, cos, min, max, abs, sqrt = math.floor, math.sin, math.cos, math.min, math.max, math.abs, math.sqrt
+local floor, sin, cos, min, max, sqrt = math.floor, math.sin, math.cos, math.min, math.max, math.sqrt
 local IDX = T.IDX
 
 local QuakeFx = {}

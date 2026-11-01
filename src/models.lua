@@ -547,7 +547,7 @@ M.CITY_PLOTS = PLOTS
 -- What each building takes, of the plots: it stands in that plot instead of
 -- a house.
 local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10, sanctum = 11,
-    hearth = 8, lazaret = 9 }
+    hearth = 8, lazaret = 9, buttress = 7 }
 
 -- A little hash, so the same city is laid out the same way every time.
 local function hash(a, b)
@@ -1089,7 +1089,7 @@ function M.city(look, pop, capital, built, shore, drop, site, pest)
     local key = table.concat({ "c", look, #lay.houses, lay.tier, capital and 1 or 0, b.walls and 1 or 0,
         b.granary and 1 or 0, b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
         b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, b.levee and 1 or 0, b.shelter and 1 or 0, b.sanctum and 1 or 0, b.hearth and 1 or 0,
-        b.lazaret and 1 or 0, marked and 1 or 0, graves, siteKey(site) }, ":")
+        b.lazaret and 1 or 0, b.buttress and 1 or 0, marked and 1 or 0, graves, siteKey(site) }, ":")
     return kept(key, function()
         local L = LOOK[look]
         local parts = {}
@@ -1239,6 +1239,22 @@ function M.city(look, pop, capital, built, shore, drop, site, pest)
                 parts[#parts + 1] = part(Sh.seg(x - 4.2, 0.35 + (k % 2) * 0.7, lz, x - 2.6, 0.35 + (k % 2) * 0.7, lz, 0.38),
                     R.wood, 97)
             end
+        end
+        if b.buttress then
+            -- The buttress, against the sundering: a squat hall of stone,
+            -- broad at the foot, shored on all four sides by sloping
+            -- buttresses, timbers braced across in an X under its roof.
+            local x, z = at("buttress")
+            parts[#parts + 1] = part(Sh.box(x, 0, z, 4.2, 3.4, 3, 0.3), R.stone, 102, function(ux, uy)
+                if floor(uy * 4) % 2 == 1 and floor((ux + 1) * 4 + uy * 2) % 2 == 0 then return IDX.t end
+                if abs(ux - uy * 1.6 + 0.6) < 0.12 or abs(ux + uy * 1.6 - 0.6) < 0.12 then return IDX.n end
+            end)
+            for k = 0, 3 do
+                local a = 0.3 + k * math.pi / 2 + math.pi / 4
+                local bx, bz = x + cos(a) * 2.6, z + sin(a) * 2.2
+                parts[#parts + 1] = part(Sh.frustum(4, 0.25, bx, 0, bz, 1.3, 2.6, -a, math.pi / 4), R.stone, 103)
+            end
+            parts[#parts + 1] = part(Sh.roof(x, 3, z, 4.8, 4, 1.6, 0.3), L.roof, 104, banded(L))
         end
         if b.lazaret then
             -- The lazaret, against the plague: a long low house of the sick,

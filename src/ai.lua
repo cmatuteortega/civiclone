@@ -10,6 +10,7 @@ local Mapgen = require "src.mapgen"
 local D = require "src.defs"
 local Cat = require "src.cataclysm"
 local Sky = require "src.skyfall"
+local Quake = require "src.quake"
 local Demons = require "src.demons"
 local Sun = require "src.stillsun"
 local Plague = require "src.plague"
@@ -424,6 +425,19 @@ end
 local function dodge(game, u)
     if shun(game, u) then return end
     local here = game.cells[u.cell]
+    -- The sundering (src/quake.lua): off a quake, a wave or lava coming, or
+    -- the rift about to split, to the nearest hex that is safe.
+    if Cat.is(game, "quake") and not u.dead and u.moves > 0 and not here.city and Quake.danger(game, here, u) then
+        local best, bd
+        for _, n in ipairs(game:neighbours(here)) do
+            if not Quake.danger(game, n, u) and game:canStand(u, n) and game:stepCost(u, here, n) then
+                local d = (n.city and n.city.owner == u.owner) and 0 or 1 + game.rng:random()
+                if not bd or d < bd then best, bd = n, d end
+            end
+        end
+        if best then game:step(u, best.id) end
+        return
+    end
     if u.dead or u.moves <= 0 or not Sky.marked(game, here) then return end
     -- Under the heart, any step further from where it falls will do.
     local heart = Sky.heart(game)

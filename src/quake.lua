@@ -62,7 +62,7 @@ local D = require "src.defs"
 local H = require "src.hex"
 local Cat = require "src.cataclysm"
 
-local max, min, floor, abs = math.max, math.min, math.floor, math.abs
+local max, min, floor = math.max, math.min, math.floor
 
 local Q = {
     stages = { "omen", "tremors", "rift", "fire" },
@@ -329,11 +329,6 @@ function Q.quake(game, cell)
 end
 
 --- the rift ---------------------------------------------------------------------------------
-
--- Is the hex at sea, for the rift: water, or a rift hex the sea is in.
-local function wet(game, cell)
-    return game:isWater(cell) or (cell.rift or 0) >= 3
-end
 
 -- The cheapest way over the land from hex `a` to hex `b` that keeps off
 -- cities, lairs and mountains, a little noise in it so it wanders; nil if
