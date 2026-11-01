@@ -20,7 +20,13 @@
 --              cities thirst in the day and go cold in the night.
 --   TWILIGHT   the band narrows. The day's deserts bake hard; the open sea
 --              freezes too. Whoever ends a turn out on the baked earth or
---              the snow is hurt. The thirst and the cold worsen.
+--              the snow is hurt. The thirst and the cold worsen. On
+--              D.SUN.storm, told some turns before, the great storm: the
+--              hot air of the day and the cold of the night meet on the
+--              line, cyclones form on it and run along it, each seen
+--              coming a turn ahead, hurting what is out in it, blowing the
+--              forests down and wrecking the farms; and the gales take food
+--              from every city, the twilight's too.
 --
 -- The twilight is the one place that is spared: what is there neither
 -- dries nor freezes, and its cities neither thirst nor go cold. As the band
@@ -34,10 +40,15 @@
 -- game.cataclysm keeps `line` once the sun has stood still: { nx, nz } the
 -- way to the day across the map (in room units), `d` how far along that
 -- way the line lies, `w` a hex's width (src/defs.lua, D.sunSide). The cells
--- keep what the heat and the frost leave on them. The game emits "terrain"
--- for every hex that changes, "ignite" for every fire that starts,
--- "freeze" for every hex of sea that freezes, and "sun" as each stage
--- begins. Nothing here draws.
+-- keep what the heat and the frost leave on them, and `slid` where the
+-- storm blew a forest down. In the great storm game.cataclysm keeps
+-- `cyclones` (each { id, cell, dir, life, next }) and `stormMarks` ({ [cell
+-- id] = "eye" | "ring" }, where they strike as the next turn begins). The
+-- game emits "terrain" for every hex that changes, "ignite" for every fire
+-- that starts, "freeze" for every hex of sea that freezes, "cyclone" as one
+-- forms (`formed`), moves (`from`) or blows itself out (`spent`), "mark"
+-- when the storm's next marks are laid, and "sun" as each stage begins.
+-- Nothing here draws.
 
 local D = require "src.defs"
 local H = require "src.hex"
@@ -141,12 +152,14 @@ end
 function Sun.thirst(game, city)
     local s = Cat.stage(game)
     local z = Sun.zone(game, game.cells[city.cell])
-    if not s or not z or z == "twilight" then return 0 end
+    -- The great storm's gales, everywhere.
+    local gale = game.turn >= D.SUN.storm and D.SUN.gale or 0
+    if not s or not z or z == "twilight" then return gale end
     local t, ward
     if z == "day" then t, ward = D.SUN.thirst[s] or 0, city.buildings.cistern
     else t, ward = D.SUN.cold[s] or 0, city.buildings.hearth end
     if t > 0 and ward then t = max(0, t - D.SUN.ward) end
-    return t
+    return t + gale
 end
 
 -- The ward a city wants against it: a cistern in the day, a hearth in the
@@ -159,6 +172,8 @@ end
 
 -- Is hex `cell` a place unit u is hurt for ending a turn on?
 function Sun.danger(game, cell, u)
+    -- A cyclone coming: anywhere out in it, on land or water.
+    if Sun.stormAt(game, cell) and not cell.city then return true end
     if u.def.sea then return cell.terrain == "ice" end
     if cell.city or not Cat.past(game, "twilight") then return false end
     local z = Sun.zone(game, cell)
@@ -170,7 +185,9 @@ end
 -- What the screen says of where the hex lies.
 function Sun.describe(game, cell)
     local z = Sun.zone(game, cell)
-    return z and ({ day = "- ENDLESS DAY", night = "- ENDLESS NIGHT", twilight = "- TWILIGHT" })[z]
+    local out = z and ({ day = "- ENDLESS DAY", night = "- ENDLESS NIGHT", twilight = "- TWILIGHT" })[z]
+    if out and Sun.stormAt(game, cell) then out = out .. " - THE STORM IS COMING" end
+    return out
 end
 
 --- the day -------------------------------------------------------------------------------
@@ -231,6 +248,153 @@ end
 local function freezeWeight(game, cell, open)
     if Sun.zone(game, cell) ~= "night" or not Frost.freezable(game, cell, open) then return 0 end
     return 0.2 + min(Sun.depth(game, cell), D.SUN.deep) / D.SUN.deep
+end
+
+--- the great storm -------------------------------------------------------------------------
+
+-- What the storm brings down on hex `cell` as the next turn begins: "eye"
+-- or "ring", or nil.
+function Sun.stormAt(game, cell)
+    local c = game.cataclysm
+    if not c or c.kind ~= "sun" or not c.stormMarks then return nil end
+    return c.stormMarks[cell.id]
+end
+
+-- The cyclones blowing now (each { id, cell, dir, life, next }).
+function Sun.cyclones(game)
+    local c = game.cataclysm
+    return c and c.kind == "sun" and c.cyclones or {}
+end
+
+-- Has the great storm begun (or is it forming)?
+function Sun.storming(game)
+    return Cat.is(game, "sun") and game.turn >= D.SUN.storm - 1
+end
+
+-- Where cyclone `cy` goes next: `speed` hexes along the line, the way it
+-- runs, drawn back towards the line and blown about; nil off the map.
+local function course(game, cy)
+    local L = game.cataclysm.line
+    local cell = game.cells[cy.cell]
+    local side = Sun.side(game, cell) or 0
+    local tx, tz = -L.nz, L.nx
+    local step = D.SUN.speed * L.w
+    local wob = (game.rng:random() - 0.5) * L.w * 1.2
+    local x = cell.x + tx * cy.dir * step - L.nx * side * 0.45 * L.w + L.nx * wob
+    local z = cell.z + tz * cy.dir * step - L.nz * side * 0.45 * L.w + L.nz * wob
+    local n = game:cell(H.at(x, z))
+    if not n or n == cell then return nil end
+    return n.id
+end
+
+-- A cyclone forms on the line, away from the others.
+local function form(game)
+    local c = game.cataclysm
+    local band = Sun.band(game) + 1
+    local picked = Cat.pick(game, function(cell)
+        local s = Sun.side(game, cell)
+        if not s or math.abs(s) > band then return 0 end
+        for _, cy in ipairs(c.cyclones) do
+            if game:dist(cell, game.cells[cy.cell]) < 5 then return 0 end
+        end
+        -- Away from the map's edges, where it would blow straight out.
+        if cell.c < 2 or cell.r < 2 or cell.c >= game.cols - 2 or cell.r >= game.rows - 2 then return 0 end
+        return game:isWater(cell) and 1.5 or 1
+    end, 1)
+    local cell = picked[1]
+    if not cell then return nil end
+    c.cycloneId = (c.cycloneId or 0) + 1
+    local S = D.SUN
+    local cy = { id = c.cycloneId, cell = cell.id, dir = game.rng:random() < 0.5 and -1 or 1,
+        life = S.life[1] + floor(game.rng:random() * (S.life[2] - S.life[1] + 1)) }
+    c.cyclones[#c.cyclones + 1] = cy
+    game:emit({ kind = "cyclone", id = cy.id, cell = cell.id, formed = true, turn = game.turn })
+    if cell.owner then game:tell(cell.owner, "A CYCLONE HAS FORMED BY THE " .. game:describe(cell)) end
+    return cy
+end
+Sun.form = form
+
+-- A cyclone strikes with its eye on hex `cell`.
+function Sun.strike(game, cell)
+    local S = D.SUN
+    for _, n in ipairs(game:within(cell, 1)) do
+        local eye = n == cell
+        local amount = eye and S.eyeHit or S.ringHit
+        -- Whoever is out in it; in a town they shelter.
+        if not n.city then
+            for _, u in ipairs(Cat.unitsOn(game, n)) do
+                local hit = (u.def.sea or game:isWater(n)) and floor(amount * S.sea + 0.5) or amount
+                Cat.hurt(game, u, hit, game:isWater(n) and "WAS SUNK IN THE STORM" or "WAS TAKEN BY THE STORM")
+            end
+        else
+            Cat.harm(game, n.city, eye and S.eyeCity or S.ringCity)
+            game:tell(n.city.owner, "THE STORM HAS STRUCK " .. n.city.name)
+        end
+        local r = game.rng
+        local changed = false
+        if n.feature == "forest" and not n.city and r:random() < (eye and S.blowDown.eye or S.blowDown.ring) then
+            n.feature, n.slid = nil, true
+            n.fire = nil
+            changed = true
+            if n.owner then game:tell(n.owner, "THE STORM HAS BLOWN A FOREST DOWN") end
+        end
+        if n.improvement and r:random() < (eye and S.wreck.eye or S.wreck.ring) then
+            if n.owner then game:tell(n.owner, "THE STORM HAS WRECKED A " .. D.IMPROVEMENT[n.improvement].name) end
+            n.improvement = nil
+            changed = true
+        end
+        -- The rain in it puts out a fire.
+        if n.fire then n.fire, changed = nil, true end
+        if changed then game:emit({ kind = "terrain", cell = n.id }) end
+    end
+end
+
+-- The great storm's part of a turn: told, formed, and then the cyclones
+-- run on, strike, and the next turn's are seen coming.
+local function storm(game)
+    local S = D.SUN
+    local c = game.cataclysm
+    if game.turn == S.warn then
+        game:tell(nil, ("THE WINDS ARE RISING: THE HEAT OF THE DAY AND THE COLD OF THE NIGHT WILL MEET IN A GREAT "
+            .. "STORM IN %d TURNS"):format(S.storm - game.turn))
+    end
+    if game.turn < S.storm - 1 then return end
+    c.cyclones = c.cyclones or {}
+    if game.turn == S.storm - 1 then
+        for _ = 1, S.cyclones[1] do form(game) end
+        game:tell(nil, "THE GREAT STORM: CYCLONES HAVE FORMED ON THE LINE. GET OUT OF THEIR WAY")
+    else
+        local still = {}
+        for _, cy in ipairs(c.cyclones) do
+            if cy.next then
+                local from = cy.cell
+                cy.cell, cy.next = cy.next, nil
+                game:emit({ kind = "cyclone", id = cy.id, cell = cy.cell, from = from, turn = game.turn })
+                Sun.strike(game, game.cells[cy.cell])
+                cy.life = cy.life - 1
+                if cy.life > 0 then still[#still + 1] = cy
+                else game:emit({ kind = "cyclone", id = cy.id, cell = cy.cell, spent = true, turn = game.turn }) end
+            else
+                game:emit({ kind = "cyclone", id = cy.id, cell = cy.cell, spent = true, turn = game.turn })
+            end
+        end
+        c.cyclones = still
+        if #c.cyclones < S.cyclones[2] and game.rng:random() < S.form then form(game) end
+    end
+    -- Where they go next, seen coming.
+    c.stormMarks = {}
+    if game.turn >= D.LAST_TURN then return end
+    for _, cy in ipairs(c.cyclones) do
+        cy.next = course(game, cy)
+        if cy.next then
+            local eye = game.cells[cy.next]
+            for _, n in ipairs(game:within(eye, 1)) do
+                if n == eye then c.stormMarks[n.id] = "eye"
+                elseif not c.stormMarks[n.id] then c.stormMarks[n.id] = "ring" end
+            end
+        end
+    end
+    game:emit({ kind = "mark" })
 end
 
 --- the turn ------------------------------------------------------------------------------
@@ -304,6 +468,7 @@ function Sun.play(game, stage)
     for _, cell in ipairs(Cat.pick(game, function(cell) return freezeWeight(game, cell, open) end, S.freeze[stage] or 0)) do
         Frost.freeze(game, cell)
     end
+    storm(game)
 end
 
 return Sun

@@ -44,6 +44,7 @@ local Rain = require "src.ui.rain"
 local Snow = require "src.ui.snow"
 local SkyFx = require "src.ui.sky"
 local QuakeFx = require "src.ui.quake"
+local Sun = require "src.stillsun"
 local Sky = require "src.skyfall"
 local Frost = require "src.frost"
 local D = require "src.defs"
@@ -762,12 +763,15 @@ local function followPlan()
         -- it, that land shown; `flood`, `marsh`, `silt`, `drowned` the same
         -- for the deluge's, `crater` and `glow` (fresh craters) for the sky's
         -- falling, and `mark` the hexes stones are falling on next (`heart`
-        -- the heart of the comet's). `--select cistern` (or `levee`, or
+        -- the heart of the comet's). `ebbed` the heat's salt flats, `dry` its
+        -- dry riverbeds, `ruin` the deluge's sunk towns, `storm` the still
+        -- sun's cyclones. `--select cistern` (or `levee`, or
         -- `shelter`): the player's capital given one, selected.
         local heat = ({ fire = "fire", scorch = "scorched", burnt = "burnt", flood = "flood", silt = "silt",
             drowned = "drowned", marsh = "marsh", crater = "crater", glow = "glow", mark = "mark",
             heart = "heart", blight = "blight", tundra = "tundra", snow = "snow", ice = "ice", frost = "frost",
-            twilight = "twilight" })[plan.select or ""]
+            twilight = "twilight", ebbed = "ebbed", saltflat = "saltflat", dry = "dry", ruin = "ruin",
+            storm = "storm" })[plan.select or ""]
         if heat then
             local g, p = S.game, S.game.players[1]
             local best, bv = nil, 0
@@ -790,6 +794,11 @@ local function followPlan()
                         if s and (n.scorched or n.terrain == "desert") then v = v + 0.3 end
                     end
                     if heat == "fire" and n.feature == "forest" then v = v + 0.5 end
+                    -- The still sun's cyclones: where one strikes next.
+                    if heat == "storm" then
+                        local m = Sun.stormAt(g, n)
+                        if m then v = v + (m == "eye" and 3 or 1) end
+                    end
                 end
                 if v > bv then best, bv = cell, v end
             end

@@ -32,7 +32,7 @@
 -- What holds it off is the buttress (D.BUILDINGS.buttress): half the harm a
 -- quake does the city, no building brought down and half as many killed by
 -- one, no fault opened on its land, less fear, and none of its people lost
--- in the great quake. A levee keeps a wave out of
+-- in the great quake. A levee (D.BUILDINGS.levee) keeps a wave out of
 -- a city, and a shelter (D.SHELTER) halves every blow, as ever.
 --
 -- The cells keep what has happened to them: `fault` (the edges cracked
@@ -130,6 +130,13 @@ function Q.thirst(game, city)
     local t = s and D.QUAKE.fear[s] or 0
     if t > 0 and buttressed(city) then t = max(0, t - D.QUAKE.ward) end
     return t
+end
+
+-- What a city by the sea builds once its buttress and its shelter are up:
+-- a levee against the waves.
+function Q.also(game, city)
+    local cell = game.cells[city.cell]
+    if cell.elev == "flat" and game:coastal(cell) then return "levee" end
 end
 
 --- faults -----------------------------------------------------------------------------------

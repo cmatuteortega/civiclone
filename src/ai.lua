@@ -14,6 +14,7 @@ local Quake = require "src.quake"
 local Demons = require "src.demons"
 local Sun = require "src.stillsun"
 local Plague = require "src.plague"
+local Flood = require "src.flood"
 
 local max = math.max
 
@@ -118,6 +119,16 @@ local function chooseBuild(game, p, city)
         end
         if not spared then return "unit", "settler" end
     end
+    -- Before the deluge's great flood, a civilization with no town on the
+    -- hills sends people up to them (src/flood.lua).
+    if Cat.is(game, "flood") and Cat.stage(game) and game.turn < D.FLOOD.second and city.pop >= 3
+        and count(game, p, "settler") == 0 and city.elev ~= "hills" then
+        local high = false
+        for _, c in ipairs(game:citiesOf(p.id)) do
+            if game.cells[c.cell].elev == "hills" then high = true break end
+        end
+        if not high then return "unit", "settler" end
+    end
     -- Against the cataclysm, once it has been foretold: where the city
     -- stands, if it says.
     local ward = Cat.ward(game, city)
@@ -126,6 +137,9 @@ local function chooseBuild(game, p, city)
     end
     -- And a shelter against whatever it is, once its own ward is up.
     if Cat.stage(game) and game:canBuild(city, "building", "shelter") then return "building", "shelter" end
+    -- And whatever else it needs against this one.
+    local also = Cat.stage(game) and Cat.also(game, city)
+    if also and game:canBuild(city, "building", also) then return "building", also end
     for _, id in ipairs({ "monument", "granary", "walls", "library", "harbour", "market", "lighthouse" }) do
         if game:canBuild(city, "building", id) then
             if id ~= "walls" or game.turn > 30 then return "building", id end
@@ -146,7 +160,9 @@ local function siteFor(game, u)
     local best, bv
     -- Under the still sun they will go further, to the twilight.
     local still = Sun.line(game)
-    for _, cell in ipairs(game:within(here, still and 14 or 9)) do
+    -- Before the deluge they look further, for the hills.
+    local deluge = Cat.is(game, "flood") and Cat.stage(game) ~= nil
+    for _, cell in ipairs(game:within(here, (still or deluge) and 14 or 9)) do
         if game:passable(cell) and not D.TERRAIN[cell.terrain].noCity and not cell.city
             and (not cell.owner or cell.owner == u.owner) then
             local ok = not wild(game, cell, 2)
@@ -158,6 +174,13 @@ local function siteFor(game, u)
                 if game:isWater(cell) then v = -1 end
                 for _, n in ipairs(game:neighbours(cell)) do
                     if n.terrain == "coast" then v = v + 2 break end
+                end
+                if deluge then
+                    -- High ground, out of the sea's reach (src/flood.lua).
+                    if cell.elev == "hills" then v = v + 10
+                    elseif (cell.top or 0) > D.FLOOD.levels[1] then v = v + 3 end
+                    if game:coastal(cell) then v = v - 4 end
+                    if Flood.doomed(game, cell) then v = v - 20 end
                 end
                 if still then
                     -- The twilight first; the deeper into the day or the
@@ -409,6 +432,19 @@ end
 local function shun(game, u)
     local here = game.cells[u.cell]
     if u.dead or u.moves <= 0 or not Sun.line(game) or not Sun.danger(game, here, u) then return false end
+    -- A cyclone coming: anywhere out of its way, within a few hexes.
+    if Sun.stormAt(game, here) then
+        local best, bd
+        for _, n in ipairs(game:within(here, 3)) do
+            if not Sun.danger(game, n, u) and game:canStand(u, n) then
+                local d = game:dist(here, n) + ((n.city and n.city.owner == u.owner) and -0.5 or 0)
+                    + game.rng:random() * 0.3
+                if not bd or d < bd then best, bd = n, d end
+            end
+        end
+        if best then game:moveTo(u, best.id) end
+        return true
+    end
     local best, bd
     for _, n in ipairs(game:neighbours(here)) do
         if not Sun.danger(game, n, u) and game:canStand(u, n) and game:stepCost(u, here, n) then
@@ -422,7 +458,26 @@ end
 
 -- Unit u, on a hex a stone is falling on (src/skyfall.lua): a step to the
 -- nearest hex nothing is falling on, if it has the moves.
+-- Unit u, on land the deluge's great flood will take in a few turns
+-- (src/flood.lua): off to the nearest land it will not, the hills.
+local function flee(game, u)
+    local level, left = Flood.coming(game)
+    if not level or left > 3 or u.dead or u.moves <= 0 or u.def.sea then return false end
+    local here = game.cells[u.cell]
+    if not Flood.doomed(game, here) then return false end
+    local best, bd
+    for _, n in ipairs(game:within(here, 8)) do
+        if not Flood.doomed(game, n) and game:passable(n) and not game:foreignAt(n, u.owner) then
+            local d = game:dist(here, n) + game.rng:random() * 0.5
+            if not bd or d < bd then best, bd = n, d end
+        end
+    end
+    if best then game:moveTo(u, best.id) end
+    return true
+end
+
 local function dodge(game, u)
+    if flee(game, u) then return end
     if shun(game, u) then return end
     local here = game.cells[u.cell]
     -- The sundering (src/quake.lua): off a quake, a wave or lava coming, or

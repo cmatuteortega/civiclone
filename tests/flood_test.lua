@@ -204,4 +204,67 @@ return {
         for _, c in ipairs(g.cities) do if c.buildings.levee then levees = levees + 1 end end
         assert(levees > 0, "the AI built against it")
     end },
+    { "the great flood takes the lowland joined to the sea, then the upland; never the hills", function()
+        local g = newGame()
+        local low = Flood.reach(g, D.FLOOD.levels[1], true)
+        local up = Flood.reach(g, D.FLOOD.levels[2], false)
+        assert(#low > 0 and #up > #low, "the upland is more")
+        for _, c in ipairs(up) do assert(c.elev == "flat" and c.top <= D.FLOOD.levels[2]) end
+        g.turn = D.FLOOD.warn
+        Cat.turn(g)
+        local told = false
+        for _, l in ipairs(g.log) do if l.text:find("GREAT FLOOD COMES") then told = true end end
+        assert(told)
+        local hills = count(g, function(c) return c.elev ~= "flat" and not g:isWater(c) end)
+        g.turn = D.FLOOD.great
+        Cat.turn(g)
+        for _, c in ipairs(g.cells) do
+            if not g:isWater(c) and c.elev == "flat" and c.top <= D.FLOOD.levels[1] then
+                -- What is left of the lowland is cut off from the sea.
+                for _, n in ipairs(g:neighbours(c)) do
+                    assert(not g:isWater(n) or n.terrain == "ice" or c.city, "no low land left by the sea")
+                end
+            end
+        end
+        g.turn = D.FLOOD.second
+        Cat.turn(g)
+        assert(count(g, function(c) return c.elev ~= "flat" and not g:isWater(c) end) == hills, "the hills stand")
+    end },
+    { "a town the great flood takes sinks, its ruins under the water; a levee holds it through the first", function()
+        local g = newGame()
+        local city = settle(g)
+        local home = g.cells[city.cell]
+        if home.elev ~= "flat" then return end
+        -- Make sure the sea reaches it: its own hex lowland by the water.
+        home.top = D.FLOOD.levels[1]
+        local wet
+        for _, n in ipairs(g:neighbours(home)) do
+            if not n.city then
+                Flood.drown(g, n)
+                wet = n
+                break
+            end
+        end
+        assert(wet)
+        city.buildings.levee = true
+        local guard = g:addUnit("warrior", 1, home.id)
+        g.turn = D.FLOOD.great
+        Flood.deluge(g, D.FLOOD.levels[1], true)
+        assert(not city.dead and home.city == city, "the levee held it through the first")
+        Flood.deluge(g, D.FLOOD.levels[2], false)
+        assert(city.dead and home.city == nil, "sunk in the second")
+        for _, c in ipairs(g.cities) do assert(c ~= city) end
+        assert(home.ruin and home.ruin.name == city.name and home.ruin.buildings.levee)
+        assert(g:isWater(home) and g:describe(home):find("SUNKEN RUINS"))
+        for _, c in ipairs(g.cells) do assert(c.ownerCity ~= city, "its land is no one's") end
+        assert(guard.dead or g:canEnter(guard, g.cells[guard.cell]), "its guard swam for it, or was lost")
+    end },
+    { "a civilization whose towns all sink is gone", function()
+        local g = newGame()
+        local city = settle(g)
+        for _, u in ipairs(g:unitsOf(1)) do if u.kind == "settler" then g:removeUnit(u) end end
+        Flood.sink(g, city)
+        g:checkAlive(g.players[1])
+        assert(not g.players[1].alive)
+    end },
 }

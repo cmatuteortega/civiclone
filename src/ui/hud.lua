@@ -363,7 +363,7 @@ end
 --- the minimap ---------------------------------------------------------------------
 
 local MINI = { ocean = "u", coast = "n", grass = "k", plains = "t", desert = "c", marsh = "n", tundra = "s", snow = "w",
-    ice = "c" }
+    ice = "c", saltflat = "w" }
 
 -- The minimap's hexes as last drawn onto its canvas.
 local mini = { look = {} }

@@ -257,7 +257,8 @@ function Game:describe(cell)
     if cell.feature then parts[#parts + 1] = D.FEATURE[cell.feature].name end
     if cell.resource then parts[#parts + 1] = D.RESOURCE[cell.resource].name end
     if cell.improvement then parts[#parts + 1] = D.IMPROVEMENT[cell.improvement].name end
-    if self:onRiver(cell) then parts[#parts + 1] = "RIVER" end
+    if self:onRiver(cell) then parts[#parts + 1] = "RIVER"
+    elseif cell.dry and not self:isWater(cell) then parts[#parts + 1] = "DRY RIVERBED" end
     if cell.flood then parts[#parts + 1] = "- FLOODED"
     elseif cell.silt then parts[#parts + 1] = "- SILT"
     elseif cell.drowned then parts[#parts + 1] = "- DROWNED LAND" end
@@ -282,6 +283,8 @@ function Game:describe(cell)
     elseif cell.scorched then parts[#parts + 1] = "- SCORCHED"
     elseif cell.burnt then parts[#parts + 1] = "- BURNT" end
     if cell.lair then parts[#parts + 1] = "- " .. cell.lair.def.name end
+    -- A town the great flood sank (src/flood.lua).
+    if cell.ruin then parts[#parts + 1] = "- THE SUNKEN RUINS OF " .. cell.ruin.name end
     return table.concat(parts, " ")
 end
 

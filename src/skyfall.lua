@@ -63,18 +63,25 @@ local function land(game, cell) return not game:isWater(cell) end
 function Sky.food(game, cell, f)
     if cell.glow then return 0 end
     if cell.crater then f = max(0, f - D.SKY.craterFood) end
-    if cell.improvement == "farm" and Cat.past(game, "dark") then f = max(0, f - D.SKY.darkFarm) end
+    if cell.improvement == "farm" and Cat.past(game, "dark") and not Frost.warm(cell) then
+        f = max(0, f - D.SKY.darkFarm)
+    end
     return f
 end
 
 -- The food city `city` loses this turn to the cold; its shelter's stores
--- spare it some.
+-- spare it some, and so does a hearth.
 function Sky.thirst(game, city)
     local s = Cat.stage(game)
     local t = s and D.SKY.cold[s] or 0
     if t > 0 and Cat.sheltered(city) then t = max(0, t - D.SHELTER.skyStores) end
+    if t > 0 and city.buildings.hearth then t = max(0, t - D.SKY.hearth) end
     return t
 end
+
+-- What a city builds once its shelter is up: a hearth against the cold to
+-- come.
+function Sky.also(game, city) return "hearth" end
 
 --- where the stones fall ------------------------------------------------------------------
 

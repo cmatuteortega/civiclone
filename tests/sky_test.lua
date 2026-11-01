@@ -232,4 +232,24 @@ return {
         for _, c in ipairs(g.cities) do if c.buildings.shelter then shelters = shelters + 1 end end
         assert(shelters > 0, "the AI dug in")
     end },
+    { "a hearth can be built under the falling sky, and holds off the long night's cold", function()
+        local g = newGame()
+        local city = settle(g)
+        g.players[1].techs.pottery = true
+        assert(g:canBuild(city, "building", "hearth"), "the hearth is a ward here too")
+        g.turn = D.SKY.dark
+        local cold = Cat.thirst(g, city)
+        city.buildings.hearth = true
+        assert(Cat.thirst(g, city) == math.max(0, cold - D.SKY.hearth))
+        local farm
+        for _, n in ipairs(g:within(g.cells[city.cell], 1)) do
+            if n.ownerCity == city and not n.city and not g:isWater(n) and n.elev == "flat" then farm = n break end
+        end
+        if farm then
+            farm.improvement = "farm"
+            local warm = g:yield(farm)
+            city.buildings.hearth = nil
+            assert(g:yield(farm) == math.max(0, warm - D.SKY.darkFarm), "the hearth keeps the farm's food")
+        end
+    end },
 }

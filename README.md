@@ -121,8 +121,12 @@ charring trees, sparks going up and a black column of smoke carried off on
 the wind, the ground glowing where it has passed and lighting the night like
 a town. What it leaves is ash, stumps and leaning snags. Last the scorch: the
 desert bakes hard into cracked plates of clay that feed no one and burn
-whoever stands on them, and the cities thirst. A cistern, a round tank of
-water under a roofed well-head, holds a city's land against it.
+whoever stands on them, and the cities thirst. All the while the rivers
+fail from their springs down, leaving beds of cracked mud, until hardly any
+water runs; and at the last the sea itself draws back from every shore,
+leaving its floor a white crust of salt that armies walk across. A cistern,
+a round tank of water under a roofed well-head, holds a city's land
+against it.
 
 ![Wildfires in the forest round a town](shots/22-wildfire.png)
 ![The same fires at midnight, lighting the land round them](shots/23-wildfire-night.png)
@@ -131,6 +135,8 @@ water under a roofed well-head, holds a city's land against it.
 ![What the fire leaves: ash, stumps and snags](shots/28-burnt.png)
 ![The scorch: baked earth cracked into plates, beside the sand and the ash](shots/24-scorch.png)
 ![Towns without and with a cistern, on grassland, plains and desert](shots/25-cistern.png)
+![The rivers run dry: beds of cracked mud through the drying land](shots/56-dry-rivers.png)
+![The great ebb: the shallows left bare as salt flats below the old shore](shots/57-great-ebb.png)
 
 Or it ends in water (`src/flood.lua`): the deluge. The rains will not stop.
 At first they are a blessing, greening the deserts and fattening the farms,
@@ -141,13 +147,18 @@ up to the trees' knees, and when it goes down it takes the farms and leaves
 pale silt behind. Storms come with lightning and thunder, rain streaks the
 screen and opens rings on every water. Last the sea rises over the low
 shore a few hexes a turn, leaving drowned forests standing dead in the
-shallows, and ships sail where the fields were. A levee, banks of earth
-capped with stone round a city's hex, holds its land against it.
+shallows, and ships sail where the fields were. Then the great flood: the
+sea rises over the whole lowland at once, and five turns later over the
+upland too, sinking every town that stands on them; their roofs and towers
+break the surface, their streets dark under the water. Only the hills
+stand. A levee, banks of earth capped with stone round a city's hex, holds
+its land against it, and holds its town through the first rising.
 
 ![The deluge: rain, floods, marsh and drowned land](shots/29-deluge.gif)
 ![Marsh: sodden ground, dark pools and reeds, in the long rains](shots/30-marsh.png)
 ![The rising sea over the low shore, in the storm](shots/32-rising-sea.png)
 ![Towns without and with a levee, on grass, by a river and on the coast](shots/31-levee.png)
+![The great flood: towns sunk under the sea, only the hills standing](shots/58-great-flood.png)
 
 Or the sky falls (`src/skyfall.lua`). A comet is seen, its tail longer
 every turn, and shooting stars cross the night. Then the stones come, and
@@ -202,7 +213,12 @@ into ice with pressure ridges thrown up on it, floes drifting in the slush
 beside it, that armies walk across and ships are crushed in. A cistern
 holds a town in the day, a hearth (a domed kiln-house with its fire never
 let out) in the night; only the twilight is spared, and the computer sends
-its people there. The sky's long night now freezes the land too.
+its people there. The sky's long night now freezes the land too. At the
+last the hot air of the day and the cold of the night meet on the line in
+a great storm: cyclones form on it and run along it, wheels of cloud round
+a dark eye, each marked on the ground the turn before it strikes, blowing
+the forests down and wrecking the farms, and the gales reach even the
+twilight.
 
 ![The still sun: the endless day on the left, the night on the right, the twilight between them burning](shots/39-still-sun.png)
 ![The frost in daylight: tundra, snow, snowbound forests and hills, a frozen river, and the sea frozen](shots/40-frost.png)
@@ -211,6 +227,7 @@ its people there. The sky's long night now freezes the land too.
 ![Snow falling on the ice at night](shots/43-snowfall.gif)
 ![Towns on tundra and snow, snow on their roofs, with and without a hearth](shots/44-frozen-towns.png)
 ![The sky's long night, the land freezing under it](shots/45-long-night-frost.png)
+![The great storm: cyclones running along the line, where they strike next marked on the ground](shots/59-great-storm.png)
 
 Or the plague comes (`src/plague.lua`), the one end of the world that goes
 from town to town. Crows gather over the towns, and everyone is told which
@@ -270,7 +287,7 @@ love .
 
 Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|sun|plague|quake|none` picks how the world ends, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen|plague|sundering|rift|buttress] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen|plague|sundering|rift|buttress|dry|ebbed|ruin|storm] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits (`--size WxH` makes the window that big; `--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds

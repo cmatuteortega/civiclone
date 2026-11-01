@@ -16,7 +16,11 @@
 --              along the shore, the lowest first, for good: they are coast,
 --              and ships sail where the fields were. Hills stand out of it as
 --              islands; the fever worsens, and the surge beats on the cities
---              by the shore.
+--              by the shore. On D.FLOOD.great, told some turns before, the
+--              great flood: the sea rises over the whole of the lowland at
+--              once, wherever it is joined to the sea, and on
+--              D.FLOOD.second over the upland too. Every town on it sinks,
+--              its ruins left under the water; only the hills stand.
 --
 -- It is the heat death the other way about: there the rivers and the coast
 -- held out, and here they are where the water comes. What holds it off is
@@ -27,7 +31,11 @@
 --
 -- The cells keep what has happened to them: `flood` (turns the water still
 -- lies), `silt` (it has lain there), `drowned` (the sea has taken it;
--- `drownedForest` if trees stood there). The game emits "terrain" for every
+-- `drownedForest` if trees stood there), `ruin` (a town the great flood
+-- sank there: who it was, how big, what it had built). game.cataclysm
+-- keeps `doom` (the hexes the next rising takes, by id, for `doomTurn`).
+-- The game emits "sunk" for every town that sinks and "greatflood" as
+-- the sea rises. The game emits "terrain" for every
 -- hex that changes, "flood" for every flood that starts (with `cell`) and
 -- as each stage begins (with `stage`). Nothing here draws.
 
@@ -227,7 +235,7 @@ end
 
 -- The sea takes a hex, for good: it is coast now, whatever was on it gone,
 -- its trees left standing dead in the water.
-function F.drown(game, cell)
+function F.drown(game, cell, quiet)
     local what = game:describe(cell)
     cell.terrain = "coast"
     cell.top = D.TERRAIN.coast.top
@@ -237,8 +245,10 @@ function F.drown(game, cell)
     cell.fire, cell.burnt, cell.burntForest, cell.scorched = nil, nil, nil, nil
     if cell.resource ~= "fish" then cell.resource = nil end
     if cell.workedBy then cell.workedBy = nil end
-    for _, u in ipairs(Cat.unitsOn(game, cell)) do strand(game, u, cell) end
-    if cell.owner then game:tell(cell.owner, "THE SEA HAS TAKEN THE " .. what) end
+    if not quiet then
+        for _, u in ipairs(Cat.unitsOn(game, cell)) do strand(game, u, cell) end
+        if cell.owner then game:tell(cell.owner, "THE SEA HAS TAKEN THE " .. what) end
+    end
     game:emit({ kind = "terrain", cell = cell.id })
     -- The water beside it meets new land: its shore is drawn again.
     for _, n in ipairs(game:neighbours(cell)) do
@@ -269,6 +279,146 @@ local function rise(game)
     end
 end
 
+--- the great flood ----------------------------------------------------------------------
+
+-- Every hex the sea takes as it rises to `level`: flat land no higher than
+-- that, joined to the sea (or the water it has taken already) over land as
+-- low. With `first`, a levee holds its city's own hex out of it.
+function F.reach(game, level, first)
+    local out, seen, queue = {}, {}, {}
+    for _, cell in ipairs(game.cells) do
+        if game:isWater(cell) then
+            seen[cell.id] = true
+            queue[#queue + 1] = cell
+        end
+    end
+    local head = 1
+    while queue[head] do
+        local cell = queue[head]
+        head = head + 1
+        for _, n in ipairs(game:neighbours(cell)) do
+            if not seen[n.id] then
+                seen[n.id] = true
+                local low = land(game, n) and n.elev == "flat" and (n.top or 0) <= level + 0.01
+                if low and first and n.city and n.city.buildings.levee then low = false end
+                if low then
+                    out[#out + 1] = n
+                    queue[#queue + 1] = n
+                end
+            end
+        end
+    end
+    return out
+end
+
+-- City `city` sinks under the sea with all that was in it: gone, its land
+-- no one's, its ruins kept on the hex (`ruin`) to be seen under the water.
+function F.sink(game, city)
+    local cell = game.cells[city.cell]
+    local built = {}
+    for b in pairs(city.buildings) do built[b] = true end
+    cell.ruin = { owner = city.owner, pop = city.pop, capital = city.capital or nil, buildings = built,
+        name = city.name, biome = cell.terrain, hills = cell.elev == "hills" or nil, turn = game.turn }
+    for _, id in ipairs(city.worked) do
+        if game.cells[id].workedBy == city then game.cells[id].workedBy = nil end
+    end
+    city.worked = {}
+    for _, n in ipairs(game.cells) do
+        if n.ownerCity == city then n.owner, n.ownerCity = nil, nil end
+    end
+    cell.city = nil
+    for k, c in ipairs(game.cities) do
+        if c == city then table.remove(game.cities, k) break end
+    end
+    city.dead = true
+    game:emit({ kind = "sunk", cell = cell.id, city = city })
+    game:tell(nil, city.name .. " HAS SUNK BENEATH THE SEA")
+end
+
+-- Unit u, on a hex the great flood has taken: rowing, if it can be on the
+-- water; else to the nearest dry land within 3 that is free; else lost.
+local function swim(game, u, cell)
+    if game:canEnter(u, cell) then return end
+    local slot = game:slot(u)
+    local best, bd
+    for _, n in ipairs(game:within(cell, 3)) do
+        if n ~= cell and not slot[n.id] and game:canEnter(u, n) and not game:foreignAt(n, u.owner) then
+            local d = game:dist(cell, n) + n.id * 1e-6
+            if not bd or d < bd then best, bd = n, d end
+        end
+    end
+    if best then
+        slot[cell.id] = nil
+        slot[best.id] = u
+        u.cell = best.id
+        u.trail = { best.id }
+        game:emit({ kind = "terrain", cell = best.id })
+        return
+    end
+    Cat.hurt(game, u, u.hp, "WAS LOST TO THE GREAT FLOOD")
+end
+
+-- The sea rises to `level` (with `first`, the levees holding their
+-- cities), taking all it reaches at once: every town on it sunk, whoever
+-- stood there swimming for the hills.
+function F.deluge(game, level, first)
+    local taken = F.reach(game, level, first)
+    local sunk = {}
+    for _, cell in ipairs(taken) do
+        if cell.city then sunk[#sunk + 1] = cell.city end
+    end
+    for _, city in ipairs(sunk) do F.sink(game, city) end
+    local lost = {}
+    for _, cell in ipairs(taken) do
+        if cell.lair then lost[#lost + 1] = cell.lair end
+        F.drown(game, cell, true)
+    end
+    if #lost > 0 then
+        local Beasts = require "src.beasts"
+        for _, l in ipairs(lost) do Beasts.removeLair(game, l) end
+    end
+    local units = {}
+    for _, u in ipairs(game.units) do units[#units + 1] = u end
+    for _, u in ipairs(units) do
+        if not u.dead then swim(game, u, game.cells[u.cell]) end
+    end
+    for _, c in ipairs(game.cities) do game:assignWork(c) end
+    local players = {}
+    for _, city in ipairs(sunk) do players[city.owner] = true end
+    for id in pairs(players) do game:checkAlive(game.players[id]) end
+    game:emit({ kind = "greatflood", level = level, cells = #taken, sunk = #sunk })
+    return taken, sunk
+end
+
+-- What the great flood will take next and when: the level, the turns to it,
+-- and whether the levees hold; nil once it has all risen, or before it is
+-- told.
+function F.coming(game)
+    if not Cat.is(game, "flood") or game.turn < D.FLOOD.warn then return nil end
+    if game.turn < D.FLOOD.great then return D.FLOOD.levels[1], D.FLOOD.great - game.turn, true end
+    if game.turn < D.FLOOD.second then return D.FLOOD.levels[2], D.FLOOD.second - game.turn, false end
+end
+
+-- Will hex `cell` be under the sea when it next rises (its land, and its
+-- city's)? Cached by turn.
+function F.doomed(game, cell)
+    local level, _, first = F.coming(game)
+    if not level then return false end
+    local c = game.cataclysm
+    if c.doomTurn ~= game.turn then
+        c.doomTurn, c.doom = game.turn, {}
+        for _, n in ipairs(F.reach(game, level, first)) do c.doom[n.id] = true end
+    end
+    return c.doom[cell.id] == true
+end
+
+-- What the screen says of a hex the sea will take when it next rises.
+function F.describe(game, cell)
+    if game:isWater(cell) or not F.doomed(game, cell) then return nil end
+    local _, left = F.coming(game)
+    return left == 1 and "- THE SEA TAKES IT NEXT TURN" or ("- THE SEA TAKES IT IN " .. left .. " TURNS")
+end
+
 --- the turn --------------------------------------------------------------------------------
 
 F.tell = {
@@ -278,9 +428,29 @@ F.tell = {
     sea = function() return ("THE RISING SEA: THE COASTS DROWN. THE WORLD ENDS IN %d TURNS"):format(D.LAST_TURN - D.FLOOD.sea + 1) end,
 }
 
+local function towns(n)
+    if n == 0 then return "NO TOWN" end
+    return n == 1 and "1 TOWN" or (n .. " TOWNS")
+end
+
 function F.play(game, stage)
     if Cat.past(game, "floods") then floods(game, stage) end
     if stage == "sea" then rise(game) end
+    local FL = D.FLOOD
+    if game.turn == FL.warn then
+        game:tell(nil, ("THE GREAT FLOOD COMES: IN %d TURNS THE SEA WILL TAKE THE LOWLANDS, IN %d THE UPLANDS. "
+            .. "ONLY THE HILLS WILL STAND"):format(FL.great - game.turn, FL.second - game.turn))
+        game:emit({ kind = "mark" })
+    elseif game.turn == FL.great then
+        local _, sunk = F.deluge(game, FL.levels[1], true)
+        game:tell(nil, ("THE GREAT FLOOD: THE SEA HAS TAKEN THE LOWLANDS, %s WITH THEM. "
+            .. "THE UPLANDS GO IN %d TURNS"):format(towns(#sunk), FL.second - game.turn))
+    elseif game.turn == FL.second then
+        local _, sunk = F.deluge(game, FL.levels[2], false)
+        game:tell(nil, ("THE SEA HAS RISEN OVER THE UPLANDS, %s WITH THEM. ONLY THE HILLS STAND"):format(towns(#sunk)))
+    elseif game.turn > FL.warn and game.turn < FL.second then
+        game:emit({ kind = "mark" })
+    end
     for _, cell in ipairs(Cat.pick(game, function(cell) return wetWeight(game, cell) end, D.FLOOD.wet[stage] or 0)) do
         F.wetten(game, cell)
     end

@@ -497,6 +497,40 @@ MAT.scorched = { id = 16, ramp = ramp("c", "s", "t", "k"), print = function(s, x
         if grain(x, z, 93) > 0.95 then return IDX.k end
     end
 end }
+-- The sea's floor the great ebb has left bare (src/cataclysm.lua): a crust
+-- of salt, white, cracked into great plates with their lips curled, the
+-- dried mud dark in the seams; the old ripples of the sand showing
+-- through, and the odd shell, weed or bone. Its cut side is the mud the
+-- sea laid down, in thin bands.
+MAT.saltflat = { id = 54, ramp = ramp("w", "c", "s", "t"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 and s.prism then
+        local band = floor((y + 0.3 * sin(x * 0.3 + z * 0.2)) * 1.4)
+        return band % 4 == 0 and IDX.t or (band % 2 == 0 and IDX.s or IDX.c)
+    end
+    if ny > 0.9 then
+        local c = crack(x * 0.55, z * 0.55)
+        if c < 0.1 then return IDX.n end
+        if c < 0.2 then return IDX.t end
+        if c < 0.3 then return IDX.w end
+        local r = sin(x * 0.8 + z * 0.33 + sin(z * 0.21) * 1.6)
+        if r > 0.9 and grain(floor(x * 0.5), floor(z * 2), 190) > 0.35 then return IDX.c end
+        local g = grain(x, z, 191)
+        if g > 0.993 then return IDX.k end
+        if g > 0.985 then return IDX.s end
+    end
+end }
+-- A river's bed run dry: mud cracked into small plates, darker than the
+-- banks, pale stones lying where the water ran; its banks are the earth's.
+MAT.riverbed = { id = 55, ramp = ramp("s", "t", "k", "n"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 then return strata(x, y, z, lev) end
+    local c = crack(x * 1.7, z * 1.7)
+    if c < 0.14 then return IDX.u end
+    if c < 0.3 then return IDX.n end
+    local g = grain(x, z, 192)
+    if g > 0.94 then return IDX.c end
+    if g > 0.9 then return IDX.s end
+end }
+
 -- What fire leaves of a tree, and a tree still burning: charcoal, its
 -- grain picked out in glowing (lit) seams.
 MAT.char = { id = 17, ramp = ramp("n", "u", "o", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
@@ -635,6 +669,17 @@ local function water(s, x, z, deep)
             end
         end
     end
+    if cell and cell.ruin then
+        -- A town the great flood sank (src/flood.lua): its walls and
+        -- streets seen dark through the water, in blocks, broken.
+        local a = math.rad(15 + (cell.id % 3) * 30)
+        local u = (x - cell.x) * math.cos(a) + (z - cell.z) * math.sin(a)
+        local v = (z - cell.z) * math.cos(a) - (x - cell.x) * math.sin(a)
+        if H.inset(x, z, cell.x, cell.z) > 2.5 and grain(floor(u / 4.4), floor(v / 4.4), cell.id + 193) > 0.25 then
+            local fu, fv = (u / 4.4) % 1, (v / 4.4) % 1
+            if (fu < 0.14 or fv < 0.14) and grain(x * 2, z * 2, 194) > 0.3 then return IDX.u end
+        end
+    end
     if deep then
         if abs(ripple - 1.1) < 0.08 then return IDX.n end
         if abs(ripple + 0.7) < 0.06 then return IDX.o end
@@ -742,8 +787,8 @@ World.bankOf = bankOf
 
 -- The water of river `e` along edge k of a hex: the hex's prism, only the
 -- strip of it within the bank of the edge, down at the water's level.
-local function riverStrip(cell, k, e)
-    local s = hexPrism(cell.x, cell.z, e.level)
+local function riverStrip(cell, k, e, level)
+    local s = hexPrism(cell.x, cell.z, level or e.level)
     local a = math.rad(60 * k)
     local nx, nz = math.cos(a), math.sin(a)
     local bank = bankOf(e)
@@ -787,9 +832,9 @@ end
 -- Is room point (x, z) on hex `cell` within `margin` of the water of a
 -- river along its edges?
 local function nearRiver(cell, x, z, margin)
-    if not cell.river then return false end
+    if not cell.river and not cell.dry then return false end
     for k = 0, 5 do
-        local e = cell.river[k]
+        local e = (cell.river and cell.river[k]) or (cell.dry and cell.dry[k])
         if e then
             local a = math.rad(60 * k)
             local inside = H.APOTHEM - ((x - cell.x) * math.cos(a) + (z - cell.z) * math.sin(a))
@@ -847,10 +892,15 @@ function World:hexSolids(cell)
     local soil = cell.scorched and "scorched" or cell.terrain
     local base = cell.elev == "mountain" and MAT.rock or MAT[soil]
     local river = not t.water and not t.sea and cell.river
+    -- The beds of the rivers the heat has dried (src/cataclysm.lua).
+    local dry = not t.water and not t.sea and cell.dry
     local pull
-    if river then
+    if river or dry then
         pull = {}
-        for k = 0, 5 do pull[k] = river[k] and bankOf(river[k]) or nil end
+        for k = 0, 5 do
+            local e = (river and river[k]) or (dry and dry[k])
+            pull[k] = e and bankOf(e) or nil
+        end
     end
     -- The sundering's open faults (src/quake.lua) cut the hex back from its
     -- edge as a river does, and leave the dark below.
@@ -989,6 +1039,16 @@ function World:hexSolids(cell)
             end
         end
         return out
+    end
+    if dry then
+        -- Dry: the bed a little below where the water ran.
+        for k = 0, 5 do
+            local e = dry[k]
+            if e then
+                local bed = add(riverStrip(cell, k, e, e.level - 0.6), MAT.riverbed)
+                bed.riverPart, bed.falls, bed.foot, bed.join = nil, nil, nil, "bed"
+            end
+        end
     end
     if river then
         -- Frozen over on frozen ground (src/frost.lua).
@@ -1469,7 +1529,7 @@ function World:trace(i0, j0, i1, j1, yield, again)
                 elseif ny > 0.9 and (m == MAT.ice or m == MAT.iceblock) then
                     kind = LAND.ice
                 elseif ny > 0.9 and (m.id == MAT.desert.id or m.id == MAT.desert.id + 20
-                    or m.id == MAT.scorched.id or m.id == MAT.scorched.id + 20) then
+                    or m.id == MAT.scorched.id or m.id == MAT.scorched.id + 20 or m == MAT.saltflat) then
                     kind = LAND.desert
                 end
                 b.kind[n], b.sway[n] = kind, sway

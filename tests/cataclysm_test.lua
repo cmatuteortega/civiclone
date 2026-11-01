@@ -176,4 +176,85 @@ return {
         for _, c in ipairs(g.cities) do if c.buildings.cistern then cisterns = cisterns + 1 end end
         assert(cisterns > 0, "the AI built against it")
     end },
+    { "the rivers run dry from their springs down, and a dry river holds nothing off", function()
+        local g = newGame()
+        local wet = count(g, function(c) return g:onRiver(c) end)
+        assert(wet > 0)
+        local function key(p) return math.floor(p[1] * 4 + 0.5) * 65536 + math.floor(p[2] * 4 + 0.5) end
+        for _ = 1, 12 do
+            Cat.failRivers(g, 2)
+            -- Nothing still running flows into a dried stretch.
+            local into = {}
+            for _, c in ipairs(g.cells) do
+                for k = 0, 5 do
+                    local e = c.river and c.river[k]
+                    if e then into[key(e.to)] = true end
+                end
+            end
+            for _, c in ipairs(g.cells) do
+                for k = 0, 5 do
+                    local e = c.dry and c.dry[k]
+                    if e then
+                        assert(not into[key(e.from)], "a river dries from its spring")
+                        assert(not (c.river and c.river[k]), "dry is not wet")
+                    end
+                end
+            end
+        end
+        assert(count(g, function(c) return g:onRiver(c) end) < wet, "the rivers are shorter")
+        local bed
+        for _, c in ipairs(g.cells) do if c.dry and not g:onRiver(c) and not g:isWater(c) then bed = c break end end
+        assert(bed, "a hex left by a dry bed only")
+        assert(g:describe(bed):find("DRY RIVERBED"))
+        local _, _, gold = g:yield(bed)
+        assert(gold == D.TERRAIN[bed.terrain].gold + (bed.resource and D.RESOURCE[bed.resource].gold or 0),
+            "no river's gold")
+        -- Through the drought and on, they fail by themselves.
+        local h = newGame()
+        h.turn = D.HEAT.drought
+        for _ = 1, 20 do Cat.turn(h) end
+        assert(count(h, function(c) return c.dry ~= nil end) > 0)
+    end },
+    { "the great ebb: told, then the shallows go dry and can be walked, and the ships are moved or lost", function()
+        local g = newGame()
+        local coast = count(g, function(c) return c.terrain == "coast" end)
+        local ship
+        for _, c in ipairs(g.cells) do
+            if c.terrain == "coast" and not g.mil[c.id] then ship = g:addUnit("galley", 1, c.id) break end
+        end
+        g.turn = D.HEAT.warn
+        g.cataclysm.stage = "scorch"
+        Cat.turn(g)
+        assert(g.log[#g.log].text:find("DRAWING BACK") or g.log[#g.log - 1].text:find("DRAWING BACK"))
+        assert(Cat.ebbIn(g) == D.HEAT.ebb - D.HEAT.warn)
+        assert(count(g, function(c) return c.terrain == "saltflat" end) == 0, "not yet")
+        g.turn = D.HEAT.ebb
+        Cat.turn(g)
+        assert(count(g, function(c) return c.terrain == "coast" and not c.lair and c.ebbed end) == 0)
+        local salt = count(g, function(c) return c.terrain == "saltflat" end)
+        assert(salt >= coast - count(g, function(c) return c.lair ~= nil end), "every shallow is bare")
+        for _, c in ipairs(g.cells) do
+            if c.terrain == "saltflat" then
+                assert(g:passable(c) and not g:isWater(c), "walked on")
+                assert(c.top == D.TERRAIN.saltflat.top and c.ebbed)
+                assert(c.resource ~= "fish" and c.improvement ~= "boats")
+            end
+        end
+        assert(ship.dead or g:isWater(g.cells[ship.cell]), "the ship is on the water, or lost")
+        -- The deep water by the salt is shallows now, and goes dry turn by
+        -- turn after.
+        local before = count(g, function(c) return c.terrain == "saltflat" end)
+        g.turn = D.HEAT.ebb + 1
+        Cat.turn(g)
+        assert(count(g, function(c) return c.terrain == "saltflat" end) == before + D.HEAT.recede)
+        -- The salt burns in the scorch, as the baked earth does.
+        local flat
+        for _, c in ipairs(g.cells) do
+            if c.terrain == "saltflat" and not g.mil[c.id] and not g.civ[c.id] and not g:onRiver(c) then flat = c break end
+        end
+        local u = g:addUnit("warrior", 1, flat.id)
+        assert(Cat.perilous(g, flat, u))
+        Cat.turn(g)
+        assert(u.hp == 100 - D.HEAT.scorchDamage)
+    end },
 }

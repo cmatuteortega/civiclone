@@ -27,6 +27,8 @@ local Rain = require "src.ui.rain"
 local Snow = require "src.ui.snow"
 local SkyFx = require "src.ui.sky"
 local QuakeFx = require "src.ui.quake"
+local Storm = require "src.ui.storm"
+local Flood = require "src.flood"
 local Abyss = require "src.ui.abyss"
 local Pest = require "src.ui.pestilence"
 local Audio = require "src.ui.audio"
@@ -123,6 +125,8 @@ end
 local function selectedUnit()
     local u = S.selected and S.selected.unit
     if u and u.dead then S.selected = nil return nil end
+    -- A town the great flood has sunk (src/flood.lua).
+    if S.selected and S.selected.city and S.selected.city.dead then S.selected = nil end
     return u
 end
 Board.selectedUnit = selectedUnit
@@ -544,6 +548,44 @@ local function dust(e, list)
     end
 end
 
+-- The towns the great flood has sunk (src/flood.lua): the same town, but
+-- standing deep in the water, so only its roofs, its towers and the tops
+-- of its walls break the surface, darkened and green with weed.
+local SUNK = 5.5
+local function sunkTowns(me, list)
+    local g = S.game
+    for _, cell in ipairs(g.cells) do
+        local r = cell.ruin
+        if r and me.explored[cell.id] then
+            local site = { biome = r.biome == "plains" and "plains" or (r.biome == "desert" and "desert" or "grass"),
+                hills = r.hills, seed = cell.id % 4 }
+            local pic = M.city(lookOf(r.owner), r.pop, r.capital, r.buildings, nil, nil, site)
+            list[#list + 1] = { z = cell.z, draw = function()
+                P.stamp(pic, cell.x, cell.top - SUNK, cell.z, T.DARKER2)
+            end }
+        end
+    end
+end
+
+-- The land the deluge's great flood will take when it next rises (src/flood.lua),
+-- from when it is told: each hex ringed in a dashed line, the dashes running,
+-- and from the turn before, the water's line drawn in on it too.
+local function doomedLand(me, list)
+    local g = S.game
+    local level, left = Flood.coming(g)
+    if not level then return end
+    for _, cell in ipairs(g.cells) do
+        if me.explored[cell.id] and not g:isWater(cell) and Flood.doomed(g, cell) then
+            list[#list + 1] = { z = cell.z - 1.5, draw = function()
+                P.hexLine(cell, function(f) return floor(f * 12 + S.clock * 3) % 3 == 0 and IDX.o or nil end, 0.8, 0.3)
+                if left <= 1 then
+                    P.hexLine(cell, function(f) return floor(f * 24 - S.clock * 6) % 2 == 0 and IDX.c or nil end, 2.2, 0.3)
+                end
+            end }
+        end
+    end
+end
+
 local function things(me)
     local g = S.game
     wakes(me)
@@ -631,8 +673,11 @@ local function things(me)
     Wild.things(list, me, P.stamp)
     SkyFx.things(me, list)
     QuakeFx.things(me, list)
+    Storm.things(me, list)
     Abyss.things(me, list)
     Pest.ruins(me, list)
+    sunkTowns(me, list)
+    doomedLand(me, list)
     Pest.things(me, list)
     table.sort(list, function(a, b) return a.z < b.z end)
     for _, t in ipairs(list) do t.draw() end

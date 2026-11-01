@@ -33,6 +33,10 @@ D.TERRAIN = {
     snow = { name = "SNOW", food = 0, prod = 0, gold = 0, top = 4, move = 1, noFarm = true, frozen = true },
     ice = { name = "SEA ICE", food = 0, prod = 0, gold = 0, top = -2, noFarm = true, noCity = true, frozen = true,
         sea = true },
+    -- Only the heat death's great ebb makes it (D.HEAT): the sea's floor
+    -- left bare as the sea draws back, a crust of salt over dried mud,
+    -- low in the hollow where the water stood. It is walked on, and burns.
+    saltflat = { name = "SALT FLAT", food = 0, prod = 0, gold = 1, top = 0, noFarm = true, noCity = true },
 }
 D.ELEV = {
     flat = { name = "", food = 0, prod = 0, move = 1, defense = 0, rise = 0 },
@@ -234,7 +238,9 @@ D.BUILDINGS = {
     -- the city's land. Its land floods and sours to marsh less, the sea
     -- can't take it, the city takes no harm from the water beside it, and
     -- its people sicken less.
-    levee = { name = "LEVEE", short = "LEVEE", cost = 70, ward = "flood", tech = "masonry", order = 9 },
+    -- In the sundering (D.QUAKE) it keeps the waves out of the city.
+    levee = { name = "LEVEE", short = "LEVEE", cost = 70, ward = { flood = true, quake = true }, tech = "masonry",
+        order = 9 },
     -- Against any cataclysm (D.SHELTER): cellars dug under the city, roofed
     -- with turf, where its people hide and its grain is kept. Built only
     -- when the world is ending, and the one ward the sky's falling has.
@@ -249,7 +255,9 @@ D.BUILDINGS = {
     -- peat and wood stacked by it. The land the city owns freezes slower,
     -- its farms keep their food through the night, and its people go less
     -- cold.
-    hearth = { name = "HEARTH", short = "HEARTH", cost = 70, ward = "sun", tech = "pottery", order = 12 },
+    -- In the long night of the sky's falling (D.SKY) it does as much.
+    hearth = { name = "HEARTH", short = "HEARTH", cost = 70, ward = { sun = true, sky = true }, tech = "pottery",
+        order = 12 },
     -- Against the plague (D.PLAGUE): a house of the sick outside the
     -- houses of the well, long and low, its beds in a row and a herb garden
     -- by it. Fewer of the city's sick die, they mend sooner, the well stay
@@ -299,6 +307,18 @@ D.HEAT = {
     fireDamage = 25,   -- to a unit in a burning hex, each turn
     cityBurn = 20,     -- to a city, for each burning hex beside it
     scorchDamage = 10, -- to a unit on baked earth (off a river), each turn
+    -- The rivers fail: how many stretches of river (an edge between two
+    -- hexes each) dry up a turn, in each stage, from the springs down. A
+    -- dry river is a bed of cracked mud: no gold, no water for the farms,
+    -- no ford, and the land by it dries as fast as any.
+    riverDry = { drought = 1, fires = 2, scorch = 3 },
+    riverCistern = 0.25, -- how likely a cistern's river is to fail, times this
+    -- The great ebb: told on `warn`, on `ebb` the sea draws back from every
+    -- shore at once, its shallows left as salt flats that can be walked
+    -- on, and the deep water beside them shallows; after it, `recede` more
+    -- hexes of the shallows go dry each turn. A land unit that ends a turn
+    -- on a salt flat in the scorch loses `scorchDamage`, as on baked earth.
+    warn = 144, ebb = 150, recede = 4,
 }
 
 -- The deluge: the other way the world can end (src/flood.lua), on the same
@@ -334,6 +354,15 @@ D.FLOOD = {
     -- to a city with no levee on the shore.
     rise = 3, low = 0.85,
     surge = 10,
+    -- The great flood: told on `warn`, the sea rises over the land in two
+    -- steps, the first terrace (`levels[1]` high, the lowland) on `great`,
+    -- the second (`levels[2]`, the upland) on `second`: every hex of flat
+    -- land no higher than that, joined to the sea, is taken, and every
+    -- city on it sunk with all that stood there, its ruins left under the
+    -- water. Only the hills and mountains stand out of it. A levee holds
+    -- its city through the first, not the second.
+    warn = 144, great = 150, second = 155,
+    levels = { 4, 6 },
 }
 
 -- The sky falls: the third way the world can end (src/skyfall.lua), on the
@@ -365,6 +394,9 @@ D.SKY = {
     -- each stage. In the long night every farm yields `darkFarm` less.
     cold = { bombard = 2, dark = 4 },
     darkFarm = 1,
+    -- A hearth (D.BUILDINGS.hearth) spares a city `hearth` food of the
+    -- cold, and keeps its farms' food through the long night.
+    hearth = 2,
     -- The heart of the comet: told on `heartWarn`, it falls on `heart`, on a
     -- hex and the six round it. The middle sinks `heartSink`, the ring
     -- `ringSink`; what stands in the middle takes `heartHit`, in the ring
@@ -477,6 +509,22 @@ D.SUN = {
     -- or out on the snow, takes this; a ship (or a beast of the sea) the
     -- ice closes round takes `crush` a turn, until it gets out.
     scorchDamage = 10, frostbite = 10, crush = 25,
+    -- The great storm: told on `warn`, the turn before `storm` the heat of
+    -- the day and the cold of the night meet on the line in `cyclones[1]`
+    -- cyclones, and from `storm` on they run along it, `speed` hexes a
+    -- turn, each for `life` turns; while fewer than `cyclones[2]` blow, a
+    -- new one forms `form` of the turns. Each is seen coming the turn
+    -- before: its eye's hex and the six round it. What stands in the eye
+    -- takes `eyeHit`, in the ring `ringHit` (ships and boats `sea` times
+    -- that); a city `eyeCity` or `ringCity`. A forest is blown down
+    -- (`blowDown`), a farm, a mine or the boats wrecked (`wreck`). And
+    -- the gales take `gale` food a turn from every city, the twilight's
+    -- too.
+    warn = 144, storm = 150,
+    cyclones = { 3, 5 }, form = 0.5, life = { 6, 9 }, speed = 2,
+    eyeHit = 40, ringHit = 20, sea = 1.5, eyeCity = 30, ringCity = 15,
+    blowDown = { eye = 0.6, ring = 0.3 }, wreck = { eye = 0.45, ring = 0.2 },
+    gale = 2,
 }
 
 -- The plague: the sixth way the world can end (src/plague.lua), on the

@@ -246,4 +246,57 @@ return {
         assert(count(g, function(c) return c.terrain == "snow" end) > 0, "the night snowed")
         assert(count(g, function(c) return c.terrain == "desert" end) > 0, "the day dried")
     end },
+    { "the great storm: cyclones form on the line, are seen coming, run along it and strike", function()
+        local g = stilled()
+        for t = D.SUN.still + 1, D.SUN.storm - 1 do
+            g.turn = t
+            Cat.turn(g)
+        end
+        local told = false
+        for _, l in ipairs(g.log) do if l.text:find("WINDS ARE RISING") then told = true end end
+        assert(told, "it is told")
+        local cys = Sun.cyclones(g)
+        assert(#cys >= 1, "they have formed")
+        for _, cy in ipairs(cys) do
+            local s = Sun.side(g, g.cells[cy.cell])
+            assert(math.abs(s) <= Sun.band(g) + 1.01, "on the line")
+        end
+        -- Seen coming: the eye's hex and the ring round it.
+        local cy = cys[1]
+        assert(cy.next, "it knows where it goes")
+        local eye = g.cells[cy.next]
+        assert(Sun.stormAt(g, eye) == "eye")
+        for _, n in ipairs(g:neighbours(eye)) do assert(Sun.stormAt(g, n)) end
+        -- Whoever is out in it is hurt; the forest blown down.
+        local out
+        for _, n in ipairs(g:within(eye, 1)) do
+            if not n.city and not g.mil[n.id] and g:passable(n) then out = n break end
+        end
+        local u = out and g:addUnit("warrior", 1, out.id)
+        if u then assert(Sun.danger(g, out, u), "the beasts and the AI keep out of it") end
+        eye.feature = (not eye.city and not g:isWater(eye)) and "forest" or eye.feature
+        local from = cy.cell
+        g.turn = D.SUN.storm
+        Cat.turn(g)
+        assert(cy.cell ~= from and g:dist(g.cells[from], g.cells[cy.cell]) <= D.SUN.speed + 1, "it moved")
+        if u then assert(u.dead or u.hp < 100, "the storm hurt it") end
+        -- The gales take food from every city, the twilight's too.
+        local city = settle(g)
+        assert(Cat.thirst(g, city) >= D.SUN.gale - D.SHELTER.stores)
+    end },
+    { "a cyclone strikes: the eye hurts most, the ring less, a town's people shelter", function()
+        local g = stilled()
+        g.turn = D.SUN.storm
+        local eye = find(g, function(c) return g:passable(c) and #g:neighbours(c) == 6 end)
+        local ring
+        for _, n in ipairs(g:neighbours(eye)) do
+            if free(g, n) and g:passable(n) then ring = n break end
+        end
+        local a = g:addUnit("warrior", 1, eye.id)
+        local b = ring and g:addUnit("warrior", 1, ring.id)
+        eye.improvement = "farm"
+        Sun.strike(g, eye)
+        assert(a.hp == 100 - D.SUN.eyeHit)
+        if b then assert(b.hp == 100 - D.SUN.ringHit) end
+    end },
 }

@@ -215,6 +215,15 @@ function Audio.hear(game, e)
         -- The ground torn open (src/demons.lua), heard wherever it is.
         at("stone", e.cell, k == "rift" and 0.7 or 1, 0, 0.5)
         if k ~= "rift" then at("gong", nil, 0.8, 0.2, 0.6) end
+    elseif k == "sunk" then
+        -- A town gone under the great flood (src/flood.lua).
+        if e.city.owner == 1 then at("fallen", e.cell) elseif seen(e.cell) then at("splash", e.cell, 0.9, 0, 0.45) end
+    elseif k == "greatflood" or k == "ebb" then
+        -- The sea rising over the land, or drawing back off it.
+        at("gong", nil, 0.8, 0, 0.5)
+    elseif k == "cyclone" and e.from then
+        -- A cyclone striking: the wind's rush and a blow.
+        if seen(e.cell) then at("splash", e.cell, 0.8, 0, 0.35) end
     elseif k == "rise" or k == "sink" then
         if seen(e.cell) then at("splash", e.cell, 0.9, 0, 0.5) end
     elseif k == "devour" then

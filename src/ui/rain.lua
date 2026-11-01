@@ -1,5 +1,6 @@
 -- The weather of the deluge (src/flood.lua): rain, heavier stage by stage,
--- and in the floods and the rising sea a storm, with lightning and thunder.
+-- and in the floods and the rising sea a storm, with lightning and thunder;
+-- and the same in the still sun's great storm (src/ui/storm.lua).
 --
 -- The rain is streaks of a few pixels slanting with the wind from the west,
 -- laid on the overlay over everything (as the birds are) in the canvas's
@@ -43,6 +44,8 @@ end
 
 -- How hard it should be raining now.
 function Rain.want(game)
+    -- The still sun's great storm (src/ui/storm.lua).
+    if game and Cat.is(game, "sun") then return require("src.ui.storm").want(game) end
     if not game or not Cat.is(game, "flood") then return 0 end
     local s = Cat.stage(game)
     return s and Rain.LEVEL[s] or 0

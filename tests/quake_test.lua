@@ -399,4 +399,18 @@ return {
         end
         love = was
     end },
+    { "a levee can be built in the sundering, and keeps a wave out of its city", function()
+        local g = Game.new({ seed = 5, wild = false, cataclysm = "quake" })
+        local city
+        for _, u in ipairs(g.units) do
+            if u.owner == 1 and u.kind == "settler" then city = g:found(u) break end
+        end
+        g.players[1].techs.masonry = true
+        assert(g:canBuild(city, "building", "levee"), "the levee is a ward here too")
+        local cell = g.cells[city.cell]
+        city.buildings.levee = true
+        local hp = city.hp
+        Quake.strike(g, cell)
+        assert(city.hp == hp, "the wave did it no harm")
+    end },
 }

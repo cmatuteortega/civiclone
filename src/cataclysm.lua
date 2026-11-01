@@ -21,7 +21,13 @@
 --            yields nothing, and hurts what stands in it and the cities next
 --            to it; it burns out to plains, its trees to stumps.
 --   SCORCH   faster still, and the desert bakes hard: baked earth yields no
---            food, and burns whoever ends a turn on it.
+--            food, and burns whoever ends a turn on it. On D.HEAT.ebb,
+--            told some turns before, the great ebb: the sea draws back
+--            from every shore at once, its shallows left as salt flats
+--            to walk on, and it goes on drawing back, a few hexes a turn.
+--
+-- From the drought on the rivers fail, a few stretches a turn, from the
+-- springs down: a dry river is a bed of cracked mud, and holds nothing off.
 --
 -- A river, the coast, hills and a city's cistern hold the heat off: the
 -- land dries slower there. A cistern's land is slower to catch fire, and
@@ -31,7 +37,9 @@
 --
 -- The cells keep what has happened to them: `fire` (turns it still burns),
 -- `burnt` (it has; `burntForest` if trees stood there), `scorched` (baked
--- desert). The game emits "terrain" for
+-- desert), `dry` (the river beds by it: dry[k], as river[k] was),
+-- `ebbed` (the sea has left it). The game emits "ebb" as the sea draws
+-- back, and "terrain" for
 -- every hex that changes, "ignite" for every fire that starts and "heat"
 -- as each stage begins. Nothing here draws.
 
@@ -120,6 +128,14 @@ function Cat.ward(game, city)
     return K and K.ward
 end
 
+-- What city `city` builds against it after its ward and its shelter, or
+-- nil: a hearth against the sky's long night, a levee against the
+-- sundering's waves by the sea.
+function Cat.also(game, city)
+    local K = Cat.kindOf(game)
+    return K and K.also and K.also(game, city) or nil
+end
+
 -- How the end of the world is told, lost.
 function Cat.ended(game)
     local K = Cat.kindOf(game)
@@ -204,7 +220,7 @@ Cat.hot = hot
 -- to bake hard; without, only the rest.
 local function dryWeight(game, cell, bake)
     if not land(game, cell) or cell.feature == "forest" or cell.fire or cell.scorched then return 0 end
-    if D.TERRAIN[cell.terrain].frozen then return 0 end
+    if D.TERRAIN[cell.terrain].frozen or cell.terrain == "saltflat" then return 0 end
     if (cell.terrain == "desert") ~= (bake == true) then return 0 end
     local H = D.HEAT
     local w = 1
@@ -330,8 +346,14 @@ function Cat.perilous(game, cell, u)
     if cell.fire and not game:isWater(cell) then return true end
     if cell.flood and not sea then return true end
     local kind = c.kind
+    if kind == "flood" and not sea then
+        local F = Cat.KINDS.flood
+        local level, left = F.coming(game)
+        return level ~= nil and left <= 1 and F.doomed(game, cell)
+    end
     if kind == "heat" then
-        return not sea and cell.scorched == true and Cat.stage(game) == "scorch" and not game:onRiver(cell)
+        return not sea and (cell.scorched == true or cell.terrain == "saltflat") and Cat.stage(game) == "scorch"
+            and not game:onRiver(cell)
     elseif kind == "sky" then
         if Cat.KINDS.sky.marked(game, cell) then return true end
         return sea and cell.terrain == "ice"
@@ -381,6 +403,177 @@ end
 -- the sky's falling sets alight burns so too.
 Cat.fires = fires
 
+--- the rivers fail ----------------------------------------------------------------
+
+-- Every stretch of river still running, each once, with the two hexes
+-- either side of it: { e, { cell, k }, { cell, k } }.
+local function stretches(game)
+    local out, at = {}, {}
+    for _, cell in ipairs(game.cells) do
+        if cell.river then
+            for k = 0, 5 do
+                local e = cell.river[k]
+                if e then
+                    local s = at[e]
+                    if not s then
+                        s = { e = e }
+                        at[e] = s
+                        out[#out + 1] = s
+                    end
+                    s[#s + 1] = { cell = cell, k = k }
+                end
+            end
+        end
+    end
+    return out
+end
+
+local function corner(p) return math.floor(p[1] * 4 + 0.5) * 65536 + math.floor(p[2] * 4 + 0.5) end
+
+-- A stretch of river runs dry: its water gone from both banks, kept as
+-- `dry` (cell.dry[k], the same table the river was) for its bed to be
+-- drawn.
+function Cat.dryRiver(game, s)
+    for _, side in ipairs(s) do
+        local cell, k = side.cell, side.k
+        cell.river[k] = nil
+        if next(cell.river) == nil then cell.river = nil end
+        cell.dry = cell.dry or {}
+        cell.dry[k] = s.e
+        game:emit({ kind = "terrain", cell = cell.id })
+    end
+end
+
+-- `n` stretches of river run dry, the springs first: only one no water
+-- still runs into, the smallest likeliest, a cistern's slower.
+local function failRivers(game, n)
+    if n <= 0 then return end
+    local list = stretches(game)
+    local into = {}
+    for _, s in ipairs(list) do into[corner(s.e.to)] = true end
+    local heads = {}
+    for _, s in ipairs(list) do
+        if not into[corner(s.e.from)] then heads[#heads + 1] = s end
+    end
+    local weight = {}
+    for _, s in ipairs(heads) do
+        local w = 1 / ((s.e.size or 1) ^ 2)
+        for _, side in ipairs(s) do
+            if cool(side.cell) then w = w * D.HEAT.riverCistern end
+        end
+        weight[s] = w
+    end
+    local told = {}
+    for _ = 1, n do
+        local total = 0
+        for _, s in ipairs(heads) do total = total + weight[s] end
+        if total <= 0 then break end
+        local r = game.rng:random() * total
+        for _, s in ipairs(heads) do
+            r = r - weight[s]
+            if weight[s] > 0 and r <= 0 then
+                weight[s] = 0
+                Cat.dryRiver(game, s)
+                for _, side in ipairs(s) do
+                    local o = side.cell.owner
+                    if o and not told[o] then
+                        told[o] = true
+                        game:tell(o, (s.e.name or "A RIVER") .. " IS RUNNING DRY")
+                    end
+                end
+                break
+            end
+        end
+    end
+end
+Cat.failRivers = failRivers
+
+--- the great ebb ----------------------------------------------------------------
+
+-- Unit u, on hex `cell` it can no longer be on (a ship on the salt, or in
+-- a town the sea has left): to the nearest hex within 3 it can be on, if
+-- there is one; else lost.
+local function beach(game, u, cell)
+    if game:canEnter(u, cell) then return end
+    local slot = game:slot(u)
+    local best, bd
+    for _, n in ipairs(game:within(cell, 3)) do
+        if n ~= cell and not slot[n.id] and game:canEnter(u, n) and not game:foreignAt(n, u.owner) then
+            local d = game:dist(cell, n) + n.id * 1e-6
+            if not bd or d < bd then best, bd = n, d end
+        end
+    end
+    if best then
+        slot[cell.id] = nil
+        slot[best.id] = u
+        u.cell = best.id
+        u.trail = { best.id }
+        game:emit({ kind = "terrain", cell = best.id })
+        return
+    end
+    hurt(game, u, u.hp, "WAS LEFT HIGH AND DRY")
+end
+
+-- Can the sea draw back from hex `cell`: the shallows (not the deep, not a
+-- lair's).
+local function ebbable(game, cell)
+    return cell.terrain == "coast" and not cell.lair
+end
+
+-- The sea draws back from hex `cell`: its floor bare, a salt flat, the
+-- fish and the boats gone; the deep water beside it is shallows now.
+function Cat.bare(game, cell)
+    cell.terrain = "saltflat"
+    cell.top = D.TERRAIN.saltflat.top
+    cell.elev = "flat"
+    cell.ebbed = true
+    if cell.resource == "fish" then cell.resource = nil end
+    if cell.improvement == "boats" then cell.improvement = nil end
+    if cell.workedBy then cell.workedBy = nil end
+    game:emit({ kind = "terrain", cell = cell.id })
+    for _, n in ipairs(game:neighbours(cell)) do
+        if n.terrain == "ocean" then n.terrain = "coast" end
+        if game:isWater(n) then game:emit({ kind = "terrain", cell = n.id }) end
+    end
+end
+
+-- The sea draws back: from every shallow with `n` nil, or else from `n`
+-- of the shallows beside the dry land. Whoever can't stay where the sea
+-- has left is moved, or lost.
+function Cat.ebb(game, n)
+    local list = {}
+    for _, cell in ipairs(game.cells) do
+        if ebbable(game, cell) then
+            if not n then
+                list[#list + 1] = cell
+            else
+                for _, m in ipairs(game:neighbours(cell)) do
+                    if not game:isWater(m) then list[#list + 1] = cell break end
+                end
+            end
+        end
+    end
+    if n then list = pick(game, function(cell) return 1 end, n, list) end
+    for _, cell in ipairs(list) do Cat.bare(game, cell) end
+    if #list == 0 then return list end
+    -- The ships on the salt, and in the towns the sea has left.
+    local units = {}
+    for _, u in ipairs(game.units) do units[#units + 1] = u end
+    for _, u in ipairs(units) do
+        if not u.dead then beach(game, u, game.cells[u.cell]) end
+    end
+    for _, c in ipairs(game.cities) do game:assignWork(c) end
+    game:emit({ kind = "ebb", cells = #list })
+    return list
+end
+
+-- Will the sea have drawn back yet: the turns to the great ebb, once it is
+-- told; nil before, or once it has.
+function Cat.ebbIn(game)
+    if not Cat.is(game, "heat") or game.turn < D.HEAT.warn or game.turn >= D.HEAT.ebb then return nil end
+    return D.HEAT.ebb - game.turn
+end
+
 --- the turn -------------------------------------------------------------------------
 
 local TELL = {
@@ -393,9 +586,21 @@ local TELL = {
 -- The heat's part of a turn, in stage `stage`.
 local function heatTurn(game, stage)
     if Cat.past(game, "fires") then fires(game, stage) end
+    failRivers(game, D.HEAT.riverDry[stage] or 0)
+    if game.turn == D.HEAT.warn then
+        game:tell(nil, ("THE SEA IS DRAWING BACK FROM THE SHORES: IN %d TURNS THE SHALLOWS WILL BE DRY"):format(
+            D.HEAT.ebb - game.turn))
+        game:emit({ kind = "mark" })
+    end
+    if game.turn == D.HEAT.ebb then
+        Cat.ebb(game)
+        game:tell(nil, "THE GREAT EBB: THE SEA HAS DRAWN BACK. ITS FLOOR LIES BARE, AND CAN BE WALKED")
+    elseif game.turn > D.HEAT.ebb then
+        Cat.ebb(game, D.HEAT.recede)
+    end
     if stage == "scorch" then
         for _, cell in ipairs(game.cells) do
-            if cell.scorched and not cell.city and not game:onRiver(cell) then
+            if (cell.scorched or cell.terrain == "saltflat") and not cell.city and not game:onRiver(cell) then
                 for _, u in ipairs(unitsOn(game, cell)) do
                     if not u.def.sea then hurt(game, u, D.HEAT.scorchDamage, "DIED OF THE HEAT") end
                 end
