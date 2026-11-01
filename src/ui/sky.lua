@@ -131,7 +131,7 @@ function SkyFx.update(dt)
             table.remove(later, k)
         end
     end
-    if #due > 0 and S.world then S.world:refreshAll(due) end
+    if #due > 0 and S.world then S.world:queue(due) end
     -- A shooting star now and then, at night, once the comet is seen.
     if shooting then
         shooting.t = shooting.t + dt
@@ -421,7 +421,10 @@ function SkyFx.dust() return dust end
 function SkyFx.flush()
     local ids = {}
     for _, l in ipairs(later) do ids[#ids + 1] = l.id end
-    if #ids > 0 and S.world then S.world:refreshAll(ids) end
+    if S.world then
+        S.world:queue(ids)
+        S.world:work()
+    end
     falls, later, queue = {}, {}, clock
 end
 

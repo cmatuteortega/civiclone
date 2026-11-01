@@ -297,6 +297,7 @@ function O.skipTo(to)
     end
     S.anim, S.effects, S.wakes = {}, {}, {}
     for _, u in ipairs(g.units) do u.trail = { u.cell } end
+    if S.world then S.world:work() end
     me().sightChanged = true
     Audio.on = was
     if not S.over then O.nextUnit() end

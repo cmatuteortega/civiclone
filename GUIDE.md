@@ -1293,10 +1293,18 @@ responding while it loads. Each pixel of the result keeps:
 - whether it lies on a hex edge, for the grid
 - which hex lies under it on a flat level, for the paper fog
 
-That is how a click finds a hex, how fog and the paper map are laid on
-(rebuilt only when what you see changes, in about 7 ms), and how a hex's top
-is lit for highlights. When a city levels its hex, only that hex's solids
-are rebuilt and its corner of the picture traced again.
+That is how a click finds a hex, how fog and the paper map are laid on, and
+how a hex's top is lit for highlights. The fog and the paper map are laid
+again only over the hexes whose sight has changed (a unit's step reveals a
+few), and only that corner of the picture is handed to the graphics card.
+When a hex changes (a city levels it, a stone craters it, the frost takes
+it), only its solids are rebuilt and its corner of the picture traced again;
+what a turn changes is traced a few hexes a frame, so the game does not stop
+while it is.
+
+**LuaJIT** is given more room for compiled code than its default
+(`src/jitroom.lua`): the default fills up in a long game, is thrown away and
+starts again, over and over, and everything ran several times slower.
 
 **Rivers** are cut into the hexes beside them. A hex with a river along an
 edge has that edge of its prism pulled in by the bank (3.6 room units, 4.6
@@ -1581,7 +1589,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, a whole game to its end), the sundering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, a whole game to its end), the sundering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |

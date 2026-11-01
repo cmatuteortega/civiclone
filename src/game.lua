@@ -416,38 +416,94 @@ function Game:path(u, goal, toAttack)
     if start == goal then return {} end
     local g = self.cells[goal]
     local cost, from = { [start] = 0 }, {}
-    local open = { start }
-    local function h(id) local c = self.cells[id] return H.distance(c.c, c.r, g.c, g.r) end
-    while #open > 0 do
-        local bi, bv = 1, math.huge
-        for k, id in ipairs(open) do
-            local v = cost[id] + h(id)
-            if v < bv then bi, bv = k, v end
+    -- The hexes still to look from, in a heap by cost so far and the
+    -- distance left, then by when each was first reached: the cheapest
+    -- first, and of equals the one reached first. A hex whose cost falls
+    -- is put in again; what is taken out stale is passed over.
+    local hf, hs, hid, size, seq = {}, {}, {}, 0, 0
+    local order, done = {}, {}
+    local hc = {}
+    local function h(id)
+        local v = hc[id]
+        if not v then
+            local c = self.cells[id]
+            v = H.distance(c.c, c.r, g.c, g.r)
+            hc[id] = v
         end
-        local id = table.remove(open, bi)
-        if id == goal then break end
-        local cell = self.cells[id]
-        for _, n in ipairs(self:neighbours(cell)) do
-            local step = self:stepCost(u, cell, n)
-            -- Onto the water or off it costs the rest of a turn.
-            if step == Game.ALL then step = u.def.moves end
-            -- What is attacked need not be somewhere the unit could go: a
-            -- ship strikes a city on the shore.
-            if not step and toAttack and n.id == goal
-                and (n.city or (u.def.sea and self:isWater(n)) or (not u.def.sea and self:passable(n))) then
-                step = 1
-            end
-            local ok = step and self:canPass(u, n)
-            if n.id == goal then
-                ok = step and (toAttack or self:canStand(u, n))
-            end
-            if ok then
-                -- Through a hex one of ours holds only if there is no other
-                -- way: a unit cannot stop there if its moves run out.
-                local c = cost[id] + step + ((n.id ~= goal and not self:canStand(u, n)) and 1.5 or 0)
-                if not cost[n.id] or c < cost[n.id] then
-                    if not cost[n.id] then open[#open + 1] = n.id end
-                    cost[n.id], from[n.id] = c, id
+        return v
+    end
+    local function before(a, b) return hf[a] < hf[b] or (hf[a] == hf[b] and hs[a] < hs[b]) end
+    local function swap(a, b)
+        hf[a], hf[b] = hf[b], hf[a]
+        hs[a], hs[b] = hs[b], hs[a]
+        hid[a], hid[b] = hid[b], hid[a]
+    end
+    local function push(id)
+        size = size + 1
+        hf[size], hs[size], hid[size] = cost[id] + h(id), order[id], id
+        local k = size
+        while k > 1 do
+            local up = floor(k / 2)
+            if not before(k, up) then break end
+            swap(k, up)
+            k = up
+        end
+    end
+    local function pop()
+        local f, id = hf[1], hid[1]
+        hf[1], hs[1], hid[1] = hf[size], hs[size], hid[size]
+        hf[size], hs[size], hid[size] = nil, nil, nil
+        size = size - 1
+        local k = 1
+        while true do
+            local l, r, m = 2 * k, 2 * k + 1, k
+            if l <= size and before(l, m) then m = l end
+            if r <= size and before(r, m) then m = r end
+            if m == k then break end
+            swap(k, m)
+            k = m
+        end
+        return id, f
+    end
+    order[start] = 0
+    push(start)
+    while size > 0 do
+        local id, f = pop()
+        if not done[id] and f == cost[id] + h(id) then
+            done[id] = true
+            if id == goal then break end
+            local cell = self.cells[id]
+            for _, n in ipairs(self:neighbours(cell)) do
+                local step = self:stepCost(u, cell, n)
+                -- Onto the water or off it costs the rest of a turn.
+                if step == Game.ALL then step = u.def.moves end
+                -- What is attacked need not be somewhere the unit could go: a
+                -- ship strikes a city on the shore.
+                if not step and toAttack and n.id == goal
+                    and (n.city or (u.def.sea and self:isWater(n)) or (not u.def.sea and self:passable(n))) then
+                    step = 1
+                end
+                local ok = step and self:canPass(u, n)
+                if n.id == goal then
+                    ok = step and (toAttack or self:canStand(u, n))
+                end
+                if ok then
+                    -- Through a hex one of ours holds only if there is no other
+                    -- way: a unit cannot stop there if its moves run out.
+                    local c = cost[id] + step + ((n.id ~= goal and not self:canStand(u, n)) and 1.5 or 0)
+                    if not cost[n.id] or c < cost[n.id] then
+                        local new = not cost[n.id]
+                        cost[n.id], from[n.id] = c, id
+                        -- Looked from already: its cost is kept, but it is
+                        -- not looked from again.
+                        if new then
+                            seq = seq + 1
+                            order[n.id] = seq
+                            push(n.id)
+                        elseif not done[n.id] then
+                            push(n.id)
+                        end
+                    end
                 end
             end
         end

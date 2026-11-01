@@ -4,6 +4,7 @@
 -- whose name has "game" in it.
 
 package.path = "./?.lua;" .. package.path
+require "src.jitroom"
 
 local only = arg[1]
 local files = {}

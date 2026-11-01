@@ -16,6 +16,10 @@
 -- src/defs.lua, the screen's parts in src/ui/, the player's settings in
 -- src/settings.lua.
 
+-- Room for LuaJIT's compiled code, before anything else is loaded
+-- (src/jitroom.lua says why).
+require "src.jitroom"
+
 local T = require "src.tracer"
 local S = require "src.ui.state"
 local View = require "src.ui.view"
@@ -905,6 +909,9 @@ function love.update(dt)
     Snow.update(dt)
     SkyFx.update(dt)
     QuakeFx.update(dt)
+    -- The hexes changed, built again a few at a time, so a turn's worth
+    -- does not stop the game for a moment.
+    S.world:work(1 / 160, love.timer.getTime)
     Input.findHover()
     if not S.over then
         local result, why = S.game:outcome()

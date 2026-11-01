@@ -189,7 +189,8 @@ function Anim.events(game)
         if e.kind ~= "attack" and e.kind ~= "hit" then S.bordersDirty = true end
     end
     for k = #game.events, 1, -1 do game.events[k] = nil end
-    if S.world then S.world:refreshAll(changed) end
+    -- Built again over the next few frames (World:work).
+    if S.world then S.world:queue(changed) end
 end
 
 function Anim.update(game, dt)

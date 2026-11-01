@@ -1293,6 +1293,16 @@ function World:binOne(s)
     end
 end
 
+-- The bins solid `s` was put in, into set `into`.
+function World:binsOf(s, into)
+    local i0, i1, j0, j1 = self:boxOf(s)
+    for by = max(0, floor(j0 / BIN)), min(self.bh - 1, floor(j1 / BIN)) do
+        for bx = max(0, floor(i0 / BIN)), min(self.bw - 1, floor(i1 / BIN)) do
+            into[by * self.bw + bx + 1] = true
+        end
+    end
+end
+
 function World:bin()
     self.bw, self.bh = ceil(self.w / BIN), ceil(self.h / BIN)
     self.bins = {}
@@ -1301,8 +1311,10 @@ function World:bin()
 end
 
 -- Traces the pixels from (i0, j0) to (i1, j1) of the picture. `yield` is told
--- each few rows done.
-function World:trace(i0, j0, i1, j1, yield)
+-- each few rows done. `again`: the picture is being traced again where the
+-- land changed, so the hex under each pixel on the fog's level, which
+-- never changes, is not found again.
+function World:trace(i0, j0, i1, j1, yield, again)
     local b = self.buf
     local w = self.w
     local HIT = T.HIT
@@ -1322,11 +1334,13 @@ function World:trace(i0, j0, i1, j1, yield)
             local n = pj * w + pi
             -- Where the ray meets the fog's level: the hex shown there when the
             -- one traced is not known yet.
-            local fx, fz = T.onLevel(si, sj, FLAT)
-            local fc, fr = H.at(fx, fz)
-            local flat = self:cellAt(fc, fr)
-            b.flat[n] = flat and flat.id or 0
-            b.flatEdge[n] = flat and H.inset(fx, fz, flat.x, flat.z) < 0.8 and 1 or 0
+            if not again then
+                local fx, fz = T.onLevel(si, sj, FLAT)
+                local fc, fr = H.at(fx, fz)
+                local flat = self:cellAt(fc, fr)
+                b.flat[n] = flat and flat.id or 0
+                b.flatEdge[n] = flat and H.inset(fx, fz, flat.x, flat.z) < 0.8 and 1 or 0
+            end
             if best then
                 local x, y, z = ox + T.DX * bt, oy + T.DY * bt, oz + T.DZ * bt
                 local m = best.mat
@@ -1559,12 +1573,53 @@ function World:refresh(cellId)
     self:refreshAll({ cellId })
 end
 
+-- Hexes in list `ids` to be built again, a few each frame (World:work)
+-- rather than all at once: a turn of the cataclysm changes dozens, and
+-- tracing them all in one frame stopped the game for a moment.
+function World:queue(ids)
+    self.pending = self.pending or {}
+    self.pendingSet = self.pendingSet or {}
+    for _, id in ipairs(ids) do
+        if not self.pendingSet[id] then
+            self.pendingSet[id] = true
+            self.pending[#self.pending + 1] = id
+        end
+    end
+end
+
+-- Builds again as many of the hexes queued as fit in about `budget` seconds
+-- (by how long a hex has taken so far), at least one; all of them without
+-- a budget. `now` tells the time in seconds.
+function World:work(budget, now)
+    local pending = self.pending
+    if not pending or #pending == 0 then return end
+    local n = #pending
+    if budget then n = max(1, min(n, floor(budget / (self.perHex or 0.01)))) end
+    local ids = {}
+    for k = 1, n do
+        ids[k] = pending[k]
+        self.pendingSet[pending[k]] = nil
+    end
+    local rest = {}
+    for k = n + 1, #pending do rest[#rest + 1] = pending[k] end
+    self.pending = rest
+    local t0 = now and now()
+    self:refreshAll(ids)
+    if t0 then
+        local each = (now() - t0) / n
+        self.perHex = self.perHex and self.perHex * 0.7 + each * 0.3 or each
+    end
+end
+
+-- Any hexes still waiting to be built again?
+function World:busy() return self.pending ~= nil and #self.pending > 0 end
+
 -- Builds every hex in the list again and traces each one's corner of the
 -- picture, then hands the images over once: what a turn of the cataclysm
 -- changes, all together.
 function World:refreshAll(ids)
     if #ids == 0 then return end
-    local boxes = {}
+    local boxes, stale = {}, {}
     for _, cellId in ipairs(ids) do
         local i0, i1, j0, j1 = math.huge, -math.huge, math.huge, -math.huge
         local function grow(s)
@@ -1574,22 +1629,39 @@ function World:refreshAll(ids)
         for _, s in ipairs(self.byCell[cellId] or {}) do
             s.dead = true
             grow(s)
+            self:binsOf(s, stale)
         end
         self:addCell(self.cells[cellId])
         for _, s in ipairs(self.byCell[cellId]) do grow(s) end
         boxes[#boxes + 1] = { max(0, i0 - 1), max(0, j0 - 1), min(self.w - 1, i1 + 1), min(self.h - 1, j1 + 1) }
     end
-    -- Dead solids stay in the bins (skipped) but leave the list.
+    -- Dead solids leave the list, and the bins they were in, so a hex
+    -- changed turn after turn (a crater struck again, the frost) does not
+    -- leave every pixel over it asking more and more of them.
     local keep = {}
     for _, s in ipairs(self.solids) do if not s.dead then keep[#keep + 1] = s end end
     self.solids = keep
-    for _, b in ipairs(boxes) do self:trace(b[1], b[2], b[3], b[4]) end
-    for _, b in ipairs(boxes) do T.finish(self.buf, 1.2, b[1] - 1, b[2] - 1, b[3] + 1, b[4] + 1) end
-    for _, b in ipairs(boxes) do
-        self:shape(max(0, b[1] - 1), max(0, b[2] - 1), min(self.w - 1, b[3] + 1), min(self.h - 1, b[4] + 1))
+    for n in pairs(stale) do
+        local list, live = self.bins[n], {}
+        for _, s in ipairs(list) do if not s.dead then live[#live + 1] = s end end
+        self.bins[n] = live
     end
-    self.shapeImage:replacePixels(self.shapeData)
-    self.nearImage:replacePixels(self.nearData)
+    for _, b in ipairs(boxes) do self:trace(b[1], b[2], b[3], b[4], nil, true) end
+    for _, b in ipairs(boxes) do T.finish(self.buf, 1.2, b[1] - 1, b[2] - 1, b[3] + 1, b[4] + 1) end
+    local u = { math.huge, math.huge, -1, -1 }
+    for _, b in ipairs(boxes) do
+        local i0, j0, i1, j1 = max(0, b[1] - 1), max(0, b[2] - 1), min(self.w - 1, b[3] + 1), min(self.h - 1, b[4] + 1)
+        self:shape(i0, j0, i1, j1)
+        u[1], u[2], u[3], u[4] = min(u[1], i0), min(u[2], j0), max(u[3], i1), max(u[4], j1)
+    end
+    self:upload(self.shapeImage, self.shapeData, self.spx, u)
+    self:upload(self.nearImage, self.nearData, self.npx, u)
+    -- Only these corners of the picture need laying again: as far as the
+    -- creases and the ink were laid again, a pixel past where they looked.
+    self.redo = self.redo or {}
+    for _, b in ipairs(boxes) do
+        self.redo[#self.redo + 1] = { max(0, b[1] - 2), max(0, b[2] - 2), min(self.w - 1, b[3] + 2), min(self.h - 1, b[4] + 2) }
+    end
     self.dirty = true
     -- Counted, for what is found from the map (src/ui/wild.lua) and the
     -- light laid on it (src/ui/daylight.lua).
@@ -1599,8 +1671,118 @@ end
 -- The picture as the player knows the map: what they see as it is, what they
 -- have seen a step darker, and what they never have as a drawn map on paper.
 -- `grid`: a faint line round every hex.
+--
+-- A pixel depends only on how the player knows the hex traced there, so
+-- after the first time only the pixels of hexes whose knowing has changed
+-- (a unit's step reveals a few) are laid again, and the corners of the
+-- picture traced again since (World:refreshAll). The whole of it again only
+-- when the grid is turned on or off.
 function World:build(explored, visible, grid)
     local w, h = self.w, self.h
+    local ncell = #self.cells
+    local shown = self.shown
+    local full = not shown or self.shownGrid ~= grid
+    if not shown then
+        shown = ffi.new("uint8_t[?]", ncell + 1)
+        self.shown, self.changed = shown, ffi.new("uint8_t[?]", ncell + 1)
+        -- Each hex's box in the picture, found as it is laid.
+        self.cbox = ffi.new("int16_t[?]", (ncell + 1) * 4)
+        for id = 0, ncell do
+            local q = id * 4
+            self.cbox[q], self.cbox[q + 1], self.cbox[q + 2], self.cbox[q + 3] = 32767, -1, 32767, -1
+        end
+        self:grow(0, 0, w - 1, h - 1)
+    end
+    self.shownGrid = grid
+    -- Which hexes the player knows otherwise than when last laid.
+    local changed, list = self.changed, {}
+    for id = 1, ncell do
+        local now = visible[id] and 3 or explored[id] and 2 or 1
+        if shown[id] ~= now then
+            shown[id], changed[id] = now, 1
+            list[#list + 1] = id
+        else
+            changed[id] = 0
+        end
+    end
+    local redo = self.redo
+    self.redo = nil
+    -- The box round all that is laid, to hand over only that.
+    local u = { math.huge, math.huge, -1, -1 }
+    local function took(i0, j0, i1, j1)
+        u[1], u[2], u[3], u[4] = min(u[1], i0), min(u[2], j0), max(u[3], i1), max(u[4], j1)
+    end
+    if full then
+        for _, b in ipairs(redo or {}) do self:grow(b[1], b[2], b[3], b[4]) end
+        self:lay(explored, visible, grid, 0, 0, w - 1, h - 1)
+        took(0, 0, w - 1, h - 1)
+    else
+        -- The corners traced again first, so the boxes of the hexes in them
+        -- are as they are now.
+        for _, b in ipairs(redo or {}) do
+            self:grow(b[1], b[2], b[3], b[4])
+            self:lay(explored, visible, grid, b[1], b[2], b[3], b[4])
+            took(b[1], b[2], b[3], b[4])
+        end
+        local box = self.cbox
+        for _, id in ipairs(list) do
+            local q = id * 4
+            if box[q + 1] >= 0 then
+                self:lay(explored, visible, grid, box[q], box[q + 2], box[q + 1], box[q + 3], changed)
+                took(box[q], box[q + 2], box[q + 1], box[q + 3])
+            end
+        end
+        if #list == 0 and not redo then
+            self.dirty = false
+            return
+        end
+    end
+    if u[3] >= 0 then
+        self:upload(self.image, self.data, self.px, u)
+        self:upload(self.maskImage, self.maskData, self.mpx, u)
+    end
+    self.dirty = false
+end
+
+-- Hands box `u` ({ i0, j0, i1, j1 }) of picture `data` (its pixels at
+-- `ptr`) over to `image`: only that box, unless it is most of the picture.
+function World:upload(image, data, ptr, u)
+    local w = self.w
+    local i0, j0, i1, j1 = u[1], u[2], u[3], u[4]
+    local rw, rh = i1 - i0 + 1, j1 - j0 + 1
+    if rw * rh * 2 > w * self.h then
+        image:replacePixels(data)
+        return
+    end
+    local sub = love.image.newImageData(rw, rh, "rgba8")
+    local sp = ffi.cast("uint8_t*", sub:getFFIPointer())
+    for j = 0, rh - 1 do ffi.copy(sp + j * rw * 4, ptr + ((j0 + j) * w + i0) * 4, rw * 4) end
+    image:replacePixels(sub, 1, 1, i0, j0)
+    sub:release()
+end
+
+-- The box of each hex with pixels from (i0, j0) to (i1, j1) grown to take
+-- them in.
+function World:grow(i0, j0, i1, j1)
+    local w, cell, box = self.w, self.cell, self.cbox
+    for j = j0, j1 do
+        for i = i0, i1 do
+            local c = cell[j * w + i]
+            if c ~= 0 then
+                local q = c * 4
+                if i < box[q] then box[q] = i end
+                if i > box[q + 1] then box[q + 1] = i end
+                if j < box[q + 2] then box[q + 2] = j end
+                if j > box[q + 3] then box[q + 3] = j end
+            end
+        end
+    end
+end
+
+-- Lays the pixels from (i0, j0) to (i1, j1) of the picture as the player
+-- knows the map; with `only`, just those of the hexes it marks.
+function World:lay(explored, visible, grid, i0, j0, i1, j1, only)
+    local w = self.w
     local px, key, cell, edge, flat, flatEdge = self.px, self.key, self.cell, self.buf.edge, self.buf.flat, self.buf.flatEdge
     local mpx, sea, shore, raw = self.mpx, self.buf.sea, self.buf.shore, self.buf.raw
     local kind, sway = self.buf.kind, self.buf.sway
@@ -1608,41 +1790,40 @@ function World:build(explored, visible, grid)
     local DARK = T.DARKER
     local bg = IDX.o
     local PAPER, LINE, SPECK = IDX.c, IDX.t, IDX.s
-    for j = 0, h - 1 do
-        for i = 0, w - 1 do
+    for j = j0, j1 do
+        for i = i0, i1 do
             local n = j * w + i
-            local k = key[n]
             local c = cell[n]
-            local what, dark = 0, 0
-            if k == 0 then
-                k = bg
-            elseif not explored[c] then
-                local f = flat[n]
-                if f == 0 then k = bg
-                elseif flatEdge[n] == 1 then k = LINE
+            if not only or (c ~= 0 and only[c] == 1) then
+                local k = key[n]
+                local what, dark = 0, 0
+                if k == 0 then
+                    k = bg
+                elseif not explored[c] then
+                    local f = flat[n]
+                    if f == 0 then k = bg
+                    elseif flatEdge[n] == 1 then k = LINE
+                    else
+                        k = PAPER
+                        if grain(i, j, 90) > 0.97 then k = SPECK end
+                    end
                 else
-                    k = PAPER
-                    if grain(i, j, 90) > 0.97 then k = SPECK end
+                    if grid and edge[n] == 1 and (i + j) % 2 == 0 then k, dark = DARK[k], dark + 1 end
+                    if not visible[c] then k, dark = DARK[k], dark + 1 end
+                    -- Water, but not where the ink has drawn the map's edge over it.
+                    if sea[n] ~= 0 then what = key[n] == raw[n] and sea[n] or 0 else what = kind[n] end
+                    -- The river moves only where neither ink nor a crease is on it.
+                    if (what == LAND.river or what == LAND.flood or what == LAND.pool) and key[n] ~= raw[n] then
+                        what = LAND.other
+                    end
                 end
-            else
-                if grid and edge[n] == 1 and (i + j) % 2 == 0 then k, dark = DARK[k], dark + 1 end
-                if not visible[c] then k, dark = DARK[k], dark + 1 end
-                -- Water, but not where the ink has drawn the map's edge over it.
-                if sea[n] ~= 0 then what = key[n] == raw[n] and sea[n] or 0 else what = kind[n] end
-                -- The river moves only where neither ink nor a crease is on it.
-                if (what == LAND.river or what == LAND.flood or what == LAND.pool) and key[n] ~= raw[n] then
-                    what = LAND.other
-                end
+                local rgb = RGB8[k]
+                local p = n * 4
+                px[p], px[p + 1], px[p + 2], px[p + 3] = rgb[1], rgb[2], rgb[3], 255
+                mpx[p], mpx[p + 1], mpx[p + 2], mpx[p + 3] = what, sea[n] ~= 0 and shore[n] or sway[n], dark, k
             end
-            local rgb = RGB8[k]
-            local p = n * 4
-            px[p], px[p + 1], px[p + 2], px[p + 3] = rgb[1], rgb[2], rgb[3], 255
-            mpx[p], mpx[p + 1], mpx[p + 2], mpx[p + 3] = what, sea[n] ~= 0 and shore[n] or sway[n], dark, k
         end
     end
-    self.image:replacePixels(self.data)
-    self.maskImage:replacePixels(self.maskData)
-    self.dirty = false
 end
 
 World.RGB8 = {}
