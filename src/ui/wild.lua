@@ -191,9 +191,17 @@ local function find(g)
     herons = stands
 end
 
--- Is anyone on the hex or next to it?
+-- Is anyone on the hex or next to it? The hexes round each, found once a
+-- game: the map's shape does not change.
+local around, aroundOf = {}, nil
 local function disturbed(g, cell)
-    for _, n in ipairs(g:within(cell, 1)) do
+    if aroundOf ~= g then around, aroundOf = {}, g end
+    local near = around[cell.id]
+    if not near then
+        near = g:within(cell, 1)
+        around[cell.id] = near
+    end
+    for _, n in ipairs(near) do
         if g.mil[n.id] or g.civ[n.id] then return true end
     end
     return false

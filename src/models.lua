@@ -484,8 +484,28 @@ M.FACINGS = 6
 -- 1) heels it a little over to one side or the other on the swell, and
 -- `boat` puts a land unit in a boat (embarked).
 M.ROLL = 0.07
+-- The pictures already asked for, by what they were asked with, found
+-- without making a key: shelf(t, a) is t[a], made if not there.
+local function shelf(t, a)
+    local s = t[a]
+    if not s then s = {} t[a] = s end
+    return s
+end
+local unitPics, beastPics, wheelPics = {}, {}, {}
+local unitPic, beastPic, wheelPic
+
 function M.unit(kind, look, face, pose, roll, boat)
     face, pose, roll = face or 1, pose or 0, roll or 0
+    local row = shelf(shelf(shelf(shelf(shelf(unitPics, boat and true or false), kind), look), face), pose)
+    local pic = row[roll]
+    if not pic then
+        pic = unitPic(kind, look, face, pose, roll, boat)
+        row[roll] = pic
+    end
+    return pic
+end
+
+unitPic = function(kind, look, face, pose, roll, boat)
     return kept(table.concat({ boat and "e" or "u", kind, look, face, pose, roll }, ":"), function()
         local parts = boat and embarked(kind, LOOK[look], pose, face) or UNIT[kind](LOOK[look], pose, face)
         if roll ~= 0 then
@@ -548,6 +568,9 @@ M.CITY_PLOTS = PLOTS
 -- a house.
 local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10, sanctum = 11,
     hearth = 8, lazaret = 9 }
+local BUILT_NAMES = {}
+for name in pairs(BUILT_PLOT) do BUILT_NAMES[#BUILT_NAMES + 1] = name end
+table.sort(BUILT_NAMES)
 
 -- A little hash, so the same city is laid out the same way every time.
 local function hash(a, b)
@@ -586,9 +609,44 @@ end
 -- How a city at `pop` on `site`, with buildings `built`,
 -- is laid out: its houses (x, z, size, storeys, how high its floor
 -- stands, turned or not) and what the empty plots hold.
+-- What a layout depends on, as one number: the population, which of the
+-- buildings with plots of their own stand, whether on the plains, on hills,
+-- which of the hex's edges a river runs along, and the layout's seed; nil if
+-- any is not as a game makes them, which is laid out afresh.
+local layouts, chimneys = {}, {}
+local layOut, chimneysOf
+local function layoutKey(pop, b, site)
+    local seed = site.seed or 0
+    if pop % 1 ~= 0 or pop < 0 or pop >= 2 ^ 20 or seed % 1 ~= 0 or seed < 0 or seed >= 1024 then return nil end
+    local flags, bit = 0, 1
+    for _, name in ipairs(BUILT_NAMES) do
+        if b[name] then flags = flags + bit end
+        bit = bit * 2
+    end
+    local river = 0
+    if site.river then
+        for e = 0, 5 do if site.river[e] then river = river + 2 ^ e end end
+    end
+    local plains = site.biome == "plains" and 1 or 0
+    local hills = site.hills and 1 or 0
+    return seed + 1024 * (river + 64 * (hills + 2 * (plains + 2 * (flags + 512 * pop))))
+end
+
 function M.cityLayout(pop, built, site)
     site = site or {}
     local b = built or {}
+    -- The same town is laid out the same way every time: kept, and handed out
+    -- to be read, never changed.
+    local key = layoutKey(pop, b, site)
+    local lay = key and layouts[key]
+    if not lay then
+        lay = layOut(pop, b, site)
+        if key then layouts[key] = lay end
+    end
+    return lay
+end
+
+layOut = function(pop, b, site)
     local tier = M.cityTier(pop)
     local seed = site.seed or 0
     local houses, empty = {}, {}
@@ -630,6 +688,22 @@ end
 -- ground): one on a house for every two citizens, three at most.
 local STOREY = 2.6
 function M.cityChimneys(pop, built, site)
+    -- Kept as the layout is, and by whether on the desert (lower chimneys)
+    -- and with the hearth (one more).
+    local key = layoutKey(pop, built or {}, site or {})
+    if key then
+        key = key * 4 + (site and site.biome == "desert" and 2 or 0) + (built and built.hearth and 1 or 0)
+        local out = chimneys[key]
+        if not out then
+            out = chimneysOf(pop, built, site)
+            chimneys[key] = out
+        end
+        return out
+    end
+    return chimneysOf(pop, built, site)
+end
+
+chimneysOf = function(pop, built, site)
     local lay = M.cityLayout(pop, built, site)
     local out = {}
     for k = 1, math.min(#lay.houses, 1 + floor(pop / 2), 3) do
@@ -1457,6 +1531,16 @@ end
 -- so a quarter turn brings it round). Stamped where the mine is.
 M.WHEEL_STEPS = 8
 function M.mineWheel(hills, step)
+    local row = shelf(wheelPics, hills and true or false)
+    local pic = row[step]
+    if not pic then
+        pic = wheelPic(hills, step)
+        row[step] = pic
+    end
+    return pic
+end
+
+wheelPic = function(hills, step)
     return kept(table.concat({ "wheel", hills and 1 or 0, step }, ":"), function()
         local tx, tz = 4.6, -2
         local ty = 0
@@ -2225,6 +2309,16 @@ end
 
 function M.beast(kind, face, pose)
     face, pose = face or 1, pose or 0
+    local row = shelf(shelf(beastPics, kind), face)
+    local pic = row[pose]
+    if not pic then
+        pic = beastPic(kind, face, pose)
+        row[pose] = pic
+    end
+    return pic
+end
+
+beastPic = function(kind, face, pose)
     return kept(table.concat({ "beast", kind, face, pose }, ":"), function()
         return place(BEAST[kind](pose), math.rad(60 * face))
     end, M.UNIT_SCALE * BEAST_SCALE[kind])

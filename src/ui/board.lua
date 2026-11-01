@@ -464,9 +464,17 @@ local function idlePose(u, a, near)
     return 0
 end
 
--- Is one of the civilizations' people within a hex of the cell?
+-- Is one of the civilizations' people within a hex of the cell? The hexes
+-- round each, found once a game: the map's shape does not change.
+local around, aroundOf = {}, nil
 local function peopleNear(g, cellId)
-    for _, n in ipairs(g:within(g.cells[cellId], 1)) do
+    if aroundOf ~= g then around, aroundOf = {}, g end
+    local near = around[cellId]
+    if not near then
+        near = g:within(g.cells[cellId], 1)
+        around[cellId] = near
+    end
+    for _, n in ipairs(near) do
         local v = g.mil[n.id] or g.civ[n.id]
         if v and v.owner ~= g.WILD then return true end
     end
