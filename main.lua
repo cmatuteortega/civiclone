@@ -806,7 +806,8 @@ local function followPlan()
             S.selected = nil
             View.lookAt(g.cells[at], true)
         end
-        if plan.select == "cistern" or plan.select == "levee" or plan.select == "shelter" or plan.select == "hearth" then
+        if plan.select == "cistern" or plan.select == "levee" or plan.select == "shelter" or plan.select == "hearth"
+            or plan.select == "buttress" then
             local cap = S.game:citiesOf(1)[1]
             if cap then
                 cap.buildings[plan.select] = true

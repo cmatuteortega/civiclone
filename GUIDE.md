@@ -21,7 +21,7 @@ that is the file to edit to tune the game.
 15. [Sight and fog of war](#sight-and-fog-of-war)
 16. [The rival civilizations](#the-rival-civilizations)
 17. [The wild](#the-wild)
-18. [The heat death](#the-heat-death) · [The deluge](#the-deluge) · [The sky falls](#the-sky-falls) · [The demons](#the-demons) · [The still sun](#the-still-sun) · [The plague](#the-plague)
+18. [The heat death](#the-heat-death) · [The deluge](#the-deluge) · [The sky falls](#the-sky-falls) · [The demons](#the-demons) · [The still sun](#the-still-sun) · [The plague](#the-plague) · [The sundering](#the-sundering)
 19. [Winning and losing](#winning-and-losing)
 20. [How it is drawn](#how-it-is-drawn)
 21. [How it sounds](#how-it-sounds)
@@ -45,10 +45,11 @@ begins:
 | **Demons** | [The demons](#the-demons): the rifts, the deep and the hellgate, a citadel to raze, and the game ends at turn 160 |
 | **The still sun** | [The sun stands still](#the-still-sun): endless day on one side of a line no one can foresee, endless night and ice on the other, and the game ends at turn 160 |
 | **The plague** | [The plague](#the-plague): the fever, the great dying and the dance of death, going from town to town with people and rats, and the game ends at turn 160 |
-| **None** | No cataclysm, no cisterns, levees, hearths, lazarets or shelters: the game ends at turn 150 on score |
+| **The sundering** | [The sundering](#the-sundering): the tremors, the rift and the fire below; quakes, faults, a rift the sea comes in by, mountains rising, volcanoes and waves, and the game ends at turn 160 |
+| **None** | No cataclysm, no cisterns, levees, hearths, lazarets, buttresses or shelters: the game ends at turn 150 on score |
 
 The choice is kept for the next game. `love . --cataclysm none` (or `heat`,
-`flood`, `sky`, `demons`, `sun` or `plague`) overrides it.
+`flood`, `sky`, `demons`, `sun`, `plague` or `quake`) overrides it.
 
 Every game makes a new map from a seed: random by default, or chosen with
 `love . --seed 1234`. The same seed always makes the same map. While the map
@@ -475,6 +476,7 @@ below 1) and the store empties.
 | Sanctum | 70 | Against [the demons](#the-demons): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Writing; only against the demons |
 | Hearth | 70 | Against the night of [the still sun](#the-still-sun): its land freezes a quarter as fast, its farms keep their food through the night, its people go 2 less cold | Pottery; only under the still sun |
 | Lazaret | 70 | Against [the plague](#the-plague): half as many of its sick die, it mends sooner (+12% a turn), and its people go hungry 1 less, sick or well | Writing; only in the plague |
+| Buttress | 70 | Against [the sundering](#the-sundering): a quake does it half the harm and brings none of its buildings down nor kills its people, no fault opens on its land, and its people fear 2 less | Masonry; only in the sundering |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
@@ -484,7 +486,9 @@ ringed with stones with a stone doorway into it at the front (the shelter), a ri
 stones round a lamp kept burning (the sanctum), a squat domed kiln-house of
 stone with its mouth glowing, a tall smoking chimney and a stack of logs (the
 hearth), a long low whitewashed house with a row of small windows lit at
-night, a cross on its gable and herb beds before it (the lazaret). A town on
+night, a cross on its gable and herb beds before it (the lazaret), a squat
+stone hall shored up by four sloping buttresses, timbers braced in an X on
+its walls (the buttress). A town on
 frozen ground has snow on its roofs.
 A city on the water builds out over it on the side nearest the front of the
 screen: steps down the bank and a pier with a boat tied up; with a harbour a
@@ -1133,6 +1137,101 @@ on the sky is overcast: more clouds' shadows go over the land. Its banner shows 
 blinking, while it is sick, and a flag while it is shut, and on the minimap
 it blinks pale. A death tolls a knell; the great pestilence two.
 
+## The sundering
+
+The world ends with the land itself breaking. From turn 90 the ground
+trembles, and the game ends when turn 160 is played out. It is the one
+cataclysm that changes the shape of the map: land is torn away into the sea,
+the sea's floor comes up as land, hills and mountains rise where there were
+none. The rules are in `src/quake.lua`, the numbers in `D.QUAKE` in
+`src/defs.lua`.
+
+| Turns | Stage | What happens |
+| --- | --- | --- |
+| 90 | **The omen** | Everyone is told the tremors come in 10 turns. On turn 99 **the great rift** is seen: a line of ink across the land, from the sea to the sea, 7 to 13 hexes long, where it will tear. It runs where it cuts off the most land, round cities and mountains |
+| 100–119 | **The tremors** | 1 **quake** a turn, each seen coming the turn before. **Faults** open between the hexes. Every city loses 1 food a turn to fear |
+| 120–139 | **The sundering** | 2 quakes a turn. **The rift tears**, from the sea inwards, and **two ranges rise**. Now and then (25% a turn) **a wave** comes in on a shore. Fear takes 2 food |
+| 140–160 | **The fire below** | 3 **volcanoes** wake and erupt. Waves come half the time. Fear takes 4 food. On turn 144 everyone is told **the great quake** comes, and on turn 150 it does: the whole rift opens to the sea at once, every city takes 40 HP, and a wave strikes every city on the shore |
+
+**Quakes.** A quake's hex is ringed and trembling the turn before it
+strikes, and the AI steps off it. It reaches 1 hex in the tremors and 2
+after. A unit at its heart takes 30 HP, and one round it 12; a city at its
+heart 30, round it 12, and within a hex of its heart a city may lose a
+building (35%) and one of its people (40%, never the last; none with a
+shelter). Round it, a mine or a farm is wrecked 35% of the time, and a
+forest on a hill comes down 30% of the time, its trunks lying every way. A
+quake under the sea, from the sundering on, may send a wave in.
+
+**Faults** open along the **edges between hexes**, as rivers run: 2 round
+each quake in the tremors and 1 after, mostly running on from the faults
+already open, and the open ones creep 1 edge further a turn. **No one walks
+across an open fault**; go round it. None opens on a river's edge, beside a
+city or on land a buttress shores up. Drawn: the two hexes cut back from the
+edge, as a river cuts them, with the dark far below between them and their
+lips broken.
+
+**The rift** tears hex by hex from either end where it meets the sea, a hex
+more each turn (2 in the fire below), each hex 2 turns at each step:
+
+1. **Cracked**: a black crack zigzags through it the way the rift runs.
+   Whoever is on it is in danger; it can still be walked.
+2. **A chasm**: the hex splits in two halves, the dark deep between them,
+   boulders fallen in. No one can stand on it, it yields nothing, hills on it
+   are flattened and its forest, farm and mine are gone. Whoever stood there
+   is moved to the nearest free hex, or lost.
+3. **The sea pouring in**, once the hex nearer the sea has it: white water
+   churning between the halves.
+4. **Sea**: it is coast, sailed by ships, and the land either side is parted
+   for good. Nothing moves the hexes, but by the end a piece of the
+   continent stands apart as an island.
+
+A city on the line holds: the rift goes round it and leaves it on a neck of
+land.
+
+**The ranges.** On turn 119 two lines of 4 to 7 hexes are drawn where the
+land is pressed together, the first across the shallows between two shores
+if there are any (the lands pressed into one), marked with little ridges.
+From the sundering on, 2 hexes of them (3 in the fire below) rise a step a
+turn: the coast's shallows beside land come up as **risen seabed** (plains,
+pale sand in ripples, weed and shells), flat land to hills (its farm lost),
+hills to **mountains**. Whoever stands where a mountain rises is moved off.
+
+**Volcanoes.** As the fire below begins, 3 wake, on mountains (the ranges'
+first) or thrown up from hills, at least 4 hexes apart: a cone of cinders
+banded ash and dark, cut off at the top, smoking. Each turn each one may
+(40%) be about to erupt, told the turn before, its smoke thick and its
+crater flickering. An eruption pours **lava** out 2 hexes over the land
+below it, in two or three tongues: lava yields nothing, takes the forest,
+the farm and the mine, burns whoever stands in it (40 HP a turn) and lights
+the night; the forests beside it may catch fire and cities beside it take
+25. **Ash** falls 2 hexes round it for 4 turns (a farm under it yields 1
+less), and leaves **volcanic soil** (+1 food) where it lay. After 3 turns the
+lava cools to **black rock** (1 food less), sometimes with **obsidian** in it
+(+1 production, +2 gold). The ash dims the sun while one erupts.
+
+**Waves.** When the sea heaves, 4 to 8 hexes of the shore nearest it are
+told the turn before: the sea **draws back** from them, the shallows bare
+pale sand, a dark line heaping up further out. Then the wave runs in from
+where it rose, a wall of water with a dark swell behind it and a crest
+breaking white, and throws itself up over the shore: whoever is on the land
+takes 40 HP, ships and boats beside it 20; flat land is flooded 2 turns and
+then left silted, its farm or mine washed away; a city takes 30 unless it
+has a **levee**.
+
+**The buttress** (Masonry, 70, only in the sundering) shores a city up with
+sloping stone buttresses and timbers braced in an X: a quake does it half
+the harm, brings none of its buildings down and kills none of its people,
+no fault opens on its land, and its people fear 2 less. A shelter halves
+every blow again and its stores spare 1 food. The AI builds buttresses from
+the omen, then shelters, and steps off whatever is coming.
+
+**How it looks and sounds.** The whole board shakes while a quake does,
+rings of the shock going out over the ground, dust thrown up off every hex
+it reaches. An eruption flashes white, a column of ash boils up out of the
+crater and spreads, fire fountains up and bombs fly out to where the lava
+runs. The sea pours in white as the rift opens. A quake rumbles, an eruption
+blasts and roars, a wave rushes in and breaks.
+
 ## Winning and losing
 
 | Outcome | How |
@@ -1480,7 +1579,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, a whole game to its end), the sundering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
@@ -1493,6 +1592,7 @@ and picks up where it left off.
 | `love . --play --shot fire.png --turns 128 --select fire` | The camera over the most fire on the map, with the land round it shown. `--select scorch` for the most baked earth, `--select burnt` for the most burnt land; `--select cistern` gives your capital a cistern and looks at it |
 | `love . --play --cataclysm flood --shot flood.png --skip 130 --select flood --film 60` | The deluge: the camera over the most floodwater, in the storm, sixty pictures a few frames apart. `--select marsh`, `silt` or `drowned` for the most of each; `--select levee` gives your capital a levee |
 | `love . --play --cataclysm sky --shot fall.png --skip 124 --select mark --hour 12 --next --film 12` | The sky's falling: the camera over the most hexes stones are falling on, then the turn ended (`--next`) so they come down in the pictures; [shots/33-starfall.png](shots/33-starfall.png) was made so. `--select crater` or `glow` for the most craters (or hot ones), `heart` for the heart of the comet's hexes once it is told; `--select shelter` gives your capital a shelter; `--select skyfall` puts one of every crater and a stone of each size coming round your start; `--select bigfall` a great stone coming beside a forest near your capital ([shots/36-great-stone.gif](shots/36-great-stone.gif) was made so, with `--skip 124 --zoom 2 --next --film 40`; [shots/37-heart-of-the-comet.gif](shots/37-heart-of-the-comet.gif) with `--skip 149 --select heart --hour 0 --next --film 80`) |
+| `love . --play --cataclysm quake --shot q.png --select sundering --hour 15` | The sundering round your start: faults, the rift at every step (cracked, chasm, the sea in, sea), a range risen, a volcano erupting with its lava, black rock and ash, the sea's floor come up, a quake and a wave coming; [shots/51-sundering.png](shots/51-sundering.png) was made so (with `--at N`, the camera over hex N). `--select rift` looks along the rift where the sea comes in; with `--next --film 60` the volcano erupts, the quake strikes and the wave runs in as the next turn begins ([shots/54-sundering.gif](shots/54-sundering.gif)); `--select buttress` gives your capital a buttress |
 | `love . --play --cataclysm sun --shot sun.png --skip 135 --select world --size 1920x1200 --zoom -1` | The still sun: the whole map shown in a bigger window (`--size`), a step further out (`--zoom -1`), the camera on the line; [shots/39-still-sun.png](shots/39-still-sun.png) was made so. `--select twilight` looks at the land on the line, `frost`, `tundra`, `snow` or `ice` at the most of it; `--select hearth` gives your capital a hearth |
 | `love . --play --cataclysm none --shot frozen.png --select frozen --hour 12` | The frost round your start, whatever the cataclysm: tundra near, snow beyond, the trees, hills and mountains under it, a river frozen over, the shallows frozen to ice with leads of water and floes left in it; `--select frozen:N` looks at hex N. With `--turns 3` first, your town under it keeps a hearth; [shots/40-frost.png](shots/40-frost.png) and [shots/41-sea-ice.png](shots/41-sea-ice.png) (`--select frozen:630 --zoom 2`, seed 7) were made so. [shots/42-endless-night.png](shots/42-endless-night.png) is `--cataclysm sun --seed 11 --skip 150 --select ice`, and [shots/43-snowfall.gif](shots/43-snowfall.gif) the same with `--zoom 2 --film 40`; [shots/45-long-night-frost.png](shots/45-long-night-frost.png) is `--cataclysm sky --seed 7 --skip 156 --select world` |
 | `luajit tools/cities.lua dir` | Sheets of towns traced as the game traces them, into dir/*.ppm, no LÖVE needed; dir/cities-frost.ppm is towns on tundra and snow with and without a hearth ([shots/44-frozen-towns.png](shots/44-frozen-towns.png), scaled up three times), dir/cities-plague.ppm towns the plague is in ([shots/47-plague-towns.png](shots/47-plague-towns.png)) |

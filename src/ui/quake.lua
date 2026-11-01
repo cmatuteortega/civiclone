@@ -292,39 +292,62 @@ end
 -- top; then thrown up white over the land where it strikes.
 local function waving(p, list)
     local cell = p.cell
-    local from = S.game.cells[p.e.from] or cell
-    local dx, dz = cell.x - from.x, cell.z - from.z
+    -- Every crest of one wave runs in from where it rose, out at sea, so
+    -- they come in as one front.
+    local o = S.game.cells[p.e.origin or p.e.from] or cell
+    local dx, dz = cell.x - o.x, cell.z - o.z
     local l = sqrt(dx * dx + dz * dz)
-    if l < 0.01 then dx, dz, l = 0, 1, 1 end
-    dx, dz = dx / l, dz / l
+    if l < 0.01 then
+        o = S.game.cells[p.e.from] or cell
+        dx, dz = cell.x - o.x, cell.z - o.z
+        l = sqrt(dx * dx + dz * dz)
+    end
+    if l < 0.01 then dx, dz = 0, 1 else dx, dz = dx / l, dz / l end
+    l = H.W * 1.7
+    local from = { x = cell.x - dx * l, z = cell.z - dz * l }
     local ax, az = -dz, dx
     list[#list + 1] = { z = cell.z + 4, draw = function()
         local u = p.t / LONG.wave
         local arrive = WHEN.wave / LONG.wave
         -- From a hex and a half out to the hex's middle.
-        local along = (min(u, arrive) / arrive) * (l + H.W * 0.5) - H.W * 1.0
+        local along = (min(u, arrive) / arrive) * (l + H.W * 0.5) - H.W * 1.2
         local base = -2
-        local height = 2 + min(u / arrive, 1) * 6
+        local height = 3 + min(u / arrive, 1) * 9
         if u < arrive then
-            local mx, mz = from.x + dx * (along + H.W * 0.5), from.z + dz * (along + H.W * 0.5)
-            local half = H.W * 0.75
-            for s = -16, 16 do
-                local f = s / 16
-                local bend = (1 - f * f) * 2.5
-                local wx, wz = mx + ax * f * half + dx * bend, mz + az * f * half + dz * bend
-                local hh = height * (1 - f * f * 0.5)
-                local x0, y0 = screen(wx, base, wz)
-                local x1, y1 = screen(wx, base + hh, wz)
-                local n = max(1, floor(y0 - y1))
-                for k = 0, n do
-                    local yy = floor(y1 + k)
-                    local key = k == 0 and IDX.o or (k <= 2 and IDX.w) or (k <= n * 0.5 and IDX.c) or (k < n and IDX.t) or IDX.o
-                    P.putS(key, floor(x0), yy)
-                    P.putS(key, floor(x0) + 1, yy)
-                end
-                -- Spray off the crest.
-                if grain(s, floor(clock * 14), p.seed) > 0.6 then
-                    P.putS(IDX.w, floor(x1 + (grain(s, 2, p.seed) - 0.5) * 4), floor(y1 - 1 - grain(s, 3, p.seed) * 4))
+            local half = H.W * 0.95
+            -- The swell behind the crest first, dark and lower, then the
+            -- face, pale, and the crest breaking white on top.
+            for layer = 2, 0, -1 do
+                local back = layer * 3.2
+                local mx = from.x + dx * (along + H.W * 0.5 - back)
+                local mz = from.z + dz * (along + H.W * 0.5 - back)
+                local hh0 = height * (1 - layer * 0.3)
+                for s = -24, 24 do
+                    local f = s / 24
+                    local bend = (1 - f * f) * 3
+                    local wx, wz = mx + ax * f * half + dx * bend, mz + az * f * half + dz * bend
+                    local hh = hh0 * (1 - f * f * 0.6)
+                    local x0, y0 = screen(wx, base, wz)
+                    local _, y1 = screen(wx, base + hh, wz)
+                    local n = max(1, floor(y0 - y1))
+                    for k = 0, n do
+                        local key
+                        if layer > 0 then
+                            key = k == 0 and IDX.o or (k < n * 0.4 and IDX.t or IDX.n)
+                        else
+                            key = (k == 0 and IDX.o) or (k <= 2 and IDX.w) or (k <= n * 0.45 and IDX.c)
+                                or (k < n and IDX.s) or IDX.o
+                        end
+                        P.putS(key, floor(x0), floor(y1 + k))
+                        P.putS(key, floor(x0) + 1, floor(y1 + k))
+                    end
+                    -- Spray off the crest.
+                    if layer == 0 and grain(s, floor(clock * 14), p.seed) > 0.55 then
+                        for q = 0, 1 do
+                            P.putS(IDX.w, floor(x0 + (grain(s, 2 + q, p.seed) - 0.5) * 6),
+                                floor(y1 - 1 - grain(s, 3 + q, p.seed) * 6))
+                        end
+                    end
                 end
             end
         else

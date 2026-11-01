@@ -239,15 +239,37 @@ farmhouses fallen in, and a knell tolls for every death.
 ![The plague moving: the miasma drifting and its wisps rising over a sick town, crows wheeling, smoke from its pyre](shots/50-plague.gif)
 ![The plague's models: rats, a shut town's flag waving, a pyre, a farm and its ruin; towns well, sick, burying their dead, with a lazaret](shots/49-plague-models.png)
 
+Or the land itself breaks (`src/quake.lua`): the sundering. The ground
+trembles, and a line is seen across the land from sea to sea where the great
+rift will tear. Quakes strike, each seen coming the turn before: they shake
+the cities (a building may come down, people may die), wreck mines and farms
+and bring the forests down off the hills, and faults open along the edges
+between the hexes that no one can walk across. Then the rift tears, hex by
+hex from the sea: each hex cracks, splits into a chasm, the sea pours into
+it white, and it is sea, until a piece of the continent stands apart as an
+island. Where the land is pressed together the shallows rise as new land and
+the flat rises into hills and mountains. Volcanoes wake, their eruptions
+seen coming, and pour lava over the land that cools to black rock, ash
+falling round that leaves the soil rich; the sea draws back off a shore and
+a wave runs in over it. On turn 150 the great quake opens the whole rift at
+once. A buttress shores a city up against it all. The board shakes with
+every quake, an eruption throws up a column of ash, fire and bombs of lava,
+and a wave comes in as a wall of water breaking white.
+
+![The sundering: faults and the rift's crack, a volcano erupting, lava running, the sea drawn back before a wave](shots/51-sundering.png)
+![The rift where the sea comes in: the land split into a chasm, white water pouring in, then sea](shots/52-rift.png)
+![The sundering at night: the lava lighting the land](shots/53-sundering-night.png)
+![The sundering playing out: an eruption, a quake shaking the board and a wave running in](shots/54-sundering.gif)
+
 ## Running it
 
 ```
 love .
 ```
 
-Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|sun|plague|none` picks how the world ends, `--play` skips
+Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|sun|plague|quake|none` picks how the world ends, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen|plague] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen|plague|sundering|rift|buttress] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
 LÖVE's save folder, and quits (`--size WxH` makes the window that big; `--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds

@@ -865,7 +865,8 @@ Q.seaward = seaward
 function Q.strike(game, cell, from)
     local QK = D.QUAKE
     local sea = seaward(game, cell, from)
-    game:emit({ kind = "wave", cell = cell.id, from = sea and sea.id or cell.id, turn = game.turn })
+    game:emit({ kind = "wave", cell = cell.id, from = sea and sea.id or cell.id, origin = from and from.id,
+        turn = game.turn })
     for _, u in ipairs(Cat.unitsOn(game, cell)) do Cat.hurt(game, u, QK.waveHit, "WAS SWEPT AWAY BY THE WAVE") end
     -- Ships and boats by it are thrown about.
     for _, n in ipairs(game:neighbours(cell)) do
