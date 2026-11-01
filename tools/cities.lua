@@ -10,7 +10,8 @@
 -- dir/cities-levee.ppm and dir/cities-shelter.ppm (towns without and with a
 -- levee, and a shelter), dir/cities-frost.ppm (towns on tundra and snow,
 -- with and without a hearth) and dir/cities-plague.ppm (towns the plague is
--- in, daubed, their dead buried, and a lazaret), at one pixel to the pixel; scale them up by a
+-- in, daubed, their dead buried, and a lazaret) and dir/cities-buttress.ppm
+-- (towns with a buttress), at one pixel to the pixel; scale them up by a
 -- whole number to look at them.
 
 package.path = "./?.lua;" .. package.path
@@ -375,4 +376,23 @@ do
         text(s[1], (col + 0.5) * BW, row * (BH + 10) + BH + 2, true)
     end
     write("cities-plague")
+end
+
+-- The sundering (src/quake.lua): towns without and with a buttress, on each
+-- land.
+do
+    local SITES = {
+        { "GRASS", plain("grass"), nil, { pop = 5 } },
+        { "GRASS, BUTTRESS", plain("grass"), nil, { pop = 5, built = { buttress = true } } },
+        { "PLAINS, BUTTRESS", plain("plains"), nil, { pop = 8, look = "stripe", built = { buttress = true, walls = true } } },
+        { "DESERT, BUTTRESS", plain("desert"), nil, { pop = 3, look = "dark", built = { buttress = true } } },
+    }
+    sheet(BW * #SITES, BH + 10)
+    for k, s in ipairs(SITES) do
+        local game, at = stretch(s[2], s[3])
+        local img, w, h, ci, cj = scene(game, at, s[4])
+        lay(img, w, h, ci, cj, (k - 1) * BW, 0, BW, BH)
+        text(s[1], (k - 0.5) * BW, BH + 2, true)
+    end
+    write("cities-buttress")
 end

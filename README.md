@@ -260,6 +260,7 @@ and a wave comes in as a wall of water breaking white.
 ![The rift where the sea comes in: the land split into a chasm, white water pouring in, then sea](shots/52-rift.png)
 ![The sundering at night: the lava lighting the land](shots/53-sundering-night.png)
 ![The sundering playing out: an eruption, a quake shaking the board and a wave running in](shots/54-sundering.gif)
+![Towns without and with a buttress: every house shored up with stone props and timbers braced across](shots/55-buttress.png)
 
 ## Running it
 

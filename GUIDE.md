@@ -476,7 +476,7 @@ below 1) and the store empties.
 | Sanctum | 70 | Against [the demons](#the-demons): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Writing; only against the demons |
 | Hearth | 70 | Against the night of [the still sun](#the-still-sun): its land freezes a quarter as fast, its farms keep their food through the night, its people go 2 less cold | Pottery; only under the still sun |
 | Lazaret | 70 | Against [the plague](#the-plague): half as many of its sick die, it mends sooner (+12% a turn), and its people go hungry 1 less, sick or well | Writing; only in the plague |
-| Buttress | 70 | Against [the sundering](#the-sundering): a quake does it half the harm and brings none of its buildings down nor kills its people, no fault opens on its land, and its people fear 2 less | Masonry; only in the sundering |
+| Buttress | 70 | Against [the sundering](#the-sundering): a quake does it half the harm, brings none of its buildings down and kills half as many, the great quake none; no fault opens on its land, and its people fear 2 less | Masonry; only in the sundering |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
@@ -486,9 +486,9 @@ ringed with stones with a stone doorway into it at the front (the shelter), a ri
 stones round a lamp kept burning (the sanctum), a squat domed kiln-house of
 stone with its mouth glowing, a tall smoking chimney and a stack of logs (the
 hearth), a long low whitewashed house with a row of small windows lit at
-night, a cross on its gable and herb beds before it (the lazaret), a squat
-stone hall shored up by four sloping buttresses, timbers braced in an X on
-its walls (the buttress). A town on
+night, a cross on its gable and herb beds before it (the lazaret), every house
+shored up with a sloping stone prop at each front corner and timbers braced
+in an X across its front (the buttress). A town on
 frozen ground has snow on its roofs.
 A city on the water builds out over it on the side nearest the front of the
 screen: steps down the bank and a pier with a boat tied up; with a harbour a
@@ -1149,16 +1149,17 @@ none. The rules are in `src/quake.lua`, the numbers in `D.QUAKE` in
 | Turns | Stage | What happens |
 | --- | --- | --- |
 | 90 | **The omen** | Everyone is told the tremors come in 10 turns. On turn 99 **the great rift** is seen: a line of ink across the land, from the sea to the sea, 7 to 13 hexes long, where it will tear. It runs where it cuts off the most land, round cities and mountains |
-| 100–119 | **The tremors** | 1 **quake** a turn, each seen coming the turn before. **Faults** open between the hexes. Every city loses 1 food a turn to fear |
-| 120–139 | **The sundering** | 2 quakes a turn. **The rift tears**, from the sea inwards, and **two ranges rise**. Now and then (25% a turn) **a wave** comes in on a shore. Fear takes 2 food |
-| 140–160 | **The fire below** | 3 **volcanoes** wake and erupt. Waves come half the time. Fear takes 4 food. On turn 144 everyone is told **the great quake** comes, and on turn 150 it does: the whole rift opens to the sea at once, every city takes 40 HP, and a wave strikes every city on the shore |
+| 100–119 | **The tremors** | 1 **quake** a turn, each seen coming the turn before. **Faults** open between the hexes. Every city loses 2 food a turn to fear |
+| 120–139 | **The sundering** | 2 quakes a turn. **The rift tears**, from the sea inwards, and **two ranges rise**. Now and then (25% a turn) **a wave** comes in on a shore. Fear takes 4 food |
+| 140–160 | **The fire below** | 3 **volcanoes** wake and erupt. Waves come half the time. Fear takes 6 food. On turn 144 everyone is told **the great quake** comes, and on turn 150 it does: the whole rift opens to the sea at once, every city takes 40 HP and loses a quarter of its people (an eighth with a shelter, none with a buttress), and a wave strikes every city on the shore |
 
 **Quakes.** A quake's hex is ringed and trembling the turn before it
-strikes, and the AI steps off it. It reaches 1 hex in the tremors and 2
+strikes, and the AI steps off it. They strike likeliest along the rift, the
+ranges and the faults, and twice as likely for every town within two hexes. It reaches 1 hex in the tremors and 2
 after. A unit at its heart takes 30 HP, and one round it 12; a city at its
 heart 30, round it 12, and within a hex of its heart a city may lose a
-building (35%) and one of its people (40%, never the last; none with a
-shelter). Round it, a mine or a farm is wrecked 35% of the time, and a
+building (35%, none with a buttress) and one of its people (40%, 20% with a
+buttress, never the last; none with a shelter). Round it, a mine or a farm is wrecked 35% of the time, and a
 forest on a hill comes down 30% of the time, its trunks lying every way. A
 quake under the sea, from the sundering on, may send a wave in.
 
@@ -1220,8 +1221,9 @@ has a **levee**.
 
 **The buttress** (Masonry, 70, only in the sundering) shores a city up with
 sloping stone buttresses and timbers braced in an X: a quake does it half
-the harm, brings none of its buildings down and kills none of its people,
-no fault opens on its land, and its people fear 2 less. A shelter halves
+the harm, brings none of its buildings down and kills half as many of its
+people, the great quake kills none, no fault opens on its land, and its
+people fear 2 less. A shelter halves
 every blow again and its stores spare 1 food. The AI builds buttresses from
 the omen, then shelters, and steps off whatever is coming.
 

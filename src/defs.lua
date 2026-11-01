@@ -257,8 +257,8 @@ D.BUILDINGS = {
     lazaret = { name = "LAZARET", short = "LAZAR.", cost = 70, ward = "plague", tech = "writing", order = 13 },
     -- Against the sundering (D.QUAKE): the city's walls and halls shored up
     -- with stone buttresses and braced with timber. A quake does it half
-    -- the harm and never brings a building down nor kills its people, no
-    -- fault opens on its land, and its people fear the shaking less.
+    -- the harm and never brings a building down, kills half as many of its
+    -- people, no fault opens on its land, and its people fear less.
     buttress = { name = "BUTTRESS", short = "BUTTR.", cost = 70, ward = "quake", tech = "masonry", order = 14 },
 }
 
@@ -585,11 +585,13 @@ D.QUAKE = {
     waveHit = 40, waveCity = 30, waveTurns = 2,
     -- Fear: food every city loses a turn, in each stage; a buttress spares
     -- it `ward`.
-    fear = { tremors = 1, rift = 2, fire = 4 }, ward = 2,
+    fear = { tremors = 2, rift = 4, fire = 6 }, ward = 2,
     -- The great quake: told on `warn`, on `great` the whole rift opens to
     -- the sea at once, every city shakes and a great wave runs round
-    -- every shore.
-    warn = 144, great = 150, greatCity = 40,
+    -- every shore; every city loses `greatPop` of its people (none with a
+    -- buttress, half with a shelter). Quakes strike `nearTowns` times
+    -- likelier for every city within two hexes.
+    warn = 144, great = 150, greatCity = 40, greatPop = 0.25, nearTowns = 2,
 }
 
 -- Technologies, in the order the list shows them.

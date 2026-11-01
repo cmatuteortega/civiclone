@@ -547,7 +547,7 @@ M.CITY_PLOTS = PLOTS
 -- What each building takes, of the plots: it stands in that plot instead of
 -- a house.
 local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10, sanctum = 11,
-    hearth = 8, lazaret = 9, buttress = 7 }
+    hearth = 8, lazaret = 9 }
 
 -- A little hash, so the same city is laid out the same way every time.
 local function hash(a, b)
@@ -1120,6 +1120,23 @@ function M.city(look, pop, capital, built, shore, drop, site, pest)
             local daub = marked and hash((site.seed or 0) + k, 7) < 0.67
             house(parts, h.x, h.y, h.z, L, 10 + k * 4, h.size, h.storeys, h.turn, site.hills and "hills" or biome, site.snow,
                 daub)
+            -- The buttress, against the sundering: every house shored up,
+            -- a sloping prop of stone at each front corner and timbers
+            -- braced in an X across its front wall.
+            if b.buttress then
+                local w, d = 4 * h.size, 3.4 * h.size
+                if h.turn then w, d = d * 1.08, w * 0.92 end
+                local tall = STOREY * h.size * h.storeys
+                local fz = h.z + d / 2
+                for side = -1, 1, 2 do
+                    parts[#parts + 1] = part(Sh.frustum(4, 0.2, h.x + side * (w / 2 - 0.2), h.y, fz + 0.2, 0.95,
+                        tall * 0.9, 0, math.pi / 4), R.stone, 105)
+                end
+                for side = -1, 1, 2 do
+                    parts[#parts + 1] = part(Sh.seg(h.x - side * (w / 2 - 0.9), h.y + 0.3, fz + 0.15,
+                        h.x + side * (w / 2 - 0.9), h.y + tall * 0.8, fz + 0.15, 0.22), R.wood, 106)
+                end
+            end
         end
         -- The plague's dead, buried on the plots their houses stood on: rows
         -- of three low mounds of fresh earth, a cross of sticks at the head of
@@ -1239,22 +1256,6 @@ function M.city(look, pop, capital, built, shore, drop, site, pest)
                 parts[#parts + 1] = part(Sh.seg(x - 4.2, 0.35 + (k % 2) * 0.7, lz, x - 2.6, 0.35 + (k % 2) * 0.7, lz, 0.38),
                     R.wood, 97)
             end
-        end
-        if b.buttress then
-            -- The buttress, against the sundering: a squat hall of stone,
-            -- broad at the foot, shored on all four sides by sloping
-            -- buttresses, timbers braced across in an X under its roof.
-            local x, z = at("buttress")
-            parts[#parts + 1] = part(Sh.box(x, 0, z, 4.2, 3.4, 3, 0.3), R.stone, 102, function(ux, uy)
-                if floor(uy * 4) % 2 == 1 and floor((ux + 1) * 4 + uy * 2) % 2 == 0 then return IDX.t end
-                if abs(ux - uy * 1.6 + 0.6) < 0.12 or abs(ux + uy * 1.6 - 0.6) < 0.12 then return IDX.n end
-            end)
-            for k = 0, 3 do
-                local a = 0.3 + k * math.pi / 2 + math.pi / 4
-                local bx, bz = x + cos(a) * 2.6, z + sin(a) * 2.2
-                parts[#parts + 1] = part(Sh.frustum(4, 0.25, bx, 0, bz, 1.3, 2.6, -a, math.pi / 4), R.stone, 103)
-            end
-            parts[#parts + 1] = part(Sh.roof(x, 3, z, 4.8, 4, 1.6, 0.3), L.roof, 104, banded(L))
         end
         if b.lazaret then
             -- The lazaret, against the plague: a long low house of the sick,

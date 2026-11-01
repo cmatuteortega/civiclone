@@ -30,8 +30,9 @@
 --              wave runs in on every city by the sea.
 --
 -- What holds it off is the buttress (D.BUILDINGS.buttress): half the harm a
--- quake does the city, no building brought down and no one killed by one,
--- no fault opened on its land, and less fear. A levee keeps a wave out of
+-- quake does the city, no building brought down and half as many killed by
+-- one, no fault opened on its land, less fear, and none of its people lost
+-- in the great quake. A levee keeps a wave out of
 -- a city, and a shelter (D.SHELTER) halves every blow, as ever.
 --
 -- The cells keep what has happened to them: `fault` (the edges cracked
@@ -267,9 +268,10 @@ end
 -- bring a building down and kill.
 local function quakeCity(game, city, blow, heart)
     shake(game, city, blow)
-    if buttressed(city) or not heart then return end
+    if not heart then return end
     local rng = game.rng
-    if rng:random() < D.QUAKE.fall then
+    local braced_ = buttressed(city)
+    if not braced_ and rng:random() < D.QUAKE.fall then
         local list = {}
         for id in pairs(city.buildings) do
             if id ~= "buttress" then list[#list + 1] = id end
@@ -282,7 +284,7 @@ local function quakeCity(game, city, blow, heart)
             game:emit({ kind = "terrain", cell = city.cell })
         end
     end
-    if rng:random() < D.QUAKE.kill and city.pop > 1 and not Cat.sheltered(city) then
+    if rng:random() < D.QUAKE.kill * (braced_ and 0.5 or 1) and city.pop > 1 and not Cat.sheltered(city) then
         city.pop = city.pop - 1
         game:assignWork(city)
         game:tell(city.owner, city.name .. " HAS BEEN SHAKEN: ITS PEOPLE DIE UNDER THE RUBBLE")
@@ -955,6 +957,10 @@ local function mark(game)
         local w = land(game, cell) and 1.5 or 0.25
         if cell.riftLine then w = w * 3 elseif cell.rangeLine then w = w * 2 end
         if cell.fault then w = w * 1.5 end
+        -- Where people live: the towns feel it most.
+        for _, c in ipairs(game.cities) do
+            if game:dist(cell, game.cells[c.cell]) <= 2 then w = w * QK.nearTowns end
+        end
         return w
     end, n)
     for _, cell in ipairs(picked) do
@@ -996,6 +1002,14 @@ function Q.great(game)
     -- Every city shakes, and the sea comes in on every city by it.
     for _, city in ipairs(game.cities) do
         shake(game, city, QK.greatCity)
+        if not buttressed(city) and city.pop > 1 then
+            local lost = floor(city.pop * QK.greatPop * (Cat.sheltered(city) and 0.5 or 1) + 0.5)
+            if lost > 0 then
+                city.pop = max(1, city.pop - lost)
+                game:assignWork(city)
+                game:tell(city.owner, city.name .. " HAS LOST ITS PEOPLE UNDER THE RUBBLE OF THE GREAT QUAKE")
+            end
+        end
         local cell = game.cells[city.cell]
         if game:coastal(cell) then
             local sea = seaward(game, cell)

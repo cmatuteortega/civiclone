@@ -103,7 +103,7 @@ return {
         assert(count(g, function(c) return c.fault and next(c.fault) ~= nil end) > faults, "faults open")
         assert(not (cell.fault and next(cell.fault)), "but never on a city's own edges")
     end },
-    { "a buttress halves a quake and saves the buildings and the people", function()
+    { "a buttress halves a quake and saves the buildings", function()
         local g = newGame()
         local city = settle(g)
         at(g, D.QUAKE.rift + 1)
@@ -114,7 +114,10 @@ return {
         Quake.quake(g, cell)
         assert(before - city.hp == math.floor(D.QUAKE.city * 0.5 + 0.5))
         for _ = 1, 10 do Quake.quake(g, cell) end
-        assert(city.pop == 4 and city.buildings.monument and city.buildings.granary)
+        assert(city.buildings.monument and city.buildings.granary, "no building comes down")
+        local pop = city.pop
+        Quake.great(g)
+        assert(city.pop == pop, "and the great quake kills none of its people")
         for _, n in ipairs(g:within(cell, 1)) do
             if n.ownerCity == city then assert(not (n.fault and next(n.fault)), "no fault on its land") end
         end

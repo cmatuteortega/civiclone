@@ -156,7 +156,8 @@ end
 
 -- Puffs of dust or steam boiling up from canvas pixel (x, y): `n` of them,
 -- out to `out` and up to `rise`, `size` across, at `g` of their going (0 to
--- 1), thinning by `thin`; light ones (`pale`) for steam and spray.
+-- 1), thinning by `thin`; light ones (`pale` true) for steam and spray,
+-- dark ones (`pale` "ash") for a volcano's ash.
 local function cloud(x, y, n, out, rise, size, g, thin, seed, pale)
     local discs = {}
     for k = 1, n do
@@ -174,7 +175,9 @@ local function cloud(x, y, n, out, rise, size, g, thin, seed, pale)
                 if dd <= (r + 1) * (r + 1) and grain(a, b, q[4] + seed) >= thin then
                     local k = IDX.o
                     if dd <= r * r then
-                        if pale then k = b < 0 and IDX.w or IDX.c
+                        if pale == "ash" then
+                            k = (b < -r * 0.3 and a < 0) and IDX.k or b > r * 0.3 and IDX.u or IDX.n
+                        elseif pale then k = b < 0 and IDX.w or IDX.c
                         else k = (b < -r * 0.3 and a < 0) and IDX.s or b > r * 0.4 and IDX.n or IDX.t end
                     end
                     P.putS(k, floor(q[1]) + a, floor(q[2]) + b)
@@ -240,7 +243,7 @@ local function erupting(p, list)
         -- smoke, thinning at the end.
         local g = 1 - (1 - min(1, t / 2.2)) ^ 2
         local thin = max(0, t - 2.2) * 1.2
-        cloud(x, y - 6, 14, 26, 70, 7, g, thin, p.seed, false)
+        cloud(x, y - 6, 16, 28, 80, 8, g, thin, p.seed, "ash")
         -- The fountain: drops of fire thrown up and falling back.
         if t < 2.6 then
             for k = 1, 40 do

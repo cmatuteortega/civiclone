@@ -669,6 +669,7 @@ local function followPlan()
                     g.cataclysm.marks = g.cataclysm.marks or {}
                     -- With `--next`, it erupts as the next turn begins, to
                     -- watch.
+                    g:emit({ kind = "terrain", cell = v.id })
                     if plan.next then g.cataclysm.marks[v.id] = "erupt" else Quake.erupt(g, v) end
                     print("volcano at hex " .. v.id)
                     -- And older flows, cooled, and the ash's soil.
