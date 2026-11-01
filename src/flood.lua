@@ -82,9 +82,11 @@ end
 
 -- How likely hex `cell` is to grow a step wetter this turn, against the
 -- others; 0 if it can't. Grassland goes to marsh only flat and by water;
--- a forest's ground stays as it is; a flooded hex waits for the water.
+-- a forest's ground stays as it is; a flooded hex waits for the water; the
+-- frozen north (src/mapgen.lua) stays frozen.
 local function wetWeight(game, cell)
     if not land(game, cell) or cell.city or cell.flood or cell.terrain == "marsh" then return 0 end
+    if D.TERRAIN[cell.terrain].frozen then return 0 end
     if cell.terrain ~= "grass" then return cell.feature == "forest" and 0.3 or 1 end
     if cell.elev ~= "flat" or cell.feature or not wet(game, cell) then return 0 end
     local w = D.FLOOD.near

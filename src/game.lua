@@ -490,14 +490,19 @@ function Game:walk(u, path)
     while k <= #path do
         local id = path[k]
         -- Do not walk into a cell we could not stop in unless the moves after
-        -- it carry us on.
+        -- it carry us on, through every such cell in a row, to one we can.
         local cell = self.cells[id]
         if not self:canStand(u, cell) then
-            local cost = self:stepCost(u, self.cells[u.cell], cell)
-            local nextId = path[k + 1]
-            local nextCost = nextId and self:stepCost(u, cell, self.cells[nextId])
-            if not cost or not nextCost or cost == Game.ALL or nextCost == Game.ALL
-                or u.moves - cost < nextCost then break end
+            local left, full, prev, j, clear = u.moves, self:maxMoves(u), self.cells[u.cell], k, false
+            while path[j] do
+                local c = self.cells[path[j]]
+                local cost = self:stepCost(u, prev, c)
+                if not cost or cost == Game.ALL or not affords(left, full, cost) then break end
+                left = max(0, left - cost)
+                if self:canStand(u, c) then clear = true break end
+                prev, j = c, j + 1
+            end
+            if not clear then break end
         end
         if not self:step(u, id) then break end
         k = k + 1

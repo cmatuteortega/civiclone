@@ -1,11 +1,15 @@
 -- Making a map from a seed: one or two continents out of a few octaves of
 -- noise, mountains along the highest of it, deserts where the second noise is
--- dry, forests where a third is wet, a few resources, rivers from the hills
--- down to the sea, and a start for each civilization on the biggest stretch
--- of land, as far from the others as it can be.
+-- dry, forests where a third is wet, tundra and snow towards the top and
+-- bottom of the map where it is coldest, a few resources, rivers from the
+-- hills down to the sea, and a start for each civilization on the biggest
+-- stretch of land, as far from the others as it can be.
 --
 -- Thresholds are taken as shares of the map (quantiles) rather than noise
 -- values, so every seed has about the same amount of land, hills and desert.
+-- The cold is the exception: it is a share of the land, but only where the
+-- land reaches far enough from the middle rows, so a map whose land keeps to
+-- the middle has little or none.
 
 local H = require "src.hex"
 local Rng = require "src.rng"
@@ -18,6 +22,9 @@ local Mapgen = {}
 local makeRivers -- below, under rivers
 
 local LAND, MOUNTAIN, HILLS, DESERT, PLAINS, FOREST = 0.5, 0.07, 0.2, 0.2, 0.38, 0.26
+-- The cold land: its share of the land at most (snow the coldest of it), and
+-- how far from the middle row to the top or bottom (0 to 1) it may start.
+local TUNDRA, SNOW, POLAR = 0.12, 0.035, 0.45
 
 -- The value below which share f of the list lies.
 local function quantile(values, f)
@@ -30,6 +37,7 @@ end
 local function build(cols, rows, seed)
     local rng = Rng.new(seed)
     local elevN, moistN, woodN = Rng.noise(seed), Rng.noise(seed + 101), Rng.noise(seed + 977)
+    local coldN = Rng.noise(seed + 3301)
     local cells = {}
     local function at(c, r)
         if c < 0 or r < 0 or c >= cols or r >= rows then return nil end
@@ -48,6 +56,10 @@ local function build(cols, rows, seed)
             e = e - max(0, edge - 0.45) * 1.6
             local cell = { id = r * cols + c + 1, c = c, r = r, x = x, z = z, e = e,
                 m = moistN(u * 4 + 7, v * 3 + 3, 4), wood = woodN(u * 6 + 13, v * 5, 3) }
+            -- How cold: the further from the middle row the colder, ragged
+            -- by a noise of its own so the edge of the cold wanders.
+            cell.lat = abs(v * 2 - 1)
+            cell.cold = cell.lat + (coldN(u * 5 + 21, v * 4 + 9, 3) - 0.5) * 0.4
             cells[cell.id] = cell
             heights[#heights + 1] = e
         end
@@ -65,6 +77,10 @@ local function build(cols, rows, seed)
     local uplandAt = quantile(landE, 0.5)
     local desertAt = quantile(landM, DESERT)
     local plainsAt = quantile(landM, DESERT + PLAINS)
+    local landC = {}
+    for k, cell in ipairs(land) do landC[k] = cell.cold end
+    local tundraAt = quantile(landC, 1 - TUNDRA)
+    local snowAt = quantile(landC, 1 - SNOW)
 
     for _, cell in ipairs(cells) do
         if cell.e < seaLevel then
@@ -76,6 +92,13 @@ local function build(cols, rows, seed)
             if cell.e >= mountainAt then cell.elev = "mountain"
             elseif cell.e >= hillsAt or rng:random() < 0.06 then cell.elev = "hills"
             else cell.elev = "flat" end
+            -- The cold land, far to the top or bottom: tundra, and snow
+            -- where it is coldest. Not the mountains: snowbound already, as
+            -- the frost has them (src/frost.lua).
+            if cell.elev ~= "mountain" and cell.lat >= POLAR then
+                if cell.cold >= snowAt then cell.terrain = "snow"
+                elseif cell.cold >= tundraAt then cell.terrain = "tundra" end
+            end
         end
     end
     -- Coast: water beside land.
@@ -87,21 +110,26 @@ local function build(cols, rows, seed)
             end
         end
     end
-    -- Forest where it is wet enough, never on desert or mountains.
+    -- Forest where it is wet enough, never on desert, snow or mountains (on
+    -- the tundra it is the rimed pines of the north).
+    local function woodable(cell)
+        return cell.elev ~= "mountain" and cell.terrain ~= "desert" and cell.terrain ~= "snow"
+    end
     local woods = {}
     for _, cell in ipairs(land) do
-        if cell.elev ~= "mountain" and cell.terrain ~= "desert" then woods[#woods + 1] = cell.wood + cell.m * 0.3 end
+        if woodable(cell) then woods[#woods + 1] = cell.wood + cell.m * 0.3 end
     end
     local forestAt = #woods > 0 and quantile(woods, 1 - FOREST) or 2
     for _, cell in ipairs(land) do
-        if cell.elev ~= "mountain" and cell.terrain ~= "desert" and cell.wood + cell.m * 0.3 >= forestAt then
+        if woodable(cell) and cell.wood + cell.m * 0.3 >= forestAt then
             cell.feature = "forest"
         end
     end
     -- Resources.
     for _, cell in ipairs(land) do
         local roll = rng:random()
-        if cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert" and roll < 0.08 then
+        local frozen = D.TERRAIN[cell.terrain].frozen
+        if cell.elev == "flat" and not cell.feature and cell.terrain ~= "desert" and not frozen and roll < 0.08 then
             cell.resource = "wheat"
         elseif cell.elev == "hills" and not cell.feature and roll < 0.14 then
             cell.resource = "stone"
@@ -440,7 +468,7 @@ function Mapgen.generate(cols, rows, seed, civs)
         if #piece >= landCount * 0.5 then
             local candidates = {}
             for _, cell in ipairs(piece) do
-                if cell.terrain ~= "desert" and cell.c > 1 and cell.r > 1 and cell.c < cols - 2 and cell.r < rows - 2 then
+                if cell.terrain ~= "desert" and not D.TERRAIN[cell.terrain].frozen and cell.c > 1 and cell.r > 1 and cell.c < cols - 2 and cell.r < rows - 2 then
                     cell.score = siteScore(cells, cols, rows, cell)
                     candidates[#candidates + 1] = cell
                 end

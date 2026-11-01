@@ -10,10 +10,11 @@ local Beasts = require "src.beasts"
 local function bare(seed) return Game.new({ seed = seed or 5, wild = false }) end
 
 -- Two neighbouring open land hexes, no river between, nothing on them, away
--- from everyone.
+-- from everyone, and out of the frozen north (deep snow slows the beasts).
 local function pair(g)
     for _, cell in ipairs(g.cells) do
-        if g:passable(cell) and not cell.city and not g.mil[cell.id] and not g.civ[cell.id] then
+        if g:passable(cell) and not cell.city and not g.mil[cell.id] and not g.civ[cell.id]
+            and not D.TERRAIN[cell.terrain].frozen then
             for _, n in ipairs(g:neighbours(cell)) do
                 if g:passable(n) and not n.city and not g.mil[n.id] and not g.civ[n.id] and not g:riverBetween(cell, n)
                     and not cell.lair and not n.lair then

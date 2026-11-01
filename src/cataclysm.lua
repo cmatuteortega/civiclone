@@ -196,10 +196,12 @@ end
 Cat.hot = hot
 
 -- How likely hex `cell` is to dry a step this turn, against the others; 0
--- if it can't. Forests don't dry: they burn. With `bake`, only the desert,
+-- if it can't. Forests don't dry: they burn. The frozen north the map was
+-- made with (src/mapgen.lua) holds its cold. With `bake`, only the desert,
 -- to bake hard; without, only the rest.
 local function dryWeight(game, cell, bake)
     if not land(game, cell) or cell.feature == "forest" or cell.fire or cell.scorched then return 0 end
+    if D.TERRAIN[cell.terrain].frozen then return 0 end
     if (cell.terrain == "desert") ~= (bake == true) then return 0 end
     local H = D.HEAT
     local w = 1

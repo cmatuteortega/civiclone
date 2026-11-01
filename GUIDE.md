@@ -186,9 +186,20 @@ has about the same mix.
 | 20% of land (the driest) | Desert |
 | next 38% | Plains |
 | the rest | Grassland |
-| 26% of non-desert, non-mountain land | Forest |
+| up to 12% of land (the coldest, towards the top and bottom edges) | Tundra, the coldest ~3.5% of it Snow |
+| 26% of non-desert, non-snow, non-mountain land | Forest |
 
 Water next to land is **coast**; the rest is **ocean**.
+
+**The cold north and south.** How cold a hex is depends on how far it lies
+from the middle row, ragged by a noise of its own. Only land far enough from
+the middle (the outer rows, top and bottom) can be cold; there the coldest
+land is tundra (forests on it are the rimed pines of the north) and the very
+coldest snow, with no trees. Mountains keep their own terrain, snowbound
+already. No wheat grows on tundra or snow, and no civilization starts on
+either. The drought and the long rains leave this frozen land as it is; the
+frost of the still sun and the sky's falling starts from it as well as from
+the mountains, and the still sun's endless day thaws it.
 
 ### Yields
 
@@ -209,8 +220,9 @@ Water next to land is **coast**; the rest is **ocean**.
 Hills and forest stack: a forested hill yields 2 extra production, costs 3
 moves to enter, and gives +6 defence.
 
-Tundra, snow and sea ice are only made by [the frost](#the-frost): the
-still sun's endless night and the long night of the sky's falling. No farm
+Some tundra and snow are there from the start, at the cold edges of the map
+(above). More of them, and all the sea ice, are made by [the frost](#the-frost):
+the still sun's endless night and the long night of the sky's falling. No farm
 goes on snow or ice, and no city on ice.
 
 ### Resources

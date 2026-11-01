@@ -344,4 +344,24 @@ return {
         end
         assert(ships > 0, "someone put to sea")
     end },
+    { "the map is made with a frozen north and south: tundra, snow on the coldest, no city starting there", function()
+        local Mapgen = require "src.mapgen"
+        for _, seed in ipairs({ 3, 5, 8, 21 }) do
+            local map = Mapgen.generate(D.COLS, D.ROWS, seed, #D.CIVS)
+            local tundra, snow, mid = 0, 0, 0
+            for _, cell in ipairs(map.cells) do
+                if D.TERRAIN[cell.terrain].frozen then
+                    assert(cell.terrain ~= "ice", "no sea ice at the start")
+                    assert(cell.elev ~= "mountain" and cell.resource ~= "wheat")
+                    assert(not (cell.terrain == "snow" and cell.feature), "no trees in the deep snow")
+                    if cell.terrain == "tundra" then tundra = tundra + 1 else snow = snow + 1 end
+                    -- Only far to the top or the bottom.
+                    if math.abs(cell.r - (D.ROWS - 1) / 2) < D.ROWS * 0.2 then mid = mid + 1 end
+                end
+            end
+            assert(tundra > 0 and snow > 0 and tundra > snow, ("tundra %d, snow %d"):format(tundra, snow))
+            assert(mid == 0, "nothing frozen by the middle rows")
+            for _, s in ipairs(map.starts) do assert(not D.TERRAIN[s.terrain].frozen, "no start on frozen ground") end
+        end
+    end },
 }
