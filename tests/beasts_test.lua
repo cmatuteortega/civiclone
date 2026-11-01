@@ -218,4 +218,51 @@ return {
             if u.owner == Game.WILD then assert(Beasts.canEnter(g, u, g.cells[u.cell])) end
         end
     end },
+    { "a beast in a fire gets out of it, to a hex that is not burning", function()
+        local g = bare()
+        local a = pair(g)
+        local wolf = Beasts.spawn(g, "wolf", a.id)
+        a.fire = D.HEAT.burn
+        g:wildTurn()
+        assert(wolf.cell ~= a.id, "it fled the fire")
+        assert(not g.cells[wolf.cell].fire)
+    end },
+    { "a beast does not wander into the flood, nor strike into it", function()
+        local g = Game.new({ seed = 5, wild = false, cataclysm = "flood" })
+        local a, b = pair(g)
+        local boar = Beasts.spawn(g, "boar", a.id)
+        for _, n in ipairs(g:neighbours(a)) do n.flood = 3 end
+        for _ = 1, 8 do
+            g:wildTurn()
+            assert(boar.cell == a.id, "the boar keeps to its dry hex")
+        end
+        local w = g:addUnit("warrior", 1, b.id)
+        boar.angry, boar.angryTurns = w.id, 3
+        g:wildTurn()
+        assert(w.hp == 100 and boar.cell == a.id, "it would not follow its kill into the water")
+    end },
+    { "a beast steps out from under a falling stone, and a lair sends none out under one", function()
+        local g = Game.new({ seed = 5, wild = false, cataclysm = "sky" })
+        local a = pair(g)
+        local wolf = Beasts.spawn(g, "wolf", a.id)
+        g.cataclysm.marks = { [a.id] = "big" }
+        assert(Beasts.perilous(g, wolf, a))
+        g:wildTurn()
+        assert(wolf.cell ~= a.id, "it got out of the way")
+        assert(not g.cataclysm.marks[wolf.cell])
+        g:removeUnit(wolf)
+        assert(Beasts.spawn(g, "wolf", a.id).cell ~= a.id, "not put under the stone")
+    end },
+    { "the demons' rifts are no place for a beast; a city's hex is safe from all of it", function()
+        local g = Game.new({ seed = 5, wild = false, cataclysm = "demons" })
+        local a = pair(g)
+        local bear = Beasts.spawn(g, "bear", a.id)
+        g.cataclysm.marks = g.cataclysm.marks or {}
+        g.cataclysm.marks[a.id] = "rift"
+        g:wildTurn()
+        assert(bear.cell ~= a.id, "it left where the rift will open")
+        local town = { id = a.id, city = {}, fire = 2, flood = 2 }
+        g.cataclysm.marks[a.id] = "citadel"
+        assert(not Beasts.perilous(g, bear, town))
+    end },
 }

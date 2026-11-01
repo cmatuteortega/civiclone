@@ -737,6 +737,17 @@ one of the civilizations' units must be before a hostile beast goes for it.
 - Left alone, a beast wanders a step about its home now and then and keeps
   2 hexes from any city.
 
+**The cataclysm:** beasts keep out of its way. A beast that stands where
+the cataclysm would hurt it goes first, before anything else, to the
+nearest safe hex its moves reach, however far from home. It finds its way
+back after. Such hexes are those burning, those flooded (save for sea
+beasts), the scorch's baked earth off a river, a hex a stone is marked to
+fall on, the still sun's deadly day and night and the ice round sea beasts,
+and a hex where a rift or the citadel is about to open. A beast never
+steps onto one, nor strikes a unit standing on one, since it would follow
+its kill in. A lair sends out no beast onto one. A city's hex is never
+one.
+
 **Night:** in the turns played in the dark (dusk, midnight and dawn: three
 of every eight), wolves strike 6 stronger and notice from a hex further.
 

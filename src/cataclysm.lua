@@ -315,6 +315,32 @@ local function unitsOn(game, cell)
 end
 Cat.unitsOn = unitsOn
 
+-- Will unit u be hurt, or worse, if it ends the turn on hex `cell`: a
+-- fire, a flood (if it cannot swim), the heat's baked earth in the scorch,
+-- a stone marked to fall, the still sun's day or night, the ice round a
+-- ship, a rift or the citadel about to come up under it. A city's hex is
+-- never one. The beasts (src/beasts.lua) keep off these.
+function Cat.perilous(game, cell, u)
+    local c = game.cataclysm
+    if not c or cell.city then return false end
+    local sea = u.def.sea
+    if cell.fire and not game:isWater(cell) then return true end
+    if cell.flood and not sea then return true end
+    local kind = c.kind
+    if kind == "heat" then
+        return not sea and cell.scorched == true and Cat.stage(game) == "scorch" and not game:onRiver(cell)
+    elseif kind == "sky" then
+        if Cat.KINDS.sky.marked(game, cell) then return true end
+        return sea and cell.terrain == "ice"
+    elseif kind == "sun" then
+        return Cat.KINDS.sun.danger(game, cell, u) == true
+    elseif kind == "demons" then
+        local m = c.marks and c.marks[cell.id]
+        return m == "rift" or m == "citadel"
+    end
+    return false
+end
+
 local function fires(game, stage)
     local H = D.HEAT
     local burning = {}

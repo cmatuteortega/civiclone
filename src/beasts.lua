@@ -16,6 +16,15 @@ local floor, min = math.floor, math.min
 
 local Beasts = {}
 
+-- The cataclysm (src/cataclysm.lua), fetched when first wanted: it loads
+-- the demons, which load this.
+local Cat
+local function perilous(game, u, cell)
+    Cat = Cat or require "src.cataclysm"
+    return Cat.perilous(game, cell, u)
+end
+Beasts.perilous = perilous
+
 Beasts.WILD = 0
 
 -- The wild's player: no cities, no techs, sees nothing (it knows).
@@ -104,7 +113,7 @@ function Beasts.spawn(game, kind, cellId, home)
     local at
     for _, cell in ipairs(game:within(game.cells[cellId], 1)) do
         if not game.mil[cell.id] and not game.civ[cell.id] and Beasts.canEnter(game, probe, cell)
-            and (cell.id == cellId or not at) then
+            and not perilous(game, probe, cell) and (cell.id == cellId or not at) then
             if cell.id == cellId then at = cell.id break end
             at = at or cell.id
         end
@@ -309,11 +318,11 @@ local function leashOk(game, u, cell, extra)
 end
 
 -- A step to a neighbouring cell it can stand on, chosen by `score` (the
--- highest; nil not at all).
+-- highest; nil not at all). Never into the cataclysm's way.
 local function stepBy(game, u, score)
     local best, bv
     for _, n in ipairs(game:neighbours(game.cells[u.cell])) do
-        if game:canStand(u, n) then
+        if game:canStand(u, n) and not perilous(game, u, n) then
             local v = score(n)
             if v and (not bv or v > bv) then best, bv = n, v end
         end
@@ -322,11 +331,12 @@ local function stepBy(game, u, score)
     return false
 end
 
--- Strike whoever is next to it that it can, the weakest first.
+-- Strike whoever is next to it that it can, the weakest first: not where
+-- the cataclysm is, as it would follow its kill in.
 local function strikeNear(game, u, only)
     local best, bv
     for _, n in ipairs(game:neighbours(game.cells[u.cell])) do
-        if game:canAttack(u, n) then
+        if game:canAttack(u, n) and not perilous(game, u, n) then
             local t = game.mil[n.id] or game.civ[n.id]
             if t and (not only or t.id == only) then
                 local v = (t.def.civilian and 1000 or 0) - (t.hp or 100) - game:defense(t)
@@ -346,7 +356,8 @@ local function hunt(game, u, t)
     if not path then return false end
     local steps = {}
     for _, id in ipairs(path) do
-        if not leashOk(game, u, game.cells[id], 2) then break end
+        local cell = game.cells[id]
+        if not leashOk(game, u, cell, 2) or perilous(game, u, cell) then break end
         steps[#steps + 1] = id
     end
     if #steps > 0 then game:walk(u, steps) end
@@ -383,7 +394,30 @@ local function flee(game, u, from)
     end
 end
 
+-- Out of the cataclysm's way, if it stands in it: to the nearest hex its
+-- moves reach that is safe, home's way first, however far from home (it
+-- finds its way back after). Answers whether it had to.
+local function escape(game, u)
+    local here = game.cells[u.cell]
+    if not perilous(game, u, here) then return false end
+    local home = game.cells[u.home or u.cell]
+    local best, bv
+    for _, cell in ipairs(game:within(here, u.def.moves)) do
+        if cell ~= here and game:canStand(u, cell) and not perilous(game, u, cell) then
+            local v = game:dist(here, cell) * 10 + game:dist(cell, home) + game.rng:random()
+            if not bv or v < bv then best, bv = cell, v end
+        end
+    end
+    if best then
+        local path = game:path(u, best.id)
+        if path and #path > 0 then game:walk(u, path) end
+    end
+    u.dest = nil
+    return true
+end
+
 local function act(game, u)
+    if escape(game, u) then return end
     local def = u.def
     local here = game.cells[u.cell]
     local night = D.night(game.turn, game, here)
