@@ -381,8 +381,10 @@ end }
 -- Blocks of ice thrown up where the floes pressed together, and the snow on
 -- them: white on top, their broken faces a step or two down, streaked.
 MAT.iceblock = { id = 47, ramp = ramp("w", "c", "s", "t"), print = function(s, x, y, z, nx, ny, nz, lev)
-    if ny > 0.7 then return grain(x * 2, z * 2, 152) > 0.1 and IDX.w or IDX.c end
-    if grain(floor(y * 2), floor(x + z), 153) > 0.88 then return IDX.w end
+    if ny > 0.9 then return grain(x * 2, z * 2, 152) > 0.1 and IDX.w or IDX.c end
+    if grain(floor(y * 2), floor(x + z), 153) > 0.9 then return IDX.w end
+    -- The broken faces: blue-grey ice, darker turned from the light.
+    return lev <= 2 and IDX.c or (lev == 3 and IDX.s or IDX.t)
 end }
 -- A river frozen over: grey ice, snow blown along it in streaks the way it
 -- ran, a crack down the middle and its banks rimed.
@@ -652,22 +654,21 @@ function World:hexSolids(cell)
         local a = grain(cell.id, 1, 160) * math.pi
         local ca, sa = math.cos(a), math.sin(a)
         local off = (grain(cell.id, 2, 160) - 0.5) * 6
-        for k = -2, 2 do
-            local u = k * 3.6 + (grain(cell.id, k, 161) - 0.5) * 1.4
+        for k = -3, 3 do
+            local u = k * 2.4 + (grain(cell.id, k, 161) - 0.5) * 0.8
             local x, z = cell.x + ca * u - sa * off, cell.z + sa * u + ca * off
             if H.inset(x, z, cell.x, cell.z) > 3 then
-                local h = 2.6 + grain(cell.id, k, 162) * 3 * (1 - abs(k) / 4)
-                local w = 2.4 + grain(k, cell.id, 163) * 1.2
-                add(Sh.frustum(4, 0.35, x, top - 0.3, z, w, h, nil, -a + (grain(cell.id, k, 164) - 0.5) * 0.9),
+                local h = 2.4 + grain(cell.id, k, 162) * 3.4 * (1 - abs(k) / 5)
+                local w = 2.2 + grain(k, cell.id, 163) * 1.2
+                add(Sh.frustum(4, 0.3, x, top - 0.4, z, w, h, nil, -a + (grain(cell.id, k, 164) - 0.5) * 1.2),
                     MAT.iceblock).join = "ridge"
             end
         end
-        -- And a hummock or two: snow drifted over broken ice.
-        for n, p in ipairs(scatter(cell, 3, 4, 165)) do
-            if n ~= 2 then
-                local r = 2.2 + grain(p[1], p[2], 166) * 1.4
-                add(Sh.ell(p[1], top, p[2], r, 1.4 + grain(p[2], p[1], 167), r * 0.8), MAT.iceblock)
-            end
+        -- And a hummock: snow drifted over broken ice.
+        local p = scatter(cell, 1, 5, 165)[1]
+        if p then
+            local r = 2.6 + grain(p[1], p[2], 166) * 1.4
+            add(Sh.ell(p[1], top - 0.3, p[2], r, 1.6 + grain(p[2], p[1], 167), r * 0.8), MAT.iceblock)
         end
         if cell.drownedForest then
             for n, p in ipairs(scatter(cell, 4, 3.5, 40)) do

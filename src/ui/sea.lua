@@ -133,7 +133,7 @@ float dayAt(vec2 p) {
 float exposureAt(vec2 p) {
     float d = dayAt(p);
     if (d < 0.0) return exposure;
-    return mix(-2.9, exposure, d) + 0.9 * smoothstep(band + 1.0, band + 7.0, sunSide(p));
+    return mix(-2.9, exposure, d) + 0.6 * smoothstep(band + 1.0, band + 7.0, sunSide(p));
 }
 float nightAt(vec2 p) {
     float d = dayAt(p);

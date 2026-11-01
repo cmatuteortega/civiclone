@@ -6,10 +6,11 @@
 --   luajit tools/cities.lua [dir]
 --
 -- writes dir/cities-growth.ppm (each land, a row; each size, a column),
--- dir/cities-sites.ppm (the same city in different places) and
+-- dir/cities-sites.ppm (the same city in different places),
 -- dir/cities-levee.ppm and dir/cities-shelter.ppm (towns without and with a
--- levee, and a shelter), at one pixel to
--- the pixel; scale them up by a whole number to look at them.
+-- levee, and a shelter) and dir/cities-frost.ppm (towns on tundra and snow,
+-- with and without a hearth), at one pixel to the pixel; scale them up by a
+-- whole number to look at them.
 
 package.path = "./?.lua;" .. package.path
 

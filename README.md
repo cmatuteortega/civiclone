@@ -186,16 +186,42 @@ opens in it.
 
 ![The demons on their own: spiders, a brood mother, eyes, tentacles, the Eye of the Abyss; a rift, the citadel; a town with a sanctum](shots/38-demon-models.png)
 
+Or the sun stands still (`src/stillsun.lua`). The days grow long, the sun
+crossing less of the sky each turn, until it stops at noon and stays there.
+A line is drawn across the world as it stops, at any slant and through any
+part of the land, a new one every game, so nobody can know their side
+before: on one side it is day for good, on the other night, and a band of
+twilight lies between, lit by a sun on the horizon, that narrows stage by
+stage. The day is the heat death's, drying the land, setting the forests
+alight and baking the deserts under a glare that washes the land pale. The
+night freezes (`src/frost.lua`): the ground goes to tundra, cut into great
+frost polygons with snow in the troughs, then to drifted snow that buries
+the farms; the trees carry snow on their boughs, the towns on their roofs,
+the rivers freeze over, and snow falls. The sea freezes from the shore out
+into ice with pressure ridges thrown up on it, floes drifting in the slush
+beside it, that armies walk across and ships are crushed in. A cistern
+holds a town in the day, a hearth (a domed kiln-house with its fire never
+let out) in the night; only the twilight is spared, and the computer sends
+its people there. The sky's long night now freezes the land too.
+
+![The still sun: the endless day on the left, the night on the right, the twilight between them burning](shots/39-still-sun.png)
+![The frost in daylight: tundra, snow, snowbound forests and hills, a frozen river, and the sea frozen](shots/40-frost.png)
+![Sea ice: pressure ridges, floes drifting in the slush by its edge, a lead of open water](shots/41-sea-ice.png)
+![The endless night: snow and sea ice in the dark, snow falling](shots/42-endless-night.png)
+![Snow falling on the ice at night](shots/43-snowfall.gif)
+![Towns on tundra and snow, snow on their roofs, with and without a hearth](shots/44-frozen-towns.png)
+![The sky's long night, the land freezing under it](shots/45-long-night-frost.png)
+
 ## Running it
 
 ```
 love .
 ```
 
-Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|none` picks how the world ends, `--play` skips
+Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|sun|none` picks how the world ends, `--play` skips
 the title, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
-LÖVE's save folder, and quits (`--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
+LÖVE's save folder, and quits (`--size WxH` makes the window that big; `--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds
 

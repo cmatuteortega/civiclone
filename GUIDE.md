@@ -43,10 +43,11 @@ begins:
 | **The deluge** | The [deluge](#the-deluge): the long rains, the floods and the rising sea, and the game ends at turn 160 |
 | **Skyfall** | The [sky falls](#the-sky-falls): the starfall, the bombardment and the long night, and the game ends at turn 160 |
 | **Demons** | [The demons](#the-demons): the rifts, the deep and the hellgate, a citadel to raze, and the game ends at turn 160 |
-| **None** | No cataclysm, no cisterns, levees or shelters: the game ends at turn 150 on score |
+| **The still sun** | [The sun stands still](#the-still-sun): endless day on one side of a line no one can foresee, endless night and ice on the other, and the game ends at turn 160 |
+| **None** | No cataclysm, no cisterns, levees, hearths or shelters: the game ends at turn 150 on score |
 
 The choice is kept for the next game. `love . --cataclysm none` (or `heat`,
-`flood`, `sky` or `demons`) overrides it.
+`flood`, `sky`, `demons` or `sun`) overrides it.
 
 Every game makes a new map from a seed: random by default, or chosen with
 `love . --seed 1234`. The same seed always makes the same map. While the map
@@ -201,9 +202,16 @@ Water next to land is **coast**; the rest is **ocean**.
 | **+ Hills** | +0 | +1 | +0 | +1 | +3 |
 | **+ Forest** | +0 | +1 | +0 | +1 | +3 |
 | Mountains | 0 | 0 | 0 | impassable | — |
+| Tundra | 1 | 0 | 0 | 1 | 0 |
+| Snow | 0 | 0 | 0 | 2 | 0 |
+| Sea ice | 0 | 0 | 0 | 1, on foot | — |
 
 Hills and forest stack: a forested hill yields 2 extra production, costs 3
 moves to enter, and gives +6 defence.
+
+Tundra, snow and sea ice are only made by [the frost](#the-frost): the
+still sun's endless night and the long night of the sky's falling. No farm
+goes on snow or ice, and no city on ice.
 
 ### Resources
 
@@ -448,17 +456,20 @@ below 1) and the store empties.
 | Walls | 80 | +10 strength, +100 HP, the city shoots | Masonry |
 | Harbour | 90 | +1 food on each worked water hex | Shipbuilding; a city on the water |
 | Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
-| Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less | Masonry; only in the heat death |
+| Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less. The same against the day of [the still sun](#the-still-sun) | Masonry; only in the heat death or under the still sun |
 | Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less | Masonry; only in the deluge |
 | Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Mining; only when there is a cataclysm |
 | Sanctum | 70 | Against [the demons](#the-demons): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Writing; only against the demons |
+| Hearth | 70 | Against the night of [the still sun](#the-still-sun): its land freezes a quarter as fast, its farms keep their food through the night, its people go 2 less cold | Pottery; only under the still sun |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
 a round stone tank of water under a little roofed well-head, low banks of
 earth capped with stone all round the hex (the levee), a low mound of turf
 ringed with stones with a stone doorway into it at the front (the shelter), a ring of tall pale carved
-stones round a lamp kept burning (the sanctum).
+stones round a lamp kept burning (the sanctum), a squat domed kiln-house of
+stone with its mouth glowing, a tall smoking chimney and a stack of logs (the
+hearth). A town on frozen ground has snow on its roofs.
 A city on the water builds out over it on the side nearest the front of the
 screen: steps down the bank and a pier with a boat tied up; with a harbour a
 stone quay, a crane and goods; with a lighthouse a mole out to a striped tower
@@ -551,7 +562,7 @@ waits for the next choice.
 
 | Technology | Cost | Needs | Unlocks |
 | --- | --- | --- | --- |
-| Pottery | 25 | — | Granary |
+| Pottery | 25 | — | Granary, Hearth |
 | Mining | 25 | — | Mines, Shelter |
 | Archery | 35 | — | Archer |
 | Masonry | 40 | Mining | Walls, Cistern, Levee |
@@ -846,7 +857,7 @@ the land, and the sky strikes where it has said it will. The rules are in
 | 90 | **The omen** | Everyone is told the starfall comes in 10 turns. A comet is seen, its tail longer every turn, and shooting stars cross the night. On turn 99 the first stones are seen coming |
 | 100–119 | **The starfall** | 3 small stones fall a turn |
 | 120–139 | **The bombardment** | 6 stones a turn, half of them great ones. The dust starts to hide the sun, and every city loses 2 food a turn to the cold |
-| 140–160 | **The long night** | The sun never rises again: every turn is played in the dark, and the beasts that hunt by night always do. 4 stones a turn, 40% great. Every farm yields 1 food less, and every city loses 4 food a turn to the cold. On turn 144 everyone is told where **the heart of the comet** will fall, and on turn 150 it does |
+| 140–160 | **The long night** | The sun never rises again: every turn is played in the dark, and the beasts that hunt by night always do. 4 stones a turn, 40% great. Every farm yields 1 food less, and every city loses 4 food a turn to the cold. [The frost](#the-frost) comes: 5 hexes of land freeze a step a turn, out from the mountains and what has frozen, and 2 hexes of the shallows by the frozen shore freeze to ice; snow falls. On turn 144 everyone is told where **the heart of the comet** will fall, and on turn 150 it does |
 
 **Seen coming.** Every stone's hex is marked the turn before it falls:
 hatched and ringed on the ground, and the stone shown high over it as a
@@ -961,12 +972,78 @@ citadel before any rival's city. In all-AI games the citadel is razed in
 some games and stands in others; the towns that have no army to spare lose
 people to the demons and the dread.
 
+## The still sun
+
+The world ends with the sun standing still. From turn 90 the days grow
+long, and the game ends when turn 160 is played out. It is the one
+cataclysm that splits the world: what happens to a place depends on which
+side of a line it lies, and nobody knows where the line will fall until the
+sun stops. The rules are in `src/stillsun.lua`, the numbers in `D.SUN` in
+`src/defs.lua`; what the cold does, the long night of [the sky's
+falling](#the-sky-falls) shares (`src/frost.lua`, [the frost](#the-frost)).
+
+| Turns | Stage | What happens |
+| --- | --- | --- |
+| 90 | **The omen** | Everyone is told the sun will stand still in 10 turns. The days grow long: every turn the sun crosses less of the sky, until it comes to noon |
+| 100–119 | **The sun stands still** | It stops at noon. **The line** is drawn: day for good on one side, night on the other, a band of **twilight** 3 hexes either side of it. Every civilization is told how many of its cities are in the day, the night and the twilight. The day dries 4 hexes a turn, the night freezes 4 |
+| 120–139 | **The searing and the frost** | The twilight narrows to 2½ hexes. The day dries 6 hexes a turn, and 2 fires start in its forests and fields; the night freezes 6, and 3 hexes of the shallows freeze to ice. Cities in the day lose 2 food a turn to thirst, in the night 2 to the cold |
+| 140–160 | **The last twilight** | The twilight narrows to 1½ hexes. The day dries 8 hexes a turn and bakes 5 of its deserts hard; 3 fires a turn. The night freezes 8, and 5 hexes of sea, the open ocean too. Thirst and cold take 4. A unit that ends a turn on baked earth (off a river) in the day, or out on the snow in the night, loses 10 HP |
+
+**The line** runs any way across the map, a new way every game, and through
+the land: somewhere between 30% and 70% of the land's breadth that way.
+Which side is day is part of the way it points. Hover a hex to see where it
+lies (ENDLESS DAY, TWILIGHT or ENDLESS NIGHT); the minimap shows the night
+side a step darker. It is always day on the day side and always night on
+the night side: the wolves there hunt by night for good.
+
+**The day** is the heat death's: grassland dries to plains and plains to
+desert (its farm lost), deepest in the day first, 3 times as fast beside
+desert or burnt land, and slower by a river (¼), on the coast (½), on hills
+(½) and on a cistern's land (¼). What froze before the line was drawn thaws
+to bare plains. Fires spread as the heat's wildfires do. A farm off a
+river and without a cistern yields 1 food less.
+
+**The night** is [the frost](#the-frost)'s, deepest in the night first, 3
+times as fast beside frozen ground or mountains, and slower by a river
+(0.3), on the coast (0.6) and on a hearth's land (¼). Every farm without a
+hearth yields 1 food less, and sea ice yields nothing.
+
+**The twilight** is spared: nothing there dries or freezes, and its cities
+neither thirst nor go cold. As it narrows, what was twilight falls to one
+side or the other.
+
+**Cisterns** (in the day), **hearths** (in the night) and **shelters**
+are the way to hold on: a cistern or a hearth spares a city 2 food of the
+thirst or the cold. The AI builds the one its city's side needs once the
+line is drawn, then a shelter. A civilization with no city in the twilight
+sends settlers there from a city of 3 or more, and they look up to 14 hexes
+for a site, the twilight first. Its units step off the baked earth and the
+snow in the last twilight, towards the line, and its ships out of the ice.
+
+### The frost
+
+What the cold does to the land and the sea (`src/frost.lua`), under the
+still sun's night and in the sky's long night:
+
+- **Land** freezes a step at a time: grassland, plains, desert and marsh to
+  **tundra** (1 food; the wheat killed, a farm kept), then tundra to
+  **snow** (nothing; the farm buried, 2 moves to wade). Forests keep their
+  trees and their ground freezes under them. A town's own hex freezes too
+  (snow on its roofs) but still feeds it as a city's hex does.
+- **The sea** freezes from the frozen shore out: shallows beside frozen land
+  or ice first, the open ocean only in the still sun's last twilight. **Sea
+  ice** is land now: walked on (so armies cross what was sea), never sailed,
+  no city on it, its fish gone. A ship (or a beast of the sea) the ice
+  closes round loses 25 HP a turn until it gets out.
+- **A river** between two frozen hexes is frozen over, and crossed with no
+  ford.
+
 ## Winning and losing
 
 | Outcome | How |
 | --- | --- |
 | **Domination victory** | Every rival is destroyed, or you hold every capital |
-| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), the [deluge](#the-deluge), [the sky's falling](#the-sky-falls) or [the demons](#the-demons), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
+| **Score victory** | Turn 160, the last of the [heat death](#the-heat-death), the [deluge](#the-deluge), [the sky's falling](#the-sky-falls), [the demons](#the-demons) or [the still sun](#the-still-sun), passes (turn 150 with no cataclysm) and your score is at least as high as every rival's |
 | **Defeat** | Your civilization is destroyed, or that last turn passes and a rival scores higher |
 
 **Elimination:** a civilization with no cities and no settler is destroyed,
@@ -1098,6 +1175,18 @@ crown stands, how much fog darkens it, and its colour.
   and eddies as it runs east; marsh is dark sodden ground with still pools
   and reeds; silt lies in pale bands with tide lines; drowned forests stand
   dead and bleached in the shallows.
+- **The frost** (`src/world.lua`, `src/ui/snow.lua`): tundra is pale ground
+  cut into great frost polygons, their troughs white with snow, dark
+  tussocks and lichen on it; snow lies white in drifts with long ripples, a
+  sparkle now and then and spindrift running over it with the gusts; trees
+  carry snow on their boughs (only a rime on tundra), mountains are snowbound
+  further down, rivers freeze grey and streaked; sea ice is a white floe
+  broken into plates by thin seams, a grey lead across it, its pressure
+  ridges thrown up in blocks and hummocks, a low cliff of ice where it meets
+  the water; the water beside it is dark slush with ragged floes drifting
+  slowly east and back. Snow falls, a pixel a flake, swaying, on the still
+  sun's night side (stopping across the twilight) and in the sky's long
+  night.
 - **Birds** (`src/ui/birds.lua`): every 14 to 36 seconds a flock of 3 to 7
   crosses the screen in a loose V, mostly with the wind. The birds flap and
   glide. Over every seventh coast hex you can see, a gull circles. Birds
@@ -1190,6 +1279,12 @@ keys, dithered as the cloud shadows are.
 - **Units** and everything else that stands on the map go down at most one
   step, so they always read; buildings take the night as the ground does.
 - The paper map of the unexplored takes the night, but no sun.
+- **The still sun** (`src/stillsun.lua`): once it has stopped, the light is
+  worked out for each pixel by where it lies against the line: the sun
+  stands low at the twilight (long shadows, gilding) and high deep in the
+  day, from the side the day lies, and is gone beyond the twilight's night
+  edge. The night there is darker than any night was (2.9 steps), lamps lit;
+  deep in the day a glare washes the land pale. The clock stops at noon.
 
 The light is worked out on the GPU into a picture the map's size, drawn
 again only when the hour, the map or the towns change; the board's shader
@@ -1289,7 +1384,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, a whole game to its end), and every sound rendering (never silent, never clipping, the music's layers one length) |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |
@@ -1302,6 +1397,9 @@ and picks up where it left off.
 | `love . --play --shot fire.png --turns 128 --select fire` | The camera over the most fire on the map, with the land round it shown. `--select scorch` for the most baked earth, `--select burnt` for the most burnt land; `--select cistern` gives your capital a cistern and looks at it |
 | `love . --play --cataclysm flood --shot flood.png --skip 130 --select flood --film 60` | The deluge: the camera over the most floodwater, in the storm, sixty pictures a few frames apart. `--select marsh`, `silt` or `drowned` for the most of each; `--select levee` gives your capital a levee |
 | `love . --play --cataclysm sky --shot fall.png --skip 124 --select mark --hour 12 --next --film 12` | The sky's falling: the camera over the most hexes stones are falling on, then the turn ended (`--next`) so they come down in the pictures; [shots/33-starfall.png](shots/33-starfall.png) was made so. `--select crater` or `glow` for the most craters (or hot ones), `heart` for the heart of the comet's hexes once it is told; `--select shelter` gives your capital a shelter; `--select skyfall` puts one of every crater and a stone of each size coming round your start; `--select bigfall` a great stone coming beside a forest near your capital ([shots/36-great-stone.gif](shots/36-great-stone.gif) was made so, with `--skip 124 --zoom 2 --next --film 40`; [shots/37-heart-of-the-comet.gif](shots/37-heart-of-the-comet.gif) with `--skip 149 --select heart --hour 0 --next --film 80`) |
+| `love . --play --cataclysm sun --shot sun.png --skip 135 --select world --size 1920x1200 --zoom -1` | The still sun: the whole map shown in a bigger window (`--size`), a step further out (`--zoom -1`), the camera on the line; [shots/39-still-sun.png](shots/39-still-sun.png) was made so. `--select twilight` looks at the land on the line, `frost`, `tundra`, `snow` or `ice` at the most of it; `--select hearth` gives your capital a hearth |
+| `love . --play --cataclysm none --shot frozen.png --select frozen --hour 12` | The frost round your start, whatever the cataclysm: tundra near, snow beyond, the trees, hills and mountains under it, a river frozen over, the shallows frozen to ice with leads of water and floes left in it; `--select frozen:N` looks at hex N. With `--turns 3` first, your town under it keeps a hearth; [shots/40-frost.png](shots/40-frost.png) and [shots/41-sea-ice.png](shots/41-sea-ice.png) (`--select frozen:630 --zoom 2`, seed 7) were made so. [shots/42-endless-night.png](shots/42-endless-night.png) is `--cataclysm sun --seed 11 --skip 150 --select ice`, and [shots/43-snowfall.gif](shots/43-snowfall.gif) the same with `--zoom 2 --film 40`; [shots/45-long-night-frost.png](shots/45-long-night-frost.png) is `--cataclysm sky --seed 7 --skip 156 --select world` |
+| `luajit tools/cities.lua dir` | Sheets of towns traced as the game traces them, into dir/*.ppm, no LÖVE needed; dir/cities-frost.ppm is towns on tundra and snow with and without a hearth ([shots/44-frozen-towns.png](shots/44-frozen-towns.png), scaled up three times) |
 | `love . --play --cataclysm demons --shot abyss.png --select abyss --hour 13` | The demons: their citadel risen a few hexes from your start with its blight about it, a rift open, another and a tentacle coming, and one of every demon, all of it shown. `--select blight` looks at the most blighted land of a game played on (with `--skip`) |
 | `luajit tools/demon_sheet.lua` | The demons' models painted on their own, every pose, beside beasts and a warrior, with the rift, the citadel and a town with a sanctum, into /tmp/sheet/sheet.ppm, no LÖVE needed; [shots/38-demon-models.png](shots/38-demon-models.png) was made so |
 | `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
