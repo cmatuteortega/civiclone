@@ -15,7 +15,11 @@
 --              beside them, people killed in a city struck. The dust starts
 --              to hide the sun, and the cities go cold and hungry.
 --   DARK       the long night: the sun is never seen again. Every farm
---              yields less and the cold worsens; stones still fall. On
+--              yields less and the cold worsens; stones still fall. The
+--              frost comes (src/frost.lua): the land freezes a few hexes a
+--              turn, to tundra and then snow, and the shallows by the
+--              frozen shore to ice; a ship the ice closes round is
+--              crushed, as it is under the still sun. On
 --              D.SKY.heart the heart of the comet falls, told some turns
 --              before: on a hex and the six round it, sinking them deep.
 --
@@ -37,6 +41,7 @@
 
 local D = require "src.defs"
 local Cat = require "src.cataclysm"
+local Frost = require "src.frost"
 
 local max, min, floor = math.max, math.min, math.floor
 
@@ -291,6 +296,19 @@ function Sky.play(game, stage)
         end
     end
     if game.turn == D.SKY.heart and c.heart then Sky.heartfall(game, game.cells[c.heart]) end
+    -- The long night's frost: the land freezes, out from the snow of the
+    -- mountains and what has frozen already, and the shallows by it.
+    if (D.SKY.frost[stage] or 0) > 0 then
+        Frost.crush(game, D.SUN.crush)
+        local chill = Cat.pick(game, function(cell)
+            if not Frost.chillable(game, cell) or cell.glow then return 0 end
+            return Frost.hold(game, cell, cell.elev == "hills" and 1.5 or 1, D.SUN)
+        end, D.SKY.frost[stage])
+        for _, cell in ipairs(chill) do Frost.chill(game, cell) end
+        local ice = Cat.pick(game, function(cell) return Frost.freezable(game, cell, false) and 1 or 0 end,
+            D.SKY.freeze[stage] or 0)
+        for _, cell in ipairs(ice) do Frost.freeze(game, cell) end
+    end
     -- And the next turn's are seen coming.
     if game.turn + 1 >= D.SKY.starfall then mark(game) end
 end

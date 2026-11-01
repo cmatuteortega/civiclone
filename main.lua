@@ -37,8 +37,11 @@ local Daylight = require "src.ui.daylight"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
 local Rain = require "src.ui.rain"
+local Snow = require "src.ui.snow"
 local SkyFx = require "src.ui.sky"
 local Sky = require "src.skyfall"
+local Frost = require "src.frost"
+local D = require "src.defs"
 
 local floor = math.floor
 
@@ -60,7 +63,7 @@ function love.quit() Audio.stop() end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
 -- bar fills, then the first turn. The world ends by the cataclysm chosen in
--- the new game window (or `--cataclysm heat|flood|sky|demons|none`), or by none.
+-- the new game window (or `--cataclysm heat|flood|sky|demons|sun|none`), or by none.
 function S.newGame(seed)
     seed = seed or S.seedArg or (os.time() % 100000)
     S.seedArg = nil
@@ -109,7 +112,7 @@ function love.load(args)
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
         if a == "--play" then S.play = true end
-        -- `--cataclysm heat|flood|sky|demons|none`: how the world ends, whatever the new game
+        -- `--cataclysm heat|flood|sky|demons|sun|none`: how the world ends, whatever the new game
         -- window last had.
         if a == "--cataclysm" and args[n + 1] then S.cataclysmArg = args[n + 1] end
         -- `--touch` lays out the screen as for a phone.
@@ -133,6 +136,8 @@ function love.load(args)
         if a == "--next" and S.plan then S.plan.next = true end
         -- `--hour h`: every turn played at h o'clock (0..24), to see the light.
         if a == "--hour" and tonumber(args[n + 1]) then Daylight.force = tonumber(args[n + 1]) / 24 end
+        -- `--size WxH`: the window that big, for pictures of more of the map.
+        if a == "--size" and args[n + 1] then S.sizeArg = { args[n + 1]:match("^(%d+)x(%d+)$") } end
         -- `--clock look`: the clock drawn so (arc, dial, strip, scene, off).
         if a == "--clock" then require("src.ui.clock").force = args[n + 1] end
         -- `--open settings:audio` (or `pause`, `newgame`, `dev`) shows a menu in the picture.
@@ -146,6 +151,10 @@ function love.load(args)
     -- Pictures are taken as the game starts, whatever the player has set.
     if not S.plan then Settings.load() end
     Menu.applyAll()
+    if S.sizeArg and S.sizeArg[1] then
+        love.window.setMode(tonumber(S.sizeArg[1]), tonumber(S.sizeArg[2]), { resizable = true })
+        love.resize(love.graphics.getDimensions())
+    end
     -- Pictures are taken in silence.
     if not S.plan then Audio.init() end
 end
@@ -403,6 +412,54 @@ local function followPlan()
             S.selected = nil
             View.lookAt(from, true)
         end
+        -- `--select frozen` (or `frozen:N`, the camera on hex N): the frost
+        -- round the player's first unit (src/frost.lua):
+        -- tundra near, snow beyond, the trees and hills under it, a river
+        -- frozen over, the shallows frozen to ice with a lead of open water
+        -- left in it, all of it shown.
+        local frozenAt = plan.select and plan.select:match("^frozen:?(%d*)$")
+        if frozenAt then
+            local g, p = S.game, S.game.players[1]
+            local from = g.cells[g:unitsOf(1)[1].cell]
+            for _, cell in ipairs(g:within(from, 6)) do
+                local d = g:dist(cell, from)
+                if not g:isWater(cell) and cell.elev ~= "mountain" and not cell.city then
+                    if d >= 2 or cell.city then Frost.chill(g, cell) end
+                    if d >= 3 or (d == 1 and cell.id % 2 == 0) then Frost.chill(g, cell) end
+                end
+            end
+            for _ = 1, 3 do
+                for _, cell in ipairs(g:within(from, 7)) do
+                    if g:isWater(cell) and cell.id % 5 ~= 0 and Frost.freezable(g, cell, true) then Frost.freeze(g, cell) end
+                end
+            end
+            -- A town of the player's in it keeps a hearth.
+            local cap = g:citiesOf(1)[1]
+            if cap then cap.buildings.hearth = true end
+            for _, cell in ipairs(g:within(from, 8)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+            p.sightChanged = true
+            S.selected = nil
+            View.lookAt(g.cells[tonumber(frozenAt)] or from, true)
+        end
+        -- `--select world`: the whole map shown, the camera on its middle;
+        -- under the still sun, on the line, where it crosses the land
+        -- nearest the middle.
+        if plan.select == "world" then
+            local g, p = S.game, S.game.players[1]
+            local mid = g.cells[math.floor(g.rows / 2) * g.cols + math.floor(g.cols / 2) + 1]
+            local best, bv = mid, nil
+            for _, cell in ipairs(g.cells) do
+                p.explored[cell.id], p.visible[cell.id] = true, true
+                local side = D.sunSide(g, cell.x, cell.z)
+                if side and not g:isWater(cell) then
+                    local v = math.abs(side) * 3 + g:dist(cell, mid) * 0.5
+                    if not bv or v < bv then best, bv = cell, v end
+                end
+            end
+            p.sightChanged = true
+            S.selected = nil
+            View.lookAt(best, true)
+        end
         -- `--select abyss`: the demons round the player's first unit: their
         -- citadel risen a few hexes off with its blight about it, a rift
         -- open and another and a tentacle coming, and one of every demon,
@@ -513,7 +570,8 @@ local function followPlan()
         -- `shelter`): the player's capital given one, selected.
         local heat = ({ fire = "fire", scorch = "scorched", burnt = "burnt", flood = "flood", silt = "silt",
             drowned = "drowned", marsh = "marsh", crater = "crater", glow = "glow", mark = "mark",
-            heart = "heart", blight = "blight" })[plan.select or ""]
+            heart = "heart", blight = "blight", tundra = "tundra", snow = "snow", ice = "ice", frost = "frost",
+            twilight = "twilight" })[plan.select or ""]
         if heat then
             local g, p = S.game, S.game.players[1]
             local best, bv = nil, 0
@@ -524,7 +582,17 @@ local function followPlan()
                     if (heat == "mark" and m and m ~= "heart") or (heat == "heart" and m == "heart") then
                         v = v + (g:dist(n, cell) == 0 and 3 or 2)
                     end
-                    if n[heat] or n.terrain == heat then v = v + (g:dist(n, cell) == 0 and 3 or 2) end
+                    if n[heat] or n.terrain == heat or (heat == "frost" and Frost.frozen(n)) then
+                        v = v + (g:dist(n, cell) == 0 and 3 or 2)
+                    end
+                    -- The still sun's twilight: land on the line, the day
+                    -- and the night both in sight of it.
+                    if heat == "twilight" then
+                        local s = D.sunSide(g, n.x, n.z)
+                        if s and not g:isWater(n) then v = v + math.max(0, 1.5 - math.abs(s)) end
+                        if s and Frost.frozen(n) then v = v + 0.3 end
+                        if s and (n.scorched or n.terrain == "desert") then v = v + 0.3 end
+                    end
                     if heat == "fire" and n.feature == "forest" then v = v + 0.5 end
                 end
                 if v > bv then best, bv = cell, v end
@@ -547,7 +615,7 @@ local function followPlan()
             S.selected = nil
             View.lookAt(g.cells[at], true)
         end
-        if plan.select == "cistern" or plan.select == "levee" or plan.select == "shelter" then
+        if plan.select == "cistern" or plan.select == "levee" or plan.select == "shelter" or plan.select == "hearth" then
             local cap = S.game:citiesOf(1)[1]
             if cap then
                 cap.buildings[plan.select] = true
@@ -641,6 +709,7 @@ function love.update(dt)
     Wild.update(dt)
     Birds.update(dt)
     Rain.update(dt)
+    Snow.update(dt)
     SkyFx.update(dt)
     Input.findHover()
     if not S.over then

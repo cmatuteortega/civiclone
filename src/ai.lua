@@ -11,6 +11,7 @@ local D = require "src.defs"
 local Cat = require "src.cataclysm"
 local Sky = require "src.skyfall"
 local Demons = require "src.demons"
+local Sun = require "src.stillsun"
 
 local max = math.max
 
@@ -104,8 +105,20 @@ local function chooseBuild(game, p, city)
             if ships < shipsWanted(game, p) then return "unit", ship end
         end
     end
-    -- Against the cataclysm, once it has been foretold.
-    local ward = Cat.ward(game)
+    -- Under the still sun, a civilization with no city in the twilight
+    -- sends people to it from a city in the day or the night
+    -- (src/stillsun.lua).
+    if Sun.line(game) and city.pop >= 3 and count(game, p, "settler") == 0
+        and Sun.zone(game, game.cells[city.cell]) ~= "twilight" then
+        local spared = false
+        for _, c in ipairs(game:citiesOf(p.id)) do
+            if Sun.zone(game, game.cells[c.cell]) == "twilight" then spared = true break end
+        end
+        if not spared then return "unit", "settler" end
+    end
+    -- Against the cataclysm, once it has been foretold: where the city
+    -- stands, if it says.
+    local ward = Cat.ward(game, city)
     if ward and Cat.stage(game) and game:canBuild(city, "building", ward) then
         return "building", ward
     end
@@ -129,8 +142,11 @@ end
 local function siteFor(game, u)
     local here = game.cells[u.cell]
     local best, bv
-    for _, cell in ipairs(game:within(here, 9)) do
-        if game:passable(cell) and not cell.city and (not cell.owner or cell.owner == u.owner) then
+    -- Under the still sun they will go further, to the twilight.
+    local still = Sun.line(game)
+    for _, cell in ipairs(game:within(here, still and 14 or 9)) do
+        if game:passable(cell) and not D.TERRAIN[cell.terrain].noCity and not cell.city
+            and (not cell.owner or cell.owner == u.owner) then
             local ok = not wild(game, cell, 2)
             for _, c in ipairs(game.cities) do
                 if game:dist(game.cells[c.cell], cell) < 4 then ok = false break end
@@ -140,6 +156,11 @@ local function siteFor(game, u)
                 if game:isWater(cell) then v = -1 end
                 for _, n in ipairs(game:neighbours(cell)) do
                     if n.terrain == "coast" then v = v + 2 break end
+                end
+                if still then
+                    -- The twilight first; the deeper into the day or the
+                    -- night, the worse.
+                    if Sun.zone(game, cell) == "twilight" then v = v + 12 else v = v - 3 * Sun.depth(game, cell) end
                 end
                 if not bv or v > bv then best, bv = cell, v end
             end
@@ -380,9 +401,27 @@ end
 
 --- out of the way --------------------------------------------------------------------
 
+-- Unit u, out where the still sun's day or night hurts it, or a ship the
+-- ice has closed round (src/stillsun.lua): a step to where it doesn't,
+-- towards the twilight.
+local function shun(game, u)
+    local here = game.cells[u.cell]
+    if u.dead or u.moves <= 0 or not Sun.line(game) or not Sun.danger(game, here, u) then return false end
+    local best, bd
+    for _, n in ipairs(game:neighbours(here)) do
+        if not Sun.danger(game, n, u) and game:canStand(u, n) and game:stepCost(u, here, n) then
+            local d = math.abs(Sun.side(game, n)) + game.rng:random() * 0.3
+            if not bd or d < bd then best, bd = n, d end
+        end
+    end
+    if best then game:step(u, best.id) end
+    return true
+end
+
 -- Unit u, on a hex a stone is falling on (src/skyfall.lua): a step to the
 -- nearest hex nothing is falling on, if it has the moves.
 local function dodge(game, u)
+    if shun(game, u) then return end
     local here = game.cells[u.cell]
     if u.dead or u.moves <= 0 or not Sky.marked(game, here) then return end
     -- Under the heart, any step further from where it falls will do.

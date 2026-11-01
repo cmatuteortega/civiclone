@@ -1,9 +1,10 @@
 -- The cataclysm: what ends the world, and the game with it.
 --
 -- Each game has one, kept as game.cataclysm (nil with Game.new{ cataclysm =
--- false }): its `kind` one of Cat.KINDS. Three are built, the heat death
--- here, the deluge in src/flood.lua and the sky's falling in
--- src/skyfall.lua and the demons in src/demons.lua. Every kind has four stages on its
+-- false }): its `kind` one of Cat.KINDS. Five are built: the heat death
+-- here, the deluge in src/flood.lua, the sky's falling in src/skyfall.lua,
+-- the demons in src/demons.lua and the still sun in src/stillsun.lua (what
+-- the cold does, the last two share: src/frost.lua). Every kind has four stages on its
 -- turns, an omen first, and the same last turn, D.LAST_TURN: what is here
 -- that is not the heat's (the stage, the top bar's label, the last turns'
 -- warnings, the dev window's list) asks the kind.
@@ -109,9 +110,12 @@ function Cat.stagesOf(game)
     return out
 end
 
--- The building that holds it off ("cistern", "levee"), or nil.
-function Cat.ward(game)
+-- The building that holds it off ("cistern", "levee"), or nil. For city
+-- `city`, if given, the one it wants where it stands (under the still sun,
+-- a cistern in the day and a hearth in the night).
+function Cat.ward(game, city)
     local K = Cat.kindOf(game)
+    if K and city and K.wardFor then return K.wardFor(game, city) end
     return K and K.ward
 end
 
@@ -400,5 +404,6 @@ end
 Cat.KINDS.flood = require "src.flood"
 Cat.KINDS.sky = require "src.skyfall"
 Cat.KINDS.demons = require "src.demons"
+Cat.KINDS.sun = require "src.stillsun"
 
 return Cat

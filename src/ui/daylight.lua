@@ -36,6 +36,7 @@ local Settings = require "src.settings"
 local D = require "src.defs"
 local Cat = require "src.cataclysm"
 local Sky = require "src.skyfall"
+local Sea = require "src.ui.sea"
 
 local sin, cos, sqrt, max, min, floor, pi = math.sin, math.cos, math.sqrt, math.max, math.min, math.floor, math.pi
 
@@ -59,7 +60,18 @@ function Daylight.hourOf(turn, game)
     if game and D.night(turn, game) and Cat.is(game, "sky") then
         return floor(n / #hours) + 0.82 + 0.36 * (n % #hours) / (#hours - 1)
     end
-    return floor(n / #hours) + hours[n % #hours + 1]
+    -- Under the still sun (src/stillsun.lua) the days grow long, and stop.
+    return D.hour(turn, game)
+end
+
+-- What the shaders are told of the still sun in game `game`: { the way to
+-- the day across the room (x, z), how far along it the line is, a hex's
+-- width } and how far the twilight reaches either side, in hexes; a hex's
+-- width 0 when the sun moves.
+function Daylight.still(game)
+    local line = game and Cat.is(game, "sun") and game.cataclysm.line
+    if not line then return { 0, 0, 0, 0 }, 0 end
+    return { line.nx, line.nz, line.d, line.w }, require("src.stillsun").band(game)
 end
 
 local function unit(x, y, z)
@@ -119,6 +131,12 @@ uniform float golden;
 uniform vec2 march;      // a step towards the sun, in pixels of the picture
 uniform float rise;      // and how much nearer the camera that comes
 uniform float reach;     // how many steps to look
+uniform vec4 still;      // the still sun (src/stillsun.lua): the way to the day, where the line is, a hex's width (0: none)
+uniform float band;      // how far the twilight reaches, in hexes
+uniform vec2 base;       // room (x, z) at the picture's corner, on the sea's level, and a pixel right and down
+uniform vec2 alongI;
+uniform vec2 alongJ;
+uniform vec3 proj;       // the tracer's pixel in room units, and the camera's cos and sin
 
 float bayer2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
 float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a); }
@@ -141,15 +159,16 @@ float nearAt(vec2 q) {
     return (floor(d.r * 255.0 + 0.5) * 256.0 + floor(d.g * 255.0 + 0.5)) / 32.0 - 64.0;
 }
 
-// Is anything between picture pixel p and the sun?
-bool shaded(vec2 p) {
+// Is anything between picture pixel p and the sun, `mv` a step towards it
+// and `up` how much nearer the camera that comes, looking `far` steps?
+bool shaded(vec2 p, vec2 mv, float up, float far) {
     float d0 = nearAt(p);
     for (int s = 1; s < 200; s++) {
         float f = float(s);
-        if (f > reach) break;
-        vec2 q = floor(p + march * f + 0.5);
+        if (f > far) break;
+        vec2 q = floor(p + mv * f + 0.5);
         if (q.x < 0.0 || q.y < 0.0 || q.x >= size.x || q.y >= size.y) break;
-        float gap = nearAt(q) - (d0 + rise * f);
+        float gap = nearAt(q) - (d0 + up * f);
         if (gap > 1.0 && gap < 30.0) return true;
     }
     return false;
@@ -164,18 +183,42 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
     float thr = bayer4(p);
     float was = level(n, lamp0, half0);
     float down = 0.0;
-    if (sunUp > -0.05) {
-        float lv = level(n, sun, sunHalf);
+    vec3 L = sun;
+    vec3 Lh = sunHalf;
+    float up = sunUp, dark = night, gild = golden, far = reach, lift = rise;
+    vec2 mv = march;
+    if (still.w > 0.0) {
+        // The still sun: as high as the place is deep in the day, on the
+        // horizon at the twilight's night edge, gone below it beyond; its
+        // light from the way the day lies.
+        vec2 w = base + (p.x + 0.5) * alongI + (p.y + 0.5) * alongJ;
+        float s = (dot(w, still.xy) - still.z) / still.w;
+        float el = clamp((s + band + 0.6) / (band + 7.0), 0.0, 1.0) * 1.15;
+        float h = sin(el);
+        L = normalize(vec3(still.x * cos(el), h * 1.15 + 0.06, still.y * cos(el) + 0.18 + 0.3 * h));
+        Lh = normalize(L + vec3(0.0, proj.z, proj.y));
+        up = s > -band - 0.6 ? h : -1.0;
+        dark = 1.0 - smoothstep(0.05, 0.75, smoothstep(-band - 0.6, band * 0.7, s));
+        gild = up > 0.0 ? 1.0 - smoothstep(0.08, 0.5, el) : 0.0;
+        float di = L.x / proj.x;
+        float dj = -(L.y * proj.y - L.z * proj.z) / proj.x;
+        float st = 1.0 / max(max(abs(di), abs(dj)), 1e-6);
+        mv = vec2(di, dj) * st;
+        lift = (L.y * proj.z + L.z * proj.y) * st;
+        far = 60.0 + 120.0 * (1.0 - clamp(h, 0.0, 1.0));
+    }
+    if (up > -0.05) {
+        float lv = level(n, L, Lh);
         // A step at most either way: the sky still lights what the sun
         // has turned from.
         down = clamp(lv - was, -1.0, 1.0);
         // In a shadow: a step further down, if the sun was on it.
-        if (sunUp > 0.02 && lv < 4.0 && shaded(p)) down = min(down + 1.0, 2.0);
+        if (up > 0.02 && lv < 4.0 && shaded(p, mv, lift, far)) down = min(down + 1.0, 2.0);
         // The low sun gilds what faces it.
-        if (lv <= 2.0 && thr < golden * 0.9) down -= 1.0;
+        if (lv <= 2.0 && thr < gild * 0.9) down -= 1.0;
     }
     // The moon, on as many pixels as it is dark.
-    if (thr < night) down = clamp(level(n, moon, moonHalf) - was, -1.0, 2.0) * 0.6;
+    if (thr < dark) down = clamp(level(n, moon, moonHalf) - was, -1.0, 2.0) * 0.6;
     return vec4((floor(down * 16.0 + 0.5) + 128.0) / 255.0, 0.0, 1.0, 1.0);
 }
 ]]
@@ -298,6 +341,7 @@ function Daylight.uniforms(t)
         sunUp = a.el, night = a.night, golden = a.golden,
         march = { di * step, dj * step }, rise = dd * step,
         reach = 60 + 120 * (1 - min(max(a.el, 0), 1)),
+        proj = { T.UNIT, T.CE, T.SE },
     }
 end
 
@@ -313,12 +357,20 @@ function Daylight.draw(w)
     end
     local lamps, sig = Daylight.lamps(w)
     local t = floor(now * 4000 + 0.5) / 4000
-    local what = table.concat({ t, tostring(w), w.version or 0, sig }, "|")
+    local still, band = Daylight.still(S.game)
+    local what = table.concat({ t, tostring(w), w.version or 0, sig, still[1], still[3], band }, "|")
     if what == drawn then return end
     drawn = what
 
     local sh = Daylight.light
     for name, v in pairs(Daylight.uniforms(t)) do send(sh, name, v) end
+    -- The still sun, and where each pixel is in the room for it.
+    Sea.level(w)
+    send(sh, "still", still)
+    send(sh, "band", band)
+    send(sh, "base", w.seaBase)
+    send(sh, "alongI", w.seaI)
+    send(sh, "alongJ", w.seaJ)
     send(sh, "near", w.nearImage)
     send(sh, "size", { w.w, w.h })
     love.graphics.push("all")
@@ -352,6 +404,7 @@ function Daylight.apply(board, cover, cw)
     local storm, flash, dust = S.storm or 0, S.flash or 0, S.dust or 0
     local exposure = min(a.exposure, -2.3 * dust) + 2.2 * flash
     local night = max(a.night, storm * 0.28, dust * 0.6) * (1 - flash)
+    local still, band = Daylight.still(S.game)
     for _, sh in ipairs({ board, cover }) do
         send(sh, "lit", lit and 1 or 0)
         if lit then
@@ -359,6 +412,8 @@ function Daylight.apply(board, cover, cw)
             send(sh, "exposure", exposure)
             send(sh, "night", night)
         end
+        send(sh, "still", still)
+        send(sh, "band", band)
     end
     if lit then send(board, "moonX", floor(cw * 0.62)) end
 end

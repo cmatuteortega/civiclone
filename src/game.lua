@@ -16,6 +16,7 @@ local Rng = require "src.rng"
 local Mapgen = require "src.mapgen"
 local Beasts = require "src.beasts"
 local Cat = require "src.cataclysm"
+local Frost = require "src.frost"
 
 local floor, ceil, max, min, exp = math.floor, math.ceil, math.max, math.min, math.exp
 
@@ -139,7 +140,9 @@ end
 -- is a city: a city bridges the rivers by it.
 function Game:fords(from, to)
     if from.city or to.city then return false end
-    return self:riverBetween(from, to) ~= nil
+    if self:riverBetween(from, to) == nil then return false end
+    -- Frozen over (src/frost.lua): walked across on the ice.
+    return not Frost.riverIced(from, to)
 end
 
 -- Is the cell beside water (so a city on it can build ships)?
@@ -733,7 +736,7 @@ end
 function Game:canFound(u)
     if u.kind ~= "settler" or u.moves <= 0 then return false end
     local cell = self.cells[u.cell]
-    if not self:passable(cell) or cell.city or (cell.lair and (cell.lair.def.beast or cell.lair.def.demon)) then return false end
+    if not self:passable(cell) or D.TERRAIN[cell.terrain].noCity or cell.city or (cell.lair and (cell.lair.def.beast or cell.lair.def.demon)) then return false end
     if cell.owner and cell.owner ~= u.owner then return false end
     for _, c in ipairs(self.cities) do
         if self:dist(self.cells[c.cell], cell) < 4 then return false end
@@ -854,6 +857,9 @@ function Game:canBuild(city, kind, id)
     -- whichever it is, but not when there is none).
     if def.ward == "any" then
         if not self.cataclysm then return false end
+    elseif type(def.ward) == "table" then
+        -- Against more than one: { heat = true, sun = true }.
+        if not (self.cataclysm and def.ward[self.cataclysm.kind]) then return false end
     elseif def.ward and not Cat.is(self, def.ward) then
         return false
     end

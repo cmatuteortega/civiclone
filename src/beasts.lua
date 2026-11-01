@@ -386,7 +386,7 @@ end
 local function act(game, u)
     local def = u.def
     local here = game.cells[u.cell]
-    local night = D.night(game.turn, game)
+    local night = D.night(game.turn, game, here)
     local sense = def.sense + ((night and def.night) and 1 or 0)
     if def.temper == "shy" then
         local near = people(game, here, sense)
@@ -473,7 +473,7 @@ end
 
 -- The strength a beast adds in the dark (wolves hunt at night).
 function Beasts.nightBonus(game, u)
-    if u.owner == Beasts.WILD and u.def.night and D.night(game.turn, game) then return u.def.night end
+    if u.owner == Beasts.WILD and u.def.night and D.night(game.turn, game, game.cells[u.cell]) then return u.def.night end
     return 0
 end
 

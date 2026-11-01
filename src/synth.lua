@@ -363,6 +363,13 @@ local DEFS = {
         { dur = 2.4, f0 = 52, f1 = 24, bend = 0.5, a = 0.004, curve = 1.4 },
         { at = 0.04, dur = 4, wave = "noise", lp = { 600, 50 }, a = 0.02, curve = 1.2, vol = 0.7, trem = { 2.5, 0.5 } },
         { at = 0.6, dur = 3, f0 = 38, f1 = 30, a = 0.4, curve = 1.3, vol = 0.4, vib = { 1.5, 0.05 } }),
+    -- The sea freezing (src/frost.lua): a sharp crack, a ringing ping
+    -- running off across the ice, and its grinding settling after.
+    crack = sound({ vol = 0.35, gap = 0.2, poly = 3, wob = 0.12 },
+        { dur = 0.05, wave = "noise", hp = { 2500 }, lp = { 9000, 3000 }, a = 0.001, curve = 2 },
+        { dur = 0.7, f0 = 1900, f1 = 700, a = 0.002, curve = 2.4, vol = 0.22, vib = { 31, 0.01 } },
+        { at = 0.04, dur = 0.5, wave = "noise", hp = { 600 }, lp = { 3000, 900 }, a = 0.01, curve = 1.8, vol = 0.3,
+            trem = { 14, 0.7 } }),
     gong = sound({ vol = 0.4, gap = 2 },
         { dur = 3.5, f0 = 98, fm = { 1.41, 2.2, true }, a = 0.005, curve = 1.6 },
         { dur = 2.5, f0 = 98 * 2.76, a = 0.005, curve = 2, vol = 0.3, vib = { 3, 0.004 } },

@@ -23,6 +23,16 @@ D.TERRAIN = {
     -- Only the long rains make it (D.FLOOD): sodden lowland, reeds and
     -- standing pools, heavy going and no good for a farm.
     marsh = { name = "MARSH", food = 1, prod = 0, gold = 0, top = 4, move = 1, noFarm = true },
+    -- Only the cold makes these (src/frost.lua): the endless night of the
+    -- still sun (D.SUN) and the long night of the sky's falling (D.SKY).
+    -- Frozen ground, rimed and hard, where little will grow; then snow, deep
+    -- and drifted, that buries a farm and slows whoever wades it; and the
+    -- sea frozen hard enough to walk on, `ice`, that no ship can sail and
+    -- no city stand on.
+    tundra = { name = "TUNDRA", food = 1, prod = 0, gold = 0, top = 4, frozen = true },
+    snow = { name = "SNOW", food = 0, prod = 0, gold = 0, top = 4, move = 1, noFarm = true, frozen = true },
+    ice = { name = "SEA ICE", food = 0, prod = 0, gold = 0, top = -2, noFarm = true, noCity = true, frozen = true,
+        sea = true },
 }
 D.ELEV = {
     flat = { name = "", food = 0, prod = 0, move = 1, defense = 0, rise = 0 },
@@ -149,10 +159,43 @@ D.WILD = {
 -- a day, 0 midnight, 0.25 sunrise, 0.5 noon, 0.75 sunset. Past 1 is the
 -- next day. The dark is before 0.24 and after 0.76.
 D.HOURS = { 0.55, 0.66, 0.73, 0.775, 1.0, 1.235, 1.31, 1.43 }
-function D.night(turn, game)
+
+-- How far room point (x, z) is into the day of the still sun (D.SUN), in
+-- hexes across: above 0 the day side of the line the dark ends on, below
+-- it the night's. Nil before the sun has stood still.
+function D.sunSide(game, x, z)
+    local c = game and game.cataclysm
+    local line = c and c.kind == "sun" and c.line
+    if not line then return nil end
+    return (x * line.nx + z * line.nz - line.d) / line.w
+end
+
+-- The hour turn `turn` is played at, counting whole days (src/ui/daylight.lua
+-- draws by it). Under the still sun (D.SUN) the days grow long from its
+-- omen on, the sun crossing less of the sky each turn, until it comes to
+-- noon and stops there.
+function D.hour(turn, game)
+    local n, hours = turn - 1, D.HOURS
+    if game and game.cataclysm and game.cataclysm.kind == "sun" and turn > D.SUN.omen then
+        local h0 = D.hour(D.SUN.omen)
+        local noon = math.ceil(h0 - 0.2) + 0.5
+        local f = math.min(1, (turn - D.SUN.omen) / (D.SUN.still - D.SUN.omen))
+        return h0 + (noon - h0) * (1 - (1 - f) * (1 - f))
+    end
+    return math.floor(n / #hours) + hours[n % #hours + 1]
+end
+
+-- Is it dark on turn `turn`? On hex `cell`, if given: where the sun has
+-- stood still (D.SUN) it is always night on its night side, never on its
+-- day side, and the twilight between is dusk.
+function D.night(turn, game, cell)
     -- In the long night of the sky's falling (D.SKY) the sun never rises.
     if game and game.cataclysm and game.cataclysm.kind == "sky" and turn >= D.SKY.dark then return true end
-    local h = D.HOURS[(turn - 1) % #D.HOURS + 1] % 1
+    if cell then
+        local s = D.sunSide(game, cell.x, cell.z)
+        if s then return s < 0 end
+    end
+    local h = D.hour(turn, game) % 1
     return h < 0.24 or h > 0.76
 end
 
@@ -175,7 +218,9 @@ D.BUILDINGS = {
     -- Against the heat (D.HEAT): the land the city owns dries slower, its
     -- farms keep their food through the drought, fire spreads onto its
     -- hexes less, and its people thirst less.
-    cistern = { name = "CISTERN", short = "CIST.", cost = 70, ward = "heat", tech = "masonry", order = 8 },
+    -- Under the still sun (D.SUN) it holds off the endless day as well.
+    cistern = { name = "CISTERN", short = "CIST.", cost = 70, ward = { heat = true, sun = true }, tech = "masonry",
+        order = 8 },
     -- Against the deluge (D.FLOOD): banks of earth faced with stone round
     -- the city's land. Its land floods and sours to marsh less, the sea
     -- can't take it, the city takes no harm from the water beside it, and
@@ -190,6 +235,12 @@ D.BUILDINGS = {
     -- never takes it, the city shoots the demons near it even without walls,
     -- and its people dread less.
     sanctum = { name = "SANCTUM", short = "SANCT.", cost = 70, ward = "demons", tech = "writing", order = 11 },
+    -- Against the endless night of the still sun (D.SUN): a kiln-house of
+    -- stone with a tall chimney, its fire never let go out, and the city's
+    -- peat and wood stacked by it. The land the city owns freezes slower,
+    -- its farms keep their food through the night, and its people go less
+    -- cold.
+    hearth = { name = "HEARTH", short = "HEARTH", cost = 70, ward = "sun", tech = "pottery", order = 12 },
 }
 
 -- The shelter, against whatever ends the world: a city with one takes only
@@ -304,6 +355,9 @@ D.SKY = {
     heartSink = 4, ringSink = 2,
     heartHit = 100, ringHit = 60, shock = 25,
     heartPop = 0.5, ringCity = 80,
+    -- The long night's frost (src/frost.lua): how many hexes of land freeze
+    -- a step a turn, and how many of the sea's shallows freeze to ice.
+    frost = { dark = 5 }, freeze = { dark = 2 },
 }
 
 -- The demons: the fourth way the world can end (src/demons.lua), on the
@@ -359,9 +413,56 @@ D.DEMONS = {
     eyeWarn = 144, eye = 150,
 }
 
+-- The still sun: the fifth way the world can end (src/stillsun.lua), on the
+-- same turns as the others and to the same last turn. The days grow long
+-- and the sun stops, and stays where it stopped: one side of the world is
+-- in day for good and the other in night, and a band of twilight lies
+-- between. Where the line falls, and which way, is chosen as it stops, a
+-- new one every game: nobody can know their side before.
+D.SUN = {
+    omen = 90,         -- the days grow long: the clock slows
+    still = 100,       -- the sun stands still: the endless day, the endless night
+    sear = 120,        -- the day burns and the night freezes the sea
+    twilight = 140,    -- the last twilight: the band narrows, and the far sides kill
+    -- How far the twilight reaches either side of the line, in hexes, in
+    -- each stage: it narrows. Where the line falls: through land, at a
+    -- point between `from` and `to` of the land's breadth that way.
+    band = { still = 3, sear = 2.5, twilight = 1.5 },
+    from = 0.3, to = 0.7,
+    -- The day side: how many hexes dry a step a turn (as the heat's do,
+    -- grass to plains to desert), how many of its deserts bake hard in the
+    -- twilight, and how many fires start a turn. A hex `deep` hexes or
+    -- more into the day is as likely to dry as any can be; nearer the line,
+    -- less. A cistern's land, the rivers, the coast and the hills hold out.
+    dry = { still = 4, sear = 6, twilight = 8 },
+    bake = 5,
+    ignite = { sear = 2, twilight = 3 },
+    deep = 5,
+    -- The night side, the same: how many hexes freeze a step a turn
+    -- (to tundra, then snow), and how many hexes of sea freeze to ice, the
+    -- shallows first, the open sea only in the twilight. A hearth's land,
+    -- the rivers and the coast hold out.
+    frost = { still = 4, sear = 6, twilight = 8 },
+    freeze = { sear = 3, twilight = 5 },
+    river = 0.3, coast = 0.6, hearth = 0.25,
+    -- What it costs a city, in food a turn: thirst on the day side (a
+    -- cistern spares `ward` of it), cold on the night side (a hearth
+    -- spares as much). Nothing in the twilight.
+    thirst = { sear = 2, twilight = 4 },
+    cold = { sear = 2, twilight = 4 },
+    ward = 2,
+    -- A farm off a river in the day, or any farm in the night, yields this
+    -- much less food.
+    farm = 1,
+    -- In the twilight, a unit that ends a turn on baked earth off a river,
+    -- or out on the snow, takes this; a ship (or a beast of the sea) the
+    -- ice closes round takes `crush` a turn, until it gets out.
+    scorchDamage = 10, frostbite = 10, crush = 25,
+}
+
 -- Technologies, in the order the list shows them.
 D.TECHS = {
-    { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY" },
+    { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY, HEARTH" },
     { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES, SHELTER" },
     { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "ARCHER" },
     { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN, LEVEE" },

@@ -68,7 +68,8 @@ end
 local MAT = {}
 
 -- The kinds of land the moving picture knows (after 1 ocean and 2 coast).
-local LAND = { crown = 3, sheaf = 4, grass = 5, plains = 6, other = 7, desert = 8, river = 9, flood = 10, pool = 11 }
+local LAND = { crown = 3, sheaf = 4, grass = 5, plains = 6, other = 7, desert = 8, river = 9, flood = 10, pool = 11,
+    snow = 12, ice = 13, slush = 14 }
 World.LAND = LAND
 
 -- The pale rim of sand and dried mud along a river's bank, broken here and
@@ -302,6 +303,112 @@ MAT.charTree = { id = 18, ramp = ramp("k", "n", "u", "o"), print = function(s, x
     if grain(x * 2, y * 2 + z, 7) > 0.8 then return IDX.o end
 end }
 
+--- the frost (src/frost.lua) ----------------------------------------------------------
+
+-- Frozen ground, the tundra: a pale ground cut into the great polygons the
+-- frost heaves it into, the troughs between them filled white with snow,
+-- dark tussocks and pale lichen scattered over it, rime glinting.
+local POLY = 7.5
+local function polygon(x, z)
+    local gx, gz = floor(x / POLY), floor(z / POLY)
+    local d1, d2 = 1e9, 1e9
+    for a = -1, 1 do
+        for b = -1, 1 do
+            local cx, cz = gx + a, gz + b
+            local px = (cx + 0.1 + grain(cx, cz, 141) * 0.8) * POLY
+            local pz = (cz + 0.1 + grain(cz, cx, 142) * 0.8) * POLY
+            local d = math.sqrt((x - px) ^ 2 + (z - pz) ^ 2)
+            if d < d1 then d1, d2 = d, d1 elseif d < d2 then d2 = d end
+        end
+    end
+    return d2 - d1
+end
+MAT.tundra = { id = 44, ramp = ramp("c", "s", "t", "k"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 and s.prism then return strata(x, y, z, lev) end
+    local o = overland(s, x, z, ny)
+    if o then return o end
+    if ny > 0.9 then
+        local p = polygon(x, z)
+        if p < 0.5 then return grain(x * 2, z * 2, 143) > 0.15 and IDX.w or IDX.c end
+        if p < 0.9 then return IDX.c end
+    end
+    local g = grain(x, z, 144)
+    if g > 0.965 then return IDX.n end              -- tussocks
+    if g > 0.93 then return IDX.k end
+    if g < 0.03 then return IDX.w end               -- rime
+    if g < 0.06 then return IDX.c end               -- lichen
+end }
+-- Snow, deep and drifted: white, the drifts' crests and the wind's ripples
+-- (sastrugi) a step down in long strokes, a sparkle here and there. Its cut
+-- side is snow on the earth.
+MAT.snow = { id = 45, ramp = ramp("w", "w", "s", "t"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 and s.prism then
+        if y > (s.cellRef and s.cellRef.top or 0) - 1.4 then return IDX.w end
+        return strata(x, y, z, lev)
+    end
+    local o = overland(s, x, z, ny)
+    if o then return o end
+    if ny > 0.9 then
+        local d = sin(x * 0.13 + sin(z * 0.21) * 1.8 - z * 0.05)
+        if d > 0.86 and grain(floor(x * 0.5), floor(z * 2), 146) > 0.25 then return IDX.c end
+        local r = sin(x * 0.7 + z * 0.3 + sin(z * 0.4 + x * 0.05) * 1.4)
+        if r > 0.95 and grain(floor(x * 0.4), floor(z * 2.2), 147) > 0.55 then return IDX.c end
+    end
+    local g = grain(x, z, 148)
+    if g > 0.996 then return IDX.s end
+end }
+-- The sea frozen: great floes of white, the seams between them a thin grey
+-- line with a bright lip, snow dusted over in streaks, grey new ice where a
+-- lead froze last; its edge an ice cliff in blue-white layers.
+MAT.ice = { id = 46, ramp = ramp("w", "c", "s", "t"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 then
+        local band = floor((y + 0.5 * sin(x * 0.4 + z * 0.3)) * 1.6)
+        return band % 3 == 0 and IDX.s or (band % 3 == 1 and IDX.c or IDX.w)
+    end
+    local lead = sin(x * 0.07 + sin(z * 0.06) * 2.2 + z * 0.035)
+    if abs(lead) < 0.02 then return IDX.n end
+    if abs(lead) < 0.06 then return grain(x * 2, z * 2, 149) > 0.6 and IDX.s or IDX.t end
+    local c = crack(x * 0.3, z * 0.3)
+    if c < 0.07 then return IDX.t end
+    if c < 0.16 then return IDX.w end
+    local dust = sin(x * 0.2 - z * 0.1 + sin(x * 0.05) * 3)
+    if dust > 0.75 then return grain(x, z, 150) > 0.15 and IDX.w or IDX.c end
+    local g = grain(x, z, 151)
+    if g > 0.99 then return IDX.w end
+    if g < 0.012 then return IDX.s end
+    return IDX.c
+end }
+-- Blocks of ice thrown up where the floes pressed together, and the snow on
+-- them: white on top, their broken faces a step or two down, streaked.
+MAT.iceblock = { id = 47, ramp = ramp("w", "c", "s", "t"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny > 0.7 then return grain(x * 2, z * 2, 152) > 0.1 and IDX.w or IDX.c end
+    if grain(floor(y * 2), floor(x + z), 153) > 0.88 then return IDX.w end
+end }
+-- A river frozen over: grey ice, snow blown along it in streaks the way it
+-- ran, a crack down the middle and its banks rimed.
+MAT.riverIce = { id = 48, ramp = ramp("s", "t", "k", "n"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.6 then return strata(x, y, z, lev) end
+    local f = s.flow
+    local along, across = x * f[1] + z * f[2], z * f[1] - x * f[2]
+    if grain(floor(along / 4), floor(across * 1.2), 154) > 0.72 then return IDX.c end
+    local c = crack(along * 0.7, across * 1.6)
+    if c < 0.12 then return IDX.n end
+    if grain(x, z, 155) > 0.97 then return IDX.w end
+    return IDX.t
+end }
+-- Trees under snow: the snow lying on whatever looks up, in clumps; on
+-- tundra only a rime on the tops of the needles. The trunks dark.
+MAT.snowTree = { id = 49, ramp = ramp("t", "n", "u", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny > 0.25 and grain(floor(x * 1.5), floor(z * 1.5 + y), 156) > 0.15 then return ny > 0.6 and IDX.w or IDX.c end
+    if ny > -0.2 and grain(x * 2, y * 2 + z, 157) > 0.8 then return IDX.c end
+    if grain(x * 2, y * 2 + z, 7) > 0.88 and lev <= 3 then return IDX.u end
+end }
+MAT.rimeTree = { id = 50, ramp = ramp("t", "n", "u", "o"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny > 0.55 and grain(floor(x * 2), floor(z * 2 + y), 158) > 0.55 then return IDX.c end
+    if grain(x * 2, y * 2 + z, 159) > 0.93 then return IDX.s end
+    if grain(x * 2, y * 2 + z, 7) > 0.88 and lev <= 3 then return IDX.u end
+end }
+
 -- Water: the sea's top, by what kind of water the hex is. Ripples, glints,
 -- and foam where it meets the land.
 local function water(s, x, z, deep)
@@ -400,7 +507,7 @@ end }
 -- Hills are their ground's own stuff, but a material of their own, so no
 -- crease rings them where they meet the flat.
 local MOUND = {}
-for _, k in ipairs({ "grass", "plains", "desert", "scorched", "marsh" }) do
+for _, k in ipairs({ "grass", "plains", "desert", "scorched", "marsh", "tundra", "snow" }) do
     MOUND[k] = { id = MAT[k].id + 20, ramp = MAT[k].ramp, print = MAT[k].print }
 end
 
@@ -509,12 +616,14 @@ function World:hexSolids(cell)
     local top = cell.top
     local soil = cell.scorched and "scorched" or cell.terrain
     local base = cell.elev == "mountain" and MAT.rock or MAT[soil]
-    local river = not t.water and cell.river
+    local river = not t.water and not t.sea and cell.river
     local pull
     if river then
         pull = {}
         for k = 0, 5 do pull[k] = river[k] and bankOf(river[k]) or nil end
     end
+    -- The sea's ice stands a little proud of the water: its edge a low cliff.
+    if t.sea then top = top + 1 end
     local ground = add(hexPrism(cell.x, cell.z, top, pull), base)
     ground.pull = pull
     if t.water then
@@ -535,9 +644,45 @@ function World:hexSolids(cell)
         end
         return out
     end
+    if t.sea then
+        -- The sea frozen (src/frost.lua): a ridge of blocks thrown up where
+        -- two floes pressed together, slabs tilted on end along it, a few
+        -- broken pieces lying loose, and whatever drowned trees stood in
+        -- the water caught in it.
+        local a = grain(cell.id, 1, 160) * math.pi
+        local ca, sa = math.cos(a), math.sin(a)
+        local off = (grain(cell.id, 2, 160) - 0.5) * 6
+        for k = -2, 2 do
+            local u = k * 3.6 + (grain(cell.id, k, 161) - 0.5) * 1.4
+            local x, z = cell.x + ca * u - sa * off, cell.z + sa * u + ca * off
+            if H.inset(x, z, cell.x, cell.z) > 3 then
+                local h = 2.6 + grain(cell.id, k, 162) * 3 * (1 - abs(k) / 4)
+                local w = 2.4 + grain(k, cell.id, 163) * 1.2
+                add(Sh.frustum(4, 0.35, x, top - 0.3, z, w, h, nil, -a + (grain(cell.id, k, 164) - 0.5) * 0.9),
+                    MAT.iceblock).join = "ridge"
+            end
+        end
+        -- And a hummock or two: snow drifted over broken ice.
+        for n, p in ipairs(scatter(cell, 3, 4, 165)) do
+            if n ~= 2 then
+                local r = 2.2 + grain(p[1], p[2], 166) * 1.4
+                add(Sh.ell(p[1], top, p[2], r, 1.4 + grain(p[2], p[1], 167), r * 0.8), MAT.iceblock)
+            end
+        end
+        if cell.drownedForest then
+            for n, p in ipairs(scatter(cell, 4, 3.5, 40)) do
+                local x, z = p[1], p[2]
+                local h = (n % 3 == 0) and 2.2 or 5.5
+                add(Sh.seg(x, top - 1, z, x + (grain(x, z, 95) - 0.5) * 0.6, top + h, z, 0.55), MAT.deadwood)
+            end
+        end
+        return out
+    end
     if river then
+        -- Frozen over on frozen ground (src/frost.lua).
+        local riverMat = t.frozen and MAT.riverIce or MAT.river
         for k = 0, 5 do
-            if river[k] then add(riverStrip(cell, k, river[k]), MAT.river) end
+            if river[k] then add(riverStrip(cell, k, river[k]), riverMat) end
         end
     end
 
@@ -574,14 +719,21 @@ function World:hexSolids(cell)
         local h = 13 + grain(cell.id, 2, 30) * 10
         local main = add(Sh.peak(ring(cell.x + ox * 0.5, cell.z, H.R * wide, 31), top,
             { cell.x + ox, top + h, cell.z - 1 - grain(cell.id, 4, 30) * 2 }), MAT.rock)
-        main.snow = top + h * 0.6
+        -- The snow comes down the mountain when the land round it freezes.
+        local cold = 0
+        for k = 0, 5 do
+            local n = self:cellAt(H.step(cell.c, cell.r, k))
+            if n and D.TERRAIN[n.terrain].frozen then cold = cold + 1 end
+        end
+        local line = cold >= 2 and (cold >= 4 and 0.05 or 0.3) or 0.6
+        main.snow = top + h * line
         local roll = grain(cell.id, 3, 30)
         if roll > 0.3 then
             local side = roll > 0.65 and 1 or -1
             local sx, sz = cell.x - side * 6, cell.z + 3
             local h2 = h * (0.4 + grain(cell.id, 5, 30) * 0.25)
             local second = add(Sh.peak(ring(sx, sz, H.R * (wide - 0.37), 32), top, { sx - side * 1.5, top + h2, sz }), MAT.rock)
-            second.snow = top + h2 * 0.7
+            second.snow = top + h2 * (line + 0.1)
         end
     end
 
@@ -613,6 +765,8 @@ function World:hexSolids(cell)
     if cell.feature == "forest" and not cell.city then
         -- Burning, the crowns go to charcoal.
         local crown, trunk = cell.fire and MAT.charTree or MAT.tree, cell.fire and MAT.char or MAT.trunk
+        -- Snow on the boughs, or a rime on them (src/frost.lua).
+        if cell.terrain == "snow" then crown = MAT.snowTree elseif cell.terrain == "tundra" then crown = MAT.rimeTree end
         local pts = scatter(cell, cell.elev == "hills" and 4 or 5, 3.5, 40)
         for n, p in ipairs(pts) do
             local x, z = p[1], p[2]
@@ -826,7 +980,7 @@ function World:addCell(cell)
     -- from the land is found again.
     local water = D.TERRAIN[cell.terrain].water or false
     self.waterOf = self.waterOf or {}
-    if self.waterOf[cell.id] ~= nil and self.waterOf[cell.id] ~= water then self.landNear = nil end
+    if self.waterOf[cell.id] ~= nil and self.waterOf[cell.id] ~= water then self.landNear, self.iceNear = nil, nil end
     self.waterOf[cell.id] = water
 end
 
@@ -928,15 +1082,21 @@ function World:trace(i0, j0, i1, j1, yield)
                     -- A flood: how far the dry land is, in quarter units.
                     kind = LAND.flood
                     sway = max(1, min(255, floor(self:dryDistance(best.cellRef, x, z) * 4 + 0.5)))
-                elseif m == MAT.tree or m.id == MAT.wheat.id or m == MAT.reed then
+                elseif m == MAT.tree or m == MAT.snowTree or m == MAT.rimeTree or m.id == MAT.wheat.id or m == MAT.reed then
                     local cell = best.cellRef
-                    local ground = cell.top + ((m == MAT.tree and cell.elev == "hills") and 1 or 0)
-                    kind = m == MAT.tree and LAND.crown or LAND.sheaf
+                    local ground = cell.top + ((m ~= MAT.wheat and m ~= MAT.reed and cell.elev == "hills") and 1 or 0)
+                    local crown = m == MAT.tree or m == MAT.snowTree or m == MAT.rimeTree
+                    kind = crown and LAND.crown or LAND.sheaf
                     sway = max(0, min(255, floor((y - ground) * 16)))
                 elseif ny > 0.9 and (m.id == MAT.grass.id or m.id == MAT.grass.id + 20 or m == MAT.marsh) then
                     kind = LAND.grass
-                elseif ny > 0.9 and (m.id == MAT.plains.id or m.id == MAT.plains.id + 20) then
+                elseif ny > 0.9 and (m.id == MAT.plains.id or m.id == MAT.plains.id + 20
+                    or m.id == MAT.tundra.id or m.id == MAT.tundra.id + 20) then
                     kind = LAND.plains
+                elseif ny > 0.9 and (m.id == MAT.snow.id or m.id == MAT.snow.id + 20) then
+                    kind = LAND.snow
+                elseif ny > 0.9 and (m == MAT.ice or m == MAT.iceblock) then
+                    kind = LAND.ice
                 elseif ny > 0.9 and (m.id == MAT.desert.id or m.id == MAT.desert.id + 20
                     or m.id == MAT.scorched.id or m.id == MAT.scorched.id + 20) then
                     kind = LAND.desert
@@ -947,6 +1107,9 @@ function World:trace(i0, j0, i1, j1, yield)
                 if top and (m == MAT.ocean or m == MAT.coast) then
                     b.sea[n] = m == MAT.ocean and 1 or 2
                     b.shore[n] = min(255, floor(self:shoreDistance(best.cellRef, x, z) * 4 + 0.5))
+                    -- By the ice (src/frost.lua): slush and floes, no surf.
+                    local ice = self:iceDistance(best.cellRef, x, z)
+                    if ice < 10 then b.sea[n], b.shore[n] = LAND.slush, floor(ice * 4 + 0.5) end
                 else
                     b.sea[n] = 0
                 end
@@ -1061,6 +1224,24 @@ function World:shoreDistance(cell, x, z)
             end
         end
         self.landNear[cell.id] = near
+    end
+    local d = 64
+    for k = 1, #near do d = min(d, hexDistance(near[k], x, z)) end
+    return max(0, d)
+end
+
+-- How far room point (x, z) on water hex `cell` is from the sea's ice
+-- beside it (src/frost.lua); 64 with none beside it.
+function World:iceDistance(cell, x, z)
+    self.iceNear = self.iceNear or {}
+    local near = self.iceNear[cell.id]
+    if not near then
+        near = {}
+        for k = 0, 5 do
+            local n = self:cellAt(H.step(cell.c, cell.r, k))
+            if n and D.TERRAIN[n.terrain].sea then near[#near + 1] = n end
+        end
+        self.iceNear[cell.id] = near
     end
     local d = 64
     for k = 1, #near do d = min(d, hexDistance(near[k], x, z)) end

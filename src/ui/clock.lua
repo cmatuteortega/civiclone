@@ -276,9 +276,9 @@ local function scene(right, top, t)
     -- The hills, darker as the night comes, with a town on the higher one.
     local hk = 2.6 - 1.6 * night
     for px = 0, iw - 1 do
-        local top = hill(px)
-        for py = top, sea - 1 do plot(key(hk - (py - top) * 0.05, px, py), ix + px, py) end
-        plot("o", ix + px, top)
+        local crest = hill(px)
+        for py = crest, sea - 1 do plot(key(hk - (py - crest) * 0.05, px, py), ix + px, py) end
+        plot("o", ix + px, crest)
     end
     local tx = ix + 11
     local ty = hill(11) - 1

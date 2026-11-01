@@ -66,6 +66,8 @@ uniform float lit;       // 1 while the days go round, 0 for the map as the trac
 uniform float exposure;  // steps the night takes off the lightest keys: 0 by day
 uniform float night;     // 0 by day, 1 in the dark
 uniform float storm;     // 0 fair, 1 the deluge's worst: more cloud, and rain on the water
+uniform vec4 still;      // the still sun (src/stillsun.lua): xy the way to the day, z where the line is along it, w a hex's width; w 0 when the sun moves
+uniform float band;      // how far the twilight reaches either side of the line, in hexes
 
 const float O = 1.0, U = 2.0, N = 3.0, K = 4.0, TAN = 5.0, S = 6.0, C = 7.0, W = 8.0;
 
@@ -117,16 +119,38 @@ float cloud(vec2 p, vec2 w, float t) {
 
 vec4 lightAt(vec2 p) { return Texel(light, (p + 0.5) / size); }
 
+// How far into the still sun's day p is, in hexes (below 0 its night).
+float sunSide(vec2 p) { return (dot(room(p + 0.5), still.xy) - still.z) / still.w; }
+// How much it is day at p under the still sun: 1 in the day, 0 in the
+// night, between in the twilight; -1 when the sun moves as it always has.
+float dayAt(vec2 p) {
+    if (still.w <= 0.0) return -1.0;
+    return smoothstep(-band - 0.6, band * 0.7, sunSide(p));
+}
+// The night's steps and how dark it is, at p: the clock's, or the still
+// sun's where p lies: the endless night darker than any night was, and the
+// endless day, deep in it, a glare that washes the land out.
+float exposureAt(vec2 p) {
+    float d = dayAt(p);
+    if (d < 0.0) return exposure;
+    return mix(-2.9, exposure, d) + 0.9 * smoothstep(band + 1.0, band + 7.0, sunSide(p));
+}
+float nightAt(vec2 p) {
+    float d = dayAt(p);
+    return d < 0.0 ? night : max(night, 1.0 - smoothstep(0.05, 0.75, d));
+}
+
 // The night laid on key k at p: lighter keys further down than dark ones,
 // then `glow` of what it took given back by the lamps, in dithered rings.
 // Never down to ink, in the dark: ink keeps the darkest key, so the
 // outlines read.
 float nightfall(float k, vec2 p, float glow) {
     float thr = bayer4(p);
-    k = floor(k + exposure * clamp((k - 1.5) / 4.5, 0.2, 1.4) + thr);
-    float lift = glow * (-exposure);
+    float ex = exposureAt(p);
+    k = floor(k + ex * clamp((k - 1.5) / 4.5, 0.2, 1.4) + thr);
+    float lift = glow * (-ex);
     k += floor(lift) + (thr < fract(lift) ? 1.0 : 0.0);
-    return clamp(k, thr < night ? U : O, W);
+    return clamp(k, thr < nightAt(p) ? U : O, W);
 }
 
 // Key k at board pixel p, as the tracer laid it (before the fog), in the
@@ -137,7 +161,7 @@ float daylight(float k, vec2 p) {
     vec4 l = lightAt(p);
     if (l.b < 0.5) return k;
     k -= (floor(l.r * 255.0 + 0.5) - 128.0) / 16.0;
-    return nightfall(k, p, l.g * 1.4 + l.g * l.g * night * 0.9 / max(-exposure, 0.01));
+    return nightfall(k, p, l.g * 1.4 + l.g * l.g * nightAt(p) * 0.9 / max(-exposureAt(p), 0.01));
 }
 
 // The paper map and the dark round it take the night, but no sun.
@@ -155,6 +179,7 @@ uniform float time;      // the sea's clock
 uniform float moonX;     // the canvas's column under the moon
 
 const float CROWN = 3.0, SHEAF = 4.0, GRASS = 5.0, PLAINS = 6.0, DESERT = 8.0, RIVER = 9.0, FLOOD = 10.0, POOL = 11.0;
+const float SNOW = 12.0, ICE = 13.0, SLUSH = 14.0;
 
 // Rain on water: rings, a pixel wide, that open where each drop falls and
 // are gone in a moment. 1 on a ring's light side, -1 its dark, 0 none.
@@ -256,12 +281,47 @@ vec3 sea(vec4 m, vec2 p, vec2 w, vec2 sc) {
 
     k = daylight(k, p);
     // The moon on the sea: a broken path of glints under it that shimmer.
-    if (lit > 0.5 && night > 0.3 && dark < 0.5) {
+    float nt = nightAt(p);
+    if (lit > 0.5 && nt > 0.3 && dark < 0.5) {
         float off = (sc.x - moonX) / 30.0;
         float path = exp(-off * off);
-        if (hash(vec2(floor(p.x / 2.0), p.y), floor(t * 5.0)) > 1.0 - 0.22 * path * night) k = path > 0.6 ? W : S;
+        if (hash(vec2(floor(p.x / 2.0), p.y), floor(t * 5.0)) > 1.0 - 0.22 * path * nt) k = path > 0.6 ? W : S;
     }
 
+    k = clamp(k - dark - cloud(p, w, air), 1.0, 8.0);
+    return key(k);
+}
+
+// Water by the sea's ice (src/frost.lua; g how far the ice is, x4): no surf,
+// but dark still water thick with slush, and floes broken off the ice
+// drifting slowly on it, more and bigger nearer the ice, and a lip of white
+// where it meets the ice.
+vec3 slush(vec4 m, vec2 p, vec2 w, vec2 sc) {
+    float d = m.g * 255.0 / 4.0;
+    float dark = floor(m.b * 255.0 + 0.5);
+    float t = time;
+    float k = U;
+    // The swell, lazy under the slush.
+    if (swell(w, t * 0.4) < -0.85 && bayer4(p) < 0.25) k = O;
+    // Floes: drifting slowly east and back, ragged, thicker nearer the
+    // ice, each lit along its far edge and a step down along its near one.
+    vec2 drift = vec2(t * 0.25 + 2.0 * sin(t * 0.04), 0.6 * sin(t * 0.05));
+    vec2 q = (w + drift) * vec2(0.11, 0.17);
+    float f = noise(q) * 0.65 + noise(q * 2.7 + 3.1) * 0.35;
+    float edge = 0.5 + d * 0.035;
+    if (f > edge) {
+        float below = noise((w + drift + vec2(0.0, 1.2)) * vec2(0.11, 0.17)) * 0.65
+            + noise((w + drift + vec2(0.0, 1.2)) * vec2(0.11, 0.17) * 2.7 + 3.1) * 0.35;
+        k = f < edge + 0.025 ? S : (below < edge ? S : (bayer4(p) < 0.12 ? C : W));
+    } else if (hash(floor((w + drift) * 0.7), 9.0) > 0.95 && d < 7.0) {
+        // Brash, a speck here and there.
+        k = N;
+    }
+    // The lip along the ice.
+    if (d < 0.8 + 0.3 * sin(t * 0.7 + w.x * 0.3)) k = d < 0.4 ? W : C;
+    vec4 o = Texel(overlay, sc / overlaySize);
+    if (o.a > 0.0 && o.a < 0.5) k += floor(o.a * 255.0 + 0.5);
+    k = min(daylight(k, p), k);
     k = clamp(k - dark - cloud(p, w, air), 1.0, 8.0);
     return key(k);
 }
@@ -305,10 +365,11 @@ vec3 river(vec4 m, vec2 p, vec2 w, vec2 sc) {
     k = min(daylight(k, p), k);
     vec4 o = Texel(overlay, sc / overlaySize);
     if (o.a > 0.0 && o.a < 0.5) k += floor(o.a * 255.0 + 0.5);
-    if (lit > 0.5 && night > 0.3 && dark < 0.5) {
+    float nt = nightAt(p);
+    if (lit > 0.5 && nt > 0.3 && dark < 0.5) {
         float off = (sc.x - moonX) / 30.0;
         float path = exp(-off * off);
-        if (hash(vec2(floor(p.x / 2.0), p.y), floor(t * 5.0)) > 1.0 - 0.3 * path * night) k = path > 0.6 ? W : S;
+        if (hash(vec2(floor(p.x / 2.0), p.y), floor(t * 5.0)) > 1.0 - 0.3 * path * nt) k = path > 0.6 ? W : S;
     }
     k = clamp(k - dark - cloud(p, w, air), 1.0, 8.0);
     return key(k);
@@ -397,6 +458,16 @@ vec3 land(vec4 m, vec2 p, vec2 w) {
         float band = fract((p.y + t * 5.0 + 4.0 * noise(w * 0.04)) / 9.0);
         if (band < 0.2 * heat && bayer4(p) < 0.25 * heat) k += 1.0;
     }
+    // Snow (src/frost.lua): a sparkle now and then, and spindrift, the snow
+    // the gusts lift, running over it in streaks.
+    if (!covered && kind == SNOW) {
+        if (hash(p, floor(t * 2.0 + hash(p) * 9.0)) > 0.994) k = W;
+        float gs = gust(w, t);
+        float drift = noise(w * vec2(0.06, 0.55) - vec2(t * 2.2, 0.0));
+        if (drift * (0.35 + gs) > 0.5 && bayer4(p + vec2(floor(t * 6.0), 0.0)) < 0.375) k = k > C - 0.5 ? S : W;
+    }
+    // Ice: a glint, for a moment.
+    if (!covered && kind == ICE && hash(p, floor(t * 1.5 + hash(p) * 7.0)) > 0.996) k = W;
     float g = gust(w, t);
     if (from == CROWN && g > 0.45 && k > U && hash(p, floor(t * 5.0 + hash(p) * 3.0)) > 0.9) {
         // Leaves turned over by the gust, a glint of their light side.
@@ -419,7 +490,7 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
         return vec4(key(dusk(keyOf(m), p)), 1.0) * color;
     }
     vec2 w = room(p + 0.5);
-    vec3 c = kind < 2.5 ? sea(m, p, w, sc) : (kind == RIVER ? river(m, p, w, sc)
+    vec3 c = kind < 2.5 ? sea(m, p, w, sc) : kind == SLUSH ? slush(m, p, w, sc) : (kind == RIVER ? river(m, p, w, sc)
         : (kind == FLOOD || kind == POOL ? flood(m, p, w, sc, kind == POOL) : land(m, p, w)));
     return vec4(c, 1.0) * color;
 }
@@ -455,10 +526,10 @@ vec4 effect(vec4 color, Image tex, vec2 tc, vec2 sc) {
             // A building: the night as on the ground, half the lamps' glow,
             // so its lit windows show.
             k = nightfall(k, p, glow * 0.7);
-            if (window && night * 1.2 - 0.1 > hash(p, 4.0)) k = W;
+            if (window && nightAt(p) * 1.2 - 0.1 > hash(p, 4.0)) k = W;
         } else {
             // Anyone else: at most a step down, so they always read.
-            float e = max(exposure * 0.5, -1.0);
+            float e = max(exposureAt(p) * 0.5, -1.0);
             k = clamp(floor(k + e - e * glow * 1.5 + bayer4(p)), 1.0, 8.0);
         }
     }
@@ -499,6 +570,19 @@ function Sea.update(dt)
     if not still() then air = (air + dt) % 3600 end
 end
 
+-- Where on the sea's level each pixel of world `w`'s picture is in the room:
+-- w.seaBase at its corner, w.seaI a pixel right, w.seaJ a pixel down.
+function Sea.level(w)
+    if w.seaBase then return end
+    local level = D.TERRAIN.ocean.top
+    local x0, z0 = T.onLevel(w.i0, w.j0, level)
+    local x1, z1 = T.onLevel(w.i0 + 1, w.j0, level)
+    local x2, z2 = T.onLevel(w.i0, w.j0 + 1, level)
+    w.seaBase = { x0, z0 }
+    w.seaI = { x1 - x0, z1 - z0 }
+    w.seaJ = { x2 - x0, z2 - z0 }
+end
+
 -- Sets the shader going for world `w` drawn at the canvas's (x, y), with the
 -- overlay `overlay` (an image the canvas's size) over it, the board picture's
 -- pixel (camx, camy) at the canvas's corner. Answers whether it did: if not,
@@ -506,15 +590,7 @@ end
 function Sea.begin(w, overlay, camx, camy)
     local sh = Sea.shader
     if not sh then return false end
-    if not w.seaBase then
-        local level = D.TERRAIN.ocean.top
-        local x0, z0 = T.onLevel(w.i0, w.j0, level)
-        local x1, z1 = T.onLevel(w.i0 + 1, w.j0, level)
-        local x2, z2 = T.onLevel(w.i0, w.j0 + 1, level)
-        w.seaBase = { x0, z0 }
-        w.seaI = { x1 - x0, z1 - z0 }
-        w.seaJ = { x2 - x0, z2 - z0 }
-    end
+    Sea.level(w)
     local weather = still() and 0 or 1
     for _, s in ipairs({ sh, Sea.cover }) do
         s:send("base", w.seaBase)

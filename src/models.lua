@@ -546,7 +546,8 @@ M.CITY_PLOTS = PLOTS
 
 -- What each building takes, of the plots: it stands in that plot instead of
 -- a house.
-local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10, sanctum = 11 }
+local BUILT_PLOT = { granary = 4, library = 3, market = 5, monument = 12, cistern = 6, shelter = 10, sanctum = 11,
+    hearth = 8 }
 
 -- A little hash, so the same city is laid out the same way every time.
 local function hash(a, b)
@@ -557,7 +558,8 @@ end
 local function siteKey(site)
     local rv = {}
     for k = 0, 5 do rv[#rv + 1] = site.river and site.river[k] and floor(site.river[k] * 2 + 0.5) / 2 or "-" end
-    return table.concat({ site.biome or "grass", site.hills and "h" or "f", site.seed or 0, table.concat(rv, ",") }, ";")
+    return table.concat({ site.biome or "grass", site.hills and "h" or "f", site.seed or 0, table.concat(rv, ","),
+        site.snow and "s" or "-" }, ";")
 end
 
 -- The site of a city on map cell `cell`: its land, whether on hills, how far
@@ -575,8 +577,10 @@ function M.citySite(cell)
         end
     end
     local biome = cell.terrain
+    -- Snow on the roofs of a town on frozen ground (src/frost.lua).
+    local snow = (biome == "snow" or biome == "tundra") or nil
     if biome ~= "plains" and biome ~= "desert" then biome = "grass" end
-    return { biome = biome, hills = cell.elev == "hills", river = river, seed = cell.id % 4 }
+    return { biome = biome, hills = cell.elev == "hills", river = river, seed = cell.id % 4, snow = snow }
 end
 
 -- How a city at `pop` on `site`, with buildings `built`,
@@ -633,6 +637,11 @@ function M.cityChimneys(pop, built, site)
         local top = h.y + STOREY * h.size * h.storeys + (site and site.biome == "desert" and 0.6 or 2.4 * h.size)
         out[#out + 1] = { h.x + 0.8 * h.size, top, h.z }
     end
+    -- The hearth's fire is never let go out.
+    if built and built.hearth then
+        local p = PLOTS[BUILT_PLOT.hearth]
+        out[#out + 1] = { p.x + 1, 7.3, p.z - 1.4 }
+    end
     return out
 end
 
@@ -673,7 +682,13 @@ local function thatched(L, courses)
 end
 
 -- A house of `storeys` in the style of the land, its floor at y.
-local function house(parts, x, y, z, L, id, size, storeys, turn, biome)
+-- Snow lying on a roof: white on what looks up, the eave dark under it.
+local function snowed(ux, uy, uz, lev)
+    if uy < 0.08 then return IDX.n end
+    return lev <= 2 and IDX.w or IDX.c
+end
+
+local function house(parts, x, y, z, L, id, size, storeys, turn, biome, snow)
     local h = turn and math.pi / 2 or 0
     local w, d = 4 * size, 3.4 * size
     if turn then w, d = w * 0.92, d * 1.08 end
@@ -744,7 +759,7 @@ local function house(parts, x, y, z, L, id, size, storeys, turn, biome)
     end
     local roofHt = (biome == "plains" and 3.2 or 2.6) * size
     parts[#parts + 1] = part(Sh.roof(x, yy, z, w + 1, d + 1.2, roofHt, h), L.roof, id + 1,
-        biome == "plains" and thatched(L, 6) or banded(L))
+        snow and snowed or (biome == "plains" and thatched(L, 6) or banded(L)))
 end
 
 -- What stands on a plot no one has built on yet, by the land: a tree and a
@@ -1018,7 +1033,8 @@ function M.city(look, pop, capital, built, shore, drop, site)
     drop = drop and floor(drop * 2 + 0.5) / 2 or 0
     local key = table.concat({ "c", look, #lay.houses, lay.tier, capital and 1 or 0, b.walls and 1 or 0,
         b.granary and 1 or 0, b.library and 1 or 0, b.market and 1 or 0, b.monument and 1 or 0, shore or "-", drop,
-        b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, b.levee and 1 or 0, b.shelter and 1 or 0, b.sanctum and 1 or 0, siteKey(site) }, ":")
+        b.harbour and 1 or 0, b.lighthouse and 1 or 0, b.cistern and 1 or 0, b.levee and 1 or 0, b.shelter and 1 or 0, b.sanctum and 1 or 0, b.hearth and 1 or 0,
+        siteKey(site) }, ":")
     return kept(key, function()
         local L = LOOK[look]
         local parts = {}
@@ -1045,7 +1061,7 @@ function M.city(look, pop, capital, built, shore, drop, site)
                     if floor((ux + 1) * 5 + (uy > 0.5 and 0.5 or 0)) % 2 == 0 then return IDX.k end
                 end)
             end
-            house(parts, h.x, h.y, h.z, L, 10 + k * 4, h.size, h.storeys, h.turn, site.hills and "hills" or biome)
+            house(parts, h.x, h.y, h.z, L, 10 + k * 4, h.size, h.storeys, h.turn, site.hills and "hills" or biome, site.snow)
         end
         -- Gardens on a few of the plots not built on yet: fewer as it grows.
         local gardens = ({ 4, 3, 2, 1 })[lay.tier]
@@ -1125,6 +1141,26 @@ function M.city(look, pop, capital, built, shore, drop, site)
             end
             parts[#parts + 1] = part(Sh.prism(6, x, 0, z, 0.9, 2.4), R.stone, 91)
             parts[#parts + 1] = part(Sh.ell(x, 3.1, z, 0.7, 0.8, 0.7), GLOW, 92)
+        end
+        if b.hearth then
+            -- The hearth, against the endless night: a squat kiln-house of
+            -- stone, domed, its mouth glowing; a tall chimney at its back,
+            -- and the wood for it stacked beside, log on log.
+            local x, z = at("hearth")
+            parts[#parts + 1] = part(Sh.prism(8, x, 0, z, 2.5, 2.2, 0, math.pi / 8), R.stone, 93, function(ux, uy)
+                if floor(uy * 4) % 2 == 1 and floor((ux + 1) * 5) % 2 == 0 then return IDX.t end
+            end)
+            parts[#parts + 1] = part(Sh.ell(x, 2.1, z, 2.5, 1.9, 2.5), R.stone, 94, function(ux, uy, uz)
+                if hash(floor(ux * 6), floor(uz * 6 + uy * 4)) > 0.82 then return IDX.t end
+            end)
+            parts[#parts + 1] = part(Sh.box(x, 0, z + 2.2, 1.5, 0.7, 1.6), GLOW, 95)
+            parts[#parts + 1] = part(Sh.prism(4, x + 1, 2.5, z - 1.4, 0.75, 4.6, 0, math.pi / 4), R.stone, 96,
+                function(ux, uy) if uy > 0.9 then return IDX.o end end)
+            for k = 0, 2 do
+                local lz = z + 0.8 + (k - 1) * 0.75
+                parts[#parts + 1] = part(Sh.seg(x - 4.2, 0.35 + (k % 2) * 0.7, lz, x - 2.6, 0.35 + (k % 2) * 0.7, lz, 0.38),
+                    R.wood, 97)
+            end
         end
         if b.levee then
             -- Banks of earth all round the hex, low and broad, faced with

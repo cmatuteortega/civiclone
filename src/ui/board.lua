@@ -24,6 +24,7 @@ local Fire = require "src.ui.fire"
 local Wild = require "src.ui.wild"
 local Birds = require "src.ui.birds"
 local Rain = require "src.ui.rain"
+local Snow = require "src.ui.snow"
 local SkyFx = require "src.ui.sky"
 local Abyss = require "src.ui.abyss"
 local Audio = require "src.ui.audio"
@@ -408,7 +409,7 @@ local function idlePose(u, a, near)
     local t = Sea.air() + u.id * 1.37
     local k = u.kind
     if k == "wolf" then
-        if D.night(S.game.turn, S.game) then
+        if D.night(S.game.turn, S.game, S.game.cells[u.cell]) then
             local f = t % 9
             return f > 7.2 and P_.howl or 0, f > 7.2 and f < 7.2 + S.dt * 1.5
         end
@@ -619,6 +620,7 @@ local function things(me)
     for _, t in ipairs(list) do t.draw() end
     Birds.draw()
     Rain.draw()
+    Snow.draw()
     SkyFx.draw()
     Abyss.draw()
 end

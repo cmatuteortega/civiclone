@@ -288,8 +288,8 @@ function Wild.update(dt)
     end
     -- The foxes: asleep by day, trotting round by night; gone while anyone is
     -- near, back a while after.
-    local night = D.night(g.turn, g)
     for _, f in pairs(foxes) do
+        local night = D.night(g.turn, g, f.cell)
         if disturbed(g, f.cell) then f.quiet = 0 else f.quiet = f.quiet + dt end
         f.gone = f.quiet < QUIET
         if night then

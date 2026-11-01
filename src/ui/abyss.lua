@@ -13,7 +13,7 @@ local S = require "src.ui.state"
 local P = require "src.ui.pixels"
 local Cat = require "src.cataclysm"
 
-local floor, sin, cos, abs = math.floor, math.sin, math.cos, math.abs
+local floor, sin, abs = math.floor, math.sin, math.abs
 local IDX = T.IDX
 
 local Abyss = {}

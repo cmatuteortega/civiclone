@@ -321,3 +321,22 @@ do
     end
     write("cities-shelter")
 end
+
+-- The frost (src/frost.lua) and the still sun's hearth (D.BUILDINGS.hearth):
+-- towns on tundra and snow, snow on their roofs, without and with a hearth.
+do
+    local SITES = {
+        { "TUNDRA", plain("tundra"), nil, { pop = 5 } },
+        { "TUNDRA, HEARTH", plain("tundra"), nil, { pop = 5, look = "stripe", built = { hearth = true } } },
+        { "SNOW, HEARTH", plain("snow"), nil, { pop = 8, look = "dark", built = { hearth = true, walls = true } } },
+        { "SNOW, RIVER", plain("snow"), { MID[1], MID[2], 150 }, { pop = 3, built = { hearth = true } } },
+    }
+    sheet(BW * #SITES, BH + 10)
+    for k, s in ipairs(SITES) do
+        local game, at = stretch(s[2], s[3])
+        local img, w, h, ci, cj = scene(game, at, s[4])
+        lay(img, w, h, ci, cj, (k - 1) * BW, 0, BW, BH)
+        text(s[1], (k - 0.5) * BW, BH + 2, true)
+    end
+    write("cities-frost")
+end

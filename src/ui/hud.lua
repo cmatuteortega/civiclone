@@ -22,6 +22,7 @@ local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
 local Settings = require "src.settings"
 local Clock = require "src.ui.clock"
+local Palette = require "src.palette"
 
 local floor, max, min = math.floor, math.max, math.min
 local text, rect, button, icon = Draw.text, Draw.rect, Draw.button, Draw.icon
@@ -269,6 +270,10 @@ local function tooltip()
     lines[1] = head
     local river = g:riverName(cell)
     if river then lines[#lines + 1] = "BY THE " .. river end
+    -- Where it lies under the still sun (src/stillsun.lua).
+    local K = Cat.kindOf(g)
+    local where = K and K.describe and K.describe(g, cell)
+    if where then lines[#lines + 1] = where:sub(3) end
     if cell.lair then
         local l = cell.lair.def
         lines[#lines + 1] = l.sting and "A SOLDIER CAN TAKE THEIR HONEY, AND BE STUNG"
@@ -284,7 +289,7 @@ local function tooltip()
                 local d = u.def
                 local how = d.temper == "hostile" and "HOSTILE" or (d.temper == "neutral" and "FIGHTS IF HUNTED" or "SHY")
                 lines[#lines + 1] = d.name .. " - " .. how .. " - STR " .. (d.str + Beasts.nightBonus(g, u)) .. " " .. u.hp .. "HP"
-                if d.night then lines[#lines + 1] = D.night(g.turn, g) and "HUNTING BY NIGHT: +" .. d.night .. " STRENGTH"
+                if d.night then lines[#lines + 1] = D.night(g.turn, g, cell) and "HUNTING BY NIGHT: +" .. d.night .. " STRENGTH"
                     or "STRONGER AT NIGHT" end
                 if d.across then lines[#lines + 1] = "STRIKES WHAT CROSSES ITS RIVER" end
                 if d.tame then
@@ -339,7 +344,8 @@ end
 
 --- the minimap ---------------------------------------------------------------------
 
-local MINI = { ocean = "u", coast = "n", grass = "k", plains = "t", desert = "c", marsh = "n" }
+local MINI = { ocean = "u", coast = "n", grass = "k", plains = "t", desert = "c", marsh = "n", tundra = "s", snow = "w",
+    ice = "c" }
 
 local function minimap()
     local g = S.game
@@ -352,11 +358,21 @@ local function minimap()
         if cell then View.lookAt(cell) end
     end }
     local p = me()
+    local night = Cat.is(g, "sun") and g.cataclysm.line and {} or nil
+    if night then
+        for _, cell in ipairs(g.cells) do night[cell.id] = D.sunSide(g, cell.x, cell.z) end
+    end
     for _, cell in ipairs(g.cells) do
         local px, py = x + cell.c * 2 + cell.r % 2, y + cell.r * 2
         if p.explored[cell.id] then
             local k = cell.elev == "mountain" and "s" or MINI[cell.terrain]
             if cell.owner then k = Board.TEAM[g.players[cell.owner].civ.look].fill end
+            -- Under the still sun, the night side a step darker, the
+            -- twilight half so.
+            local zone = night and Cat.KINDS.sun.zone(g, cell)
+            if zone == "night" or (zone == "twilight" and (cell.c + cell.r) % 2 == 0 and (night[cell.id] or 0) < 0) then
+                k = Palette.darker[k]
+            end
             rect(k, px, py, 2, 2)
             -- A river's course, a dark speck in each hex along it.
             if not cell.owner and g:onRiver(cell) then rect("u", px + 1, py + 1, 1, 1) end

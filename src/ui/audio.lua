@@ -205,6 +205,9 @@ function Audio.hear(game, e)
         if e.city.owner == 1 then at("taken", e.cell)
         elseif e.from == 1 then at("fallen", e.cell)
         elseif seen(e.cell) then at("taken", e.cell, 0.4, 0, 0.9) end
+    elseif k == "freeze" and e.cell then
+        -- The sea freezing over.
+        if seen(e.cell) then at("crack", e.cell, 0.7) end
     elseif k == "flood" and e.cell then
         -- A river over its banks.
         if seen(e.cell) then at("splash", e.cell, 0.7, 0, 0.6) end
@@ -216,7 +219,7 @@ function Audio.hear(game, e)
         if seen(e.cell) then at("splash", e.cell, 0.9, 0, 0.5) end
     elseif k == "devour" then
         if seen(e.cell) then at("fallen", e.cell, 0.6, 0, 0.7) end
-    elseif k == "eliminated" or k == "heat" or k == "flood" or k == "sky" or k == "demons" then
+    elseif k == "eliminated" or k == "heat" or k == "flood" or k == "sky" or k == "demons" or k == "sun" then
         -- A civilization gone, or the cataclysm come a stage nearer.
         at("gong")
     elseif k == "embark" or k == "land" then

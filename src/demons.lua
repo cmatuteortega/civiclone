@@ -48,7 +48,7 @@ local D = require "src.defs"
 local Cat = require "src.cataclysm"
 local Beasts = require "src.beasts"
 
-local max, min, floor = math.max, math.min, math.floor
+local max, min = math.max, math.min
 
 local Demons = {
     stages = { "omen", "rifts", "deep", "hellgate" },
