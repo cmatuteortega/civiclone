@@ -37,9 +37,12 @@
 --
 -- The cells keep what has happened to them: `fault` (the edges cracked
 -- open: fault[k] for the edge towards neighbour k, set on both sides),
+-- `faultWet` (those of them the sea has got into, by the same edges),
 -- `riftLine` (where the rift will tear: its place along it), `rift` (how
--- far it has: 1 cracked, 2 a chasm, 3 the sea coming in), `riftAngle`
--- (which way the rift runs through it), `sundered` (it was land and the
+-- far it has: 1 cracked, 2 a chasm, 3 the sea coming in), `riftEdges` (the
+-- two edges the rift runs out by: towards the rift's hexes either side, or
+-- the sea at its ends), `riftAngle` (which way it runs through, from one to
+-- the other), `sundered` (it was land and the
 -- rift has made it sea), `rangeLine` (where a range will rise), `raised`
 -- (it was sea and has risen), `volcano`, `erupting` (turns its crater still
 -- glows), `lava` (turns it still burns), `basalt` (lava cooled on it),
@@ -205,6 +208,64 @@ local function crack(game, cell, n, reach)
         if #options == 0 then return end
         local o = options[floor(rng:random() * #options) + 1]
         Q.openFault(game, o[1], o[2])
+    end
+end
+
+-- Where the sea gets into the faults: every fault that meets the sea (or a
+-- chasm the sea has come into) at a corner fills with water, and every fault
+-- that meets a wet one at a corner, on along the cracks. Each hex keeps
+-- `faultWet` (faultWet[k] for its fault along edge k, set on both sides);
+-- the hexes whose wet faults changed are drawn again.
+local function seaAt(game, cell)
+    return cell and (game:isWater(cell) or (cell.rift or 0) >= 3)
+end
+function Q.soak(game)
+    local wet, queue = {}, {}
+    local function key(cell, k) return cell.id * 6 + k end
+    local function wetten(cell, k)
+        if wet[key(cell, k)] then return end
+        local n = game:cell(H.step(cell.c, cell.r, k))
+        wet[key(cell, k)] = true
+        if n then wet[key(n, (k + 3) % 6)] = true end
+        queue[#queue + 1] = { cell, k }
+    end
+    for _, cell in ipairs(game.cells) do
+        if cell.fault then
+            for k = 0, 5 do
+                if cell.fault[k] then
+                    -- The hexes at either end of the edge.
+                    local a = game:cell(H.step(cell.c, cell.r, (k + 5) % 6))
+                    local b = game:cell(H.step(cell.c, cell.r, (k + 1) % 6))
+                    if seaAt(game, a) or seaAt(game, b) or (cell.rift or 0) >= 3 then wetten(cell, k) end
+                end
+            end
+        end
+    end
+    local i = 1
+    while queue[i] do
+        local cell, k = queue[i][1], queue[i][2]
+        i = i + 1
+        for _, o in ipairs(onward(game, cell, k)) do
+            local h, j = o[1], o[2]
+            if h.fault and h.fault[j] then wetten(h, j) end
+        end
+    end
+    for _, cell in ipairs(game.cells) do
+        local now
+        if cell.fault then
+            for k = 0, 5 do
+                if cell.fault[k] and wet[key(cell, k)] then
+                    now = now or {}
+                    now[k] = true
+                end
+            end
+        end
+        local was, same = cell.faultWet, true
+        for k = 0, 5 do
+            if (was and was[k] or false) ~= (now and now[k] or false) then same = false end
+        end
+        cell.faultWet = now
+        if not same then game:emit({ kind = "terrain", cell = cell.id }) end
     end
 end
 
@@ -443,24 +504,39 @@ function Q.planRift(game)
     return best
 end
 
--- Lays the rift's line on the map, and its heading through each hex.
+-- Which edge of hex `cell` its neighbour `n` is across.
+local function edgeTo(cell, n) return H.dirTo(cell.c, cell.r, n.c, n.r) end
+
+-- The sea beside an end of the rift that it runs out into: of the water
+-- beside it, the one most nearly straight on from the hex `inland` of it.
+local function mouth(game, cell, inland)
+    local best, bv
+    for _, n in ipairs(game:neighbours(cell)) do
+        if game:isWater(n) then
+            local v = inland and ((n.x - cell.x) * (cell.x - inland.x) + (n.z - cell.z) * (cell.z - inland.z)) or 0
+            if not bv or v > bv then best, bv = n, v end
+        end
+    end
+    return best
+end
+
+-- Lays the rift's line on the map: through each hex, the two edges it runs
+-- out by, towards the hexes before and after it along the rift, or at
+-- either end out into the sea beside it; and its heading from one to the
+-- other.
 local function layRift(game, path)
     local c = game.cataclysm
     c.rift, c.opened = {}, 0
     for i, cell in ipairs(path) do
         c.rift[i] = cell.id
         cell.riftLine = i
-        -- At either end, it runs out to the sea beside it.
         local before, after = path[i - 1], path[i + 1]
-        if not before or not after then
-            for _, n in ipairs(game:neighbours(cell)) do
-                if game:isWater(n) then
-                    if not before then before = { x = 2 * cell.x - n.x, z = 2 * cell.z - n.z } end
-                    if not after then after = n end
-                    break
-                end
-            end
-        end
+        if not before then before = mouth(game, cell, after) end
+        if not after then after = mouth(game, cell, before) end
+        local ks = {}
+        if before then ks[#ks + 1] = edgeTo(cell, before) end
+        if after then ks[#ks + 1] = edgeTo(cell, after) end
+        cell.riftEdges = ks
         cell.riftAngle = heading(cell, before, after)
     end
 end
@@ -1082,6 +1158,8 @@ function Q.play(game, stage)
             :format(QK.great - QK.warn))
     end
     if game.turn == QK.great then Q.great(game) end
+    -- The sea runs into the cracks that reach it.
+    Q.soak(game)
     -- And the next turn's are seen coming.
     if game.turn + 1 >= QK.tremors then mark(game) end
 end

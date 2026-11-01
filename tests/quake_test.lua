@@ -270,4 +270,133 @@ return {
         for _, c in ipairs(g.cities) do if c.buildings.buttress then buttresses = buttresses + 1 end end
         assert(buttresses >= 1, "the AI built buttresses")
     end },
+    { "the rift runs out of each hex towards the next, and at its ends into the sea", function()
+        local g = newGame(9)
+        g.turn = D.QUAKE.tremors - 1
+        Cat.turn(g)
+        local c = g.cataclysm
+        local n = #c.rift
+        for i, id in ipairs(c.rift) do
+            local cell = g.cells[id]
+            assert(#cell.riftEdges == 2 and cell.riftEdges[1] ~= cell.riftEdges[2])
+            for j, k in ipairs(cell.riftEdges) do
+                local to = g:cell(H.step(cell.c, cell.r, k))
+                local along = c.rift[i + (j == 1 and -1 or 1)]
+                if along then
+                    assert(to.id == along, "towards the next hex of the rift")
+                else
+                    assert(g:isWater(to), "at its end, out into the sea")
+                end
+            end
+        end
+        assert(g:isWater(g:cell(H.step(g.cells[c.rift[n]].c, g.cells[c.rift[n]].r, g.cells[c.rift[n]].riftEdges[2]))))
+    end },
+    { "the sea runs into the faults that reach it, and on along them; not into the others", function()
+        local g = newGame()
+        -- A land hex by the sea, its edge k between two land hexes, with
+        -- the sea at a corner of it.
+        local a, k
+        a = find(g, function(cell)
+            if g:isWater(cell) then return false end
+            for d = 0, 5 do
+                local corner = g:cell(H.step(cell.c, cell.r, (d + 1) % 6))
+                if corner and g:isWater(corner) and Quake.canFault(g, cell, d) then k = d return true end
+            end
+        end)
+        assert(a, "a fault to open by the sea")
+        Quake.openFault(g, a, k)
+        -- And one running on from its other end, if it can.
+        local on = (k + 5) % 6
+        local runs = Quake.canFault(g, a, on)
+        if runs then Quake.openFault(g, a, on) end
+        -- And one far from any sea.
+        local far, fk = find(g, function(cell)
+            if g:isWater(cell) then return false end
+            for _, n in ipairs(g:within(cell, 3)) do if g:isWater(n) or n.fault then return false end end
+            return true
+        end)
+        if far then
+            for d = 0, 5 do if Quake.canFault(g, far, d) then fk = d break end end
+            if fk then Quake.openFault(g, far, fk) end
+        end
+        Quake.soak(g)
+        local b = g:cell(H.step(a.c, a.r, k))
+        assert(a.faultWet and a.faultWet[k] and b.faultWet[(k + 3) % 6], "the sea is in it, both sides")
+        if runs then assert(a.faultWet[on], "and on along the crack") end
+        if far and fk then assert(not (far.faultWet and far.faultWet[fk]), "but not in a crack far from the sea") end
+        -- Drawn as water at the sea's level, in the sea's stuff.
+        local ffi = require "ffi"
+        local was = love
+        love = {
+            image = { newImageData = function(w, h)
+                local buf = ffi.new("uint8_t[?]", w * h * 4)
+                return { getFFIPointer = function() return buf end, release = function() end }
+            end },
+            graphics = { newImage = function() return { setFilter = function() end, replacePixels = function() end } end },
+        }
+        local World = require "src.world"
+        local w = World.new(g)
+        local wet = 0
+        for _, s in ipairs(w:hexSolids(a)) do
+            for _, pl in ipairs(s.planes or {}) do
+                if pl[2] == 1 and pl[4] == D.TERRAIN.coast.top and s.kind == "hull" then wet = wet + 1 end
+            end
+        end
+        love = was
+        assert(wet >= 1, "the water in the fault")
+    end },
+    { "a chasm's canal runs from the middle out by the rift's edges, the land either side", function()
+        local ffi = require "ffi"
+        local was = love
+        love = {
+            image = { newImageData = function(w, h)
+                local buf = ffi.new("uint8_t[?]", w * h * 4)
+                return { getFFIPointer = function() return buf end, release = function() end }
+            end },
+            graphics = { newImage = function() return { setFilter = function() end, replacePixels = function() end } end },
+        }
+        local World = require "src.world"
+        local g = newGame()
+        local w = World.new(g)
+        local cell = find(g, function(c) return not g:isWater(c) and c.elev == "flat" and not c.river end)
+        local function inside(s, x, y, z)
+            for _, pl in ipairs(s.planes) do
+                if pl[1] * x + pl[2] * y + pl[3] * z > pl[4] + 1e-6 then return false end
+            end
+            return true
+        end
+        local function land(x, z)
+            for _, s in ipairs(w:hexSolids(cell)) do
+                if s.kind == "hull" and s.planes[7] and s.planes[7][4] == cell.top and inside(s, x, cell.top - 0.5, z) then
+                    return true
+                end
+            end
+            return false
+        end
+        -- Bent sharply, gently, and straight through.
+        for _, ks in ipairs({ { 0, 2 }, { 0, 1 }, { 1, 4 }, { 5, 3 } }) do
+            for step = 2, 3 do
+                cell.rift, cell.riftEdges = step, ks
+                for _, k in ipairs(ks) do
+                    local a = math.rad(60 * k)
+                    for _, u in ipairs({ 0, 4, 8, H.APOTHEM - 0.5 }) do
+                        assert(not land(cell.x + math.cos(a) * u, cell.z + math.sin(a) * u), "the canal is open along the arm")
+                    end
+                end
+                -- The land stands across the edges the rift does not run out by.
+                for k = 0, 5 do
+                    if k ~= ks[1] and k ~= ks[2] then
+                        local a = math.rad(60 * k)
+                        local near
+                        for _, j in ipairs(ks) do
+                            if math.abs((k - j + 3) % 6 - 3) <= 1 then near = true end
+                        end
+                        local u = near and H.APOTHEM - 1 or H.APOTHEM - 3
+                        assert(land(cell.x + math.cos(a) * u, cell.z + math.sin(a) * u), "land by edge " .. k)
+                    end
+                end
+            end
+        end
+        love = was
+    end },
 }

@@ -231,25 +231,57 @@ local function seabed(x, z)
     if r < -0.9 then return IDX.c end
 end
 
--- A hex the rift has cracked: a black crack zigzagging through it the way
--- the rift runs, its lips broken pale, hairline cracks off it.
+-- The arms of the rift through hex `cell`: from its middle out to the
+-- middle of each edge it runs out by (src/quake.lua's riftEdges), as unit
+-- headings { x, z }.
+local function riftArms(cell)
+    local ks = cell.riftEdges
+    if not ks or #ks == 0 then
+        -- Laid before the rift kept its edges: straight through, the way it
+        -- headed.
+        local k = floor((cell.riftAngle or 0) / (math.pi / 3) + 0.5) % 6
+        ks = { (k + 3) % 6, k }
+    elseif #ks == 1 then
+        ks = { ks[1], (ks[1] + 3) % 6 }
+    end
+    local out = {}
+    for i, k in ipairs(ks) do
+        local a = math.rad(60 * k)
+        out[i] = { math.cos(a), math.sin(a), k = k }
+    end
+    return out
+end
+World.riftArms = riftArms
+
+-- A hex the rift has cracked: a black crack zigzagging out from its middle
+-- along each arm of the rift to the middle of the edge, where it meets the
+-- next hex's (or the sea); its lips broken pale, hairline cracks off it.
 local function riftCrack(s, x, z)
     local cell = s.cellRef
-    local a = s.riftAngle
     local dx, dz = x - cell.x, z - cell.z
-    local u = dx * math.cos(a) + dz * math.sin(a)
-    local v = -dx * math.sin(a) + dz * math.cos(a)
+    -- The arm nearest.
+    local u, v, arm, best
+    for i, d in ipairs(s.riftArms) do
+        local uu = dx * d[1] + dz * d[2]
+        local vv = -dx * d[2] + dz * d[1]
+        local far = abs(vv) + max(0, -uu)
+        if not best or far < best then u, v, arm, best = uu, vv, i, far end
+    end
+    if u < -1.5 then return end
+    -- The zigzag dies away at the middle and at the edge, so the arms meet,
+    -- and meet the next hex's.
+    local taper = max(0, min(1, u / 3, (H.APOTHEM - u) / 3))
     local t = (u / 2.6) % 2
-    local zig = v - (abs(t - 1) - 0.5) * 2.2 - sin(u * 0.4) * 0.8
+    local zig = v - ((abs(t - 1) - 0.5) * 2.2 + sin(u * 0.4) * 0.8) * taper
     local w = abs(zig)
     if w < 0.6 then return IDX.o end
     if w < 1.0 then return IDX.u end
     if w < 1.5 and grain(x * 2, z * 2, 177) > 0.4 then return IDX.c end
     -- Hairlines off it, every so often.
     local k = floor(u / 3.2)
-    if grain(k, cell.id, 178) > 0.5 then
+    if k >= 0 and u < H.APOTHEM - 2 and grain(k, cell.id + arm * 7, 178) > 0.5 then
         local off = u - (k + 0.5) * 3.2
-        local side = grain(k, cell.id, 179) > 0.5 and 1 or -1
+        local side = grain(k, cell.id + arm * 7, 179) > 0.5 and 1 or -1
         if v * side > 0 and v * side < 4.5 and abs(off - v * side * 0.5) < 0.3 then return IDX.u end
     end
 end
@@ -286,7 +318,7 @@ local function overland(s, x, z, ny)
         local a = faultLip(s, x, z)
         if a then return a end
     end
-    if s.riftAngle then
+    if s.riftArms then
         local a = riftCrack(s, x, z)
         if a then return a end
     end
@@ -731,10 +763,11 @@ end
 local FAULT = 2.2
 local DEEP = -6
 
--- The dark at the bottom of a fault along edge k of a hex: the strip of its
--- prism within the fault's width of the edge, far down.
-local function faultStrip(cell, k)
-    local s = hexPrism(cell.x, cell.z, DEEP)
+-- The bottom of a fault along edge k of a hex: the strip of its prism
+-- within the fault's width of the edge, far down, or up at the sea's level
+-- where the sea has got into it (`wet`).
+local function faultStrip(cell, k, wet)
+    local s = hexPrism(cell.x, cell.z, wet and D.TERRAIN.coast.top or DEEP)
     local a = math.rad(60 * k)
     local nx, nz = math.cos(a), math.sin(a)
     table.insert(s.planes, { -nx, 0, -nz, -(nx * cell.x + nz * cell.z + H.APOTHEM - FAULT - 0.3) })
@@ -803,7 +836,7 @@ function World:hexSolids(cell)
         s.fallow = fallow
         -- The sundering's (src/quake.lua).
         s.lava, s.basalt, s.soil, s.raised = cell.lava and true, cell.basalt, cell.soil and not cell.ashfall, cell.raised
-        if cell.rift == 1 then s.riftAngle = cell.riftAngle or 0 end
+        if cell.rift == 1 then s.riftArms = riftArms(cell) end
         -- The way its rows ran, as src/models.lua's M.FARM_LAYOUTS has them.
         if fallow then s.rows = ({ 30, 90, 150 })[cell.id % 3 + 1] end
         out[#out + 1] = s
@@ -838,34 +871,67 @@ function World:hexSolids(cell)
     -- The sea's ice stands a little proud of the water: its edge a low cliff.
     if t.sea then top = top + 1 end
     if faults then
-        for k = 0, 5 do if faults[k] then add(faultStrip(cell, k), MAT.abyss) end end
+        for k = 0, 5 do
+            if faults[k] then
+                local wet = cell.faultWet and cell.faultWet[k]
+                add(faultStrip(cell, k, wet), wet and MAT.coast or MAT.abyss)
+            end
+        end
     end
-    -- A chasm the rift has torn: the hex split in two halves along the
-    -- rift, the dark between them, or the sea pouring in; a few boulders
+    -- A chasm the rift has torn: a canal from the hex's middle out to the
+    -- middle of each edge the rift runs out by -- on to the next hex of
+    -- the rift, or at its ends into the sea -- the land standing either
+    -- side of it, the dark below, or the sea pouring in; a few boulders
     -- fallen in.
     if (cell.rift or 0) >= 2 and not t.water then
-        local a = cell.riftAngle or 0
-        local nx, nz = -math.sin(a), math.cos(a)
+        local arms = riftArms(cell)
         local gap = cell.rift == 2 and 3.8 or 5
-        local c0 = nx * cell.x + nz * cell.z
-        for side = -1, 1, 2 do
-            local half = hexPrism(cell.x, cell.z, top, cut)
-            table.insert(half.planes, { -side * nx, 0, -side * nz, -side * c0 - gap })
-            local h = add(half, base)
-            h.pull, h.faultPull = pull, faults
+        local cx, cz = cell.x, cell.z
+        -- The land beside an arm d on its left (`side` 1) or right (-1),
+        -- `off` out from it: the half of the room there, as a hull's plane.
+        local function beside(d, side, off)
+            local lx, lz = -d[2], d[1]
+            return { -side * lx, 0, -side * lz, -side * (lx * cx + lz * cz) - off }
         end
-        local deep = hexPrism(cell.x, cell.z, cell.rift == 3 and D.TERRAIN.coast.top or DEEP)
-        table.insert(deep.planes, { nx, 0, nz, c0 + gap + 0.6 })
-        table.insert(deep.planes, { -nx, 0, -nz, -c0 + gap + 0.6 })
-        add(deep, cell.rift == 3 and MAT.coast or MAT.abyss)
-        local ux, uz = math.cos(a), math.sin(a)
-        for k = -1, 1 do
-            local u = k * 5 + (grain(cell.id, k, 185) - 0.5) * 2
+        local th = {}
+        for i, d in ipairs(arms) do th[i] = math.atan2(d[2], d[1]) end
+        -- Round the middle from each arm to the next: the land between them.
+        local n = #arms
+        local order = {}
+        for i = 1, n do order[i] = i end
+        table.sort(order, function(i, j) return th[i] < th[j] end)
+        for o = 1, n do
+            local a, b = arms[order[o]], arms[order[o % n + 1]]
+            local span = th[order[o % n + 1]] - th[order[o]]
+            if span <= 1e-6 then span = span + 2 * math.pi end
+            local pieces
+            if span <= math.pi + 1e-6 then
+                -- Narrow enough to be one piece; none if the canal fills it.
+                if gap / math.sin(span / 2) < H.R - 0.5 then pieces = { { beside(a, 1, gap), beside(b, -1, gap) } } end
+            else
+                -- Wider: two, either side of the line halfway between.
+                local m = th[order[o]] + span / 2
+                local mid = { math.cos(m), math.sin(m) }
+                pieces = { { beside(a, 1, gap), beside(mid, -1, 0) }, { beside(mid, 1, 0), beside(b, -1, gap) } }
+            end
+            for _, cuts in ipairs(pieces or {}) do
+                local piece = hexPrism(cx, cz, top, cut)
+                for _, pl in ipairs(cuts) do table.insert(piece.planes, pl) end
+                local h = add(piece, base)
+                h.pull, h.faultPull = pull, faults
+            end
+        end
+        local sea = cell.rift == 3
+        add(hexPrism(cx, cz, sea and D.TERRAIN.coast.top or DEEP), sea and MAT.coast or MAT.abyss)
+        -- Boulders: one at the middle, one out along each arm.
+        for k = 0, n do
+            local d = arms[k] or arms[1]
+            local u = k == 0 and 0 or 5 + (grain(cell.id, k, 185) - 0.5) * 2
             local w = (grain(k, cell.id, 186) - 0.5) * gap
-            local bx, bz = cell.x + ux * u + nx * w, cell.z + uz * u + nz * w
-            if H.inset(bx, bz, cell.x, cell.z) > 2 then
+            local bx, bz = cx + d[1] * u - d[2] * w, cz + d[2] * u + d[1] * w
+            if H.inset(bx, bz, cx, cz) > 2 then
                 local r = 1.2 + grain(cell.id, k, 187) * 0.8
-                local y = cell.rift == 3 and D.TERRAIN.coast.top - 0.4 or (k == 0 and 0 or DEEP + 2 + k)
+                local y = sea and D.TERRAIN.coast.top - 0.4 or (k == 0 and 0 or DEEP + 2 + k)
                 add(Sh.ell(bx, y, bz, r * 1.2, r, r), MAT.stone)
             end
         end
@@ -1516,6 +1582,9 @@ end
 -- How far room point (x, z) on water hex `cell` is from the nearest land, as
 -- far as two hexes out; further than that is open sea (64).
 function World:shoreDistance(cell, x, z)
+    -- Water in a land hex (the sea come into a rift or a fault): the shore
+    -- close by on every side.
+    if not D.TERRAIN[cell.terrain].water then return 2 end
     self.landNear = self.landNear or {}
     local near = self.landNear[cell.id]
     if not near then

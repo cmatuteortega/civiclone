@@ -22,6 +22,7 @@ local Smoke = require "src.ui.smoke"
 local Audio = require "src.ui.audio"
 local Cat = require "src.cataclysm"
 local Quake = require "src.quake"
+local World = require "src.world"
 
 local floor, sin, cos, min, max, sqrt = math.floor, math.sin, math.cos, math.min, math.max, math.sqrt
 local IDX = T.IDX
@@ -371,11 +372,11 @@ local function sundering(p, list)
         local x, y = screen(cell.x, cell.top, cell.z)
         local f = min(1, max(0, (p.t - WHEN.sunder * 0.5) / (LONG.sunder - WHEN.sunder * 0.5)))
         if step <= 2 then
-            -- Dust along the line of it.
-            local a = cell.riftAngle or 0
-            for s = -1, 1 do
-                local sx, sy = screen(cell.x + cos(a) * s * 7, cell.top, cell.z + sin(a) * s * 7)
-                cloud(sx, sy, 3, 6, 10 + step * 4, 3, f, f * 1.2, p.seed + s, false)
+            -- Dust along the line of it: its middle, and out along each arm.
+            cloud(x, y, 3, 6, 10 + step * 4, 3, f, f * 1.2, p.seed, false)
+            for k, d in ipairs(World.riftArms(cell)) do
+                local sx, sy = screen(cell.x + d[1] * 7, cell.top, cell.z + d[2] * 7)
+                cloud(sx, sy, 3, 6, 10 + step * 4, 3, f, f * 1.2, p.seed + k, false)
             end
         else
             cloud(x, y + 2, 7, 12, 14, 4, f, f * 1.1, p.seed, true)
@@ -439,7 +440,9 @@ local function waveComing(g, cell, list)
 end
 
 -- The rift, seen before it tears: a line of ink across the land through
--- its hexes, broken, with ticks across it.
+-- its hexes, broken, and at either end out to the edge it will open on the
+-- sea by.
+local function dashed(f) return floor(f * 9) % 3 ~= 2 and IDX.o or nil end
 local function riftLine(g, me, list)
     local c = g.cataclysm
     if not c.rift then return end
@@ -447,11 +450,23 @@ local function riftLine(g, me, list)
         local a, b = g.cells[c.rift[i]], g.cells[c.rift[i + 1]]
         if (me.explored[a.id] or me.explored[b.id]) and not (a.rift or a.sundered) and not (b.rift or b.sundered) then
             list[#list + 1] = { z = min(a.z, b.z) - 1, draw = function()
-                P.line3(a.x, a.top + 0.3, a.z, b.x, b.top + 0.3, b.z, function(f, i2, j2)
-                    if floor(f * 9) % 3 == 2 then return nil end
-                    return IDX.o
-                end)
+                P.line3(a.x, a.top + 0.3, a.z, b.x, b.top + 0.3, b.z, dashed)
             end }
+        end
+    end
+    for _, i in ipairs({ 1, #c.rift }) do
+        local a = g.cells[c.rift[i]]
+        local inland = g.cells[c.rift[i == 1 and 2 or #c.rift - 1]]
+        if me.explored[a.id] and not (a.rift or a.sundered) then
+            for _, d in ipairs(World.riftArms(a)) do
+                local ex, ez = a.x + d[1] * H.APOTHEM, a.z + d[2] * H.APOTHEM
+                -- Not the arm in towards the rest of the rift.
+                if not inland or (ex - inland.x) ^ 2 + (ez - inland.z) ^ 2 > H.APOTHEM ^ 2 + 1 then
+                    list[#list + 1] = { z = a.z - 1, draw = function()
+                        P.line3(a.x, a.top + 0.3, a.z, ex, a.top + 0.3, ez, dashed)
+                    end }
+                end
+            end
         end
     end
 end

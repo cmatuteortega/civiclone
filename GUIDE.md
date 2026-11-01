@@ -1179,19 +1179,24 @@ already open, and the open ones creep 1 edge further a turn. **No one walks
 across an open fault**; go round it. None opens on a river's edge, beside a
 city or on land a buttress shores up. Drawn: the two hexes cut back from the
 edge, as a river cuts them, with the dark far below between them and their
-lips broken.
+lips broken. A fault that reaches the sea at a corner fills with seawater,
+and the water runs on along every fault that meets it, corner to corner
+(it is still a fault: no one walks across it).
 
 **The rift** tears hex by hex from either end where it meets the sea, a hex
 more each turn (2 in the fire below), each hex 2 turns at each step:
 
-1. **Cracked**: a black crack zigzags through it the way the rift runs.
+1. **Cracked**: a black crack zigzags through it the way the rift runs, from
+   the middle of the edge towards the rift's hex before it to the middle of
+   the edge towards the one after (at the rift's ends, the sea beside it).
    Whoever is on it is in danger; it can still be walked.
-2. **A chasm**: the hex splits in two halves, the dark deep between them,
+2. **A chasm**: the hex splits along those same edges, a canal bending with
+   the rift and meeting the next hex's, the dark deep in it,
    boulders fallen in. No one can stand on it, it yields nothing, hills on it
    are flattened and its forest, farm and mine are gone. Whoever stood there
    is moved to the nearest free hex, or lost.
-3. **The sea pouring in**, once the hex nearer the sea has it: white water
-   churning between the halves.
+3. **The sea pouring in**, once the hex nearer the sea has it: the canal
+   filled with the sea's water at the sea's own level, open to the sea.
 4. **Sea**: it is coast, sailed by ships, and the land either side is parted
    for good. Nothing moves the hexes, but by the end a piece of the
    continent stands apart as an island.
