@@ -300,6 +300,16 @@ A turn goes:
 5. **A new turn begins for you.** Moves come back, the wounded heal, and
    units with orders to go somewhere carry on.
 
+**How the others' turn is shown.** The rules play steps 2 to 4 the moment
+you end your turn; the screen then plays them back a part at a time
+(`src/ui/playback.lua`): each rival's moves and fights, then the wild's, then
+the cataclysm's, each part waiting for the last to finish and a moment more
+if anything was seen. Units you cannot see do not walk: they are put where
+they end up. You have the turn back once the units are done; the stones and
+quakes play on, and the hour of the day turns only after all of it. **QUICK
+TURNS** (Settings, Gameplay) shows it all at once instead, with the others'
+units put straight where they end up.
+
 **The calendar:** each turn is 40 years up to turn 50, 25 years to turn 100,
 then 20. Turn 1 is 4000 BC.
 
@@ -1302,6 +1312,10 @@ it), only its solids are rebuilt and its corner of the picture traced again;
 what a turn changes is traced a few hexes a frame, so the game does not stop
 while it is.
 
+The light of the hour (a pass of the whole map through a shader) is drawn
+again at most 15 times a second while the hour turns, and while hexes are
+still being traced again or stones still fall, at most twice a second.
+
 **LuaJIT** is given more room for compiled code than its default
 (`src/jitroom.lua`): the default fills up in a long game, is thrown away and
 starts again, over and over, and everything ran several times slower.
@@ -1498,7 +1512,8 @@ lays it on each frame.
 settings turn each off.
 
 **Animation** (`src/ui/anim.lua`): the rules resolve instantly, and the
-screen plays them back:
+screen plays them back, the others' turn a part at a time (see
+[Turns](#turns)):
 
 - units walk the hexes they moved through at 7 hexes a second, facing their way with a two-step walk
 - attackers lunge

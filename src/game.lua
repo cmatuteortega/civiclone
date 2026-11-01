@@ -1327,6 +1327,10 @@ end
 
 -- The human ends their turn: they finish, every other civilization plays,
 -- and the next turn begins. `ai` is the module that plays them.
+--
+-- A "phase" event goes on the list as each part of it begins (`who`: the
+-- player, Game.WILD, or "cataclysm"), so the screen can play the turn
+-- back a part at a time (src/ui/playback.lua). The rules do not wait.
 function Game:endTurn(ai)
     local me = self.players[1]
     self:finishTurn(me)
@@ -1334,14 +1338,17 @@ function Game:endTurn(ai)
         local p = self.players[k]
         if p.alive then
             self.current = k
+            self:emit({ kind = "phase", who = k })
             self:beginTurn(p)
             if ai then ai.play(self, p) end
             self:finishTurn(p)
         end
     end
+    self:emit({ kind = "phase", who = Game.WILD })
     self:wildTurn()
     self.current = 1
     self.turn = self.turn + 1
+    self:emit({ kind = "phase", who = "cataclysm" })
     Cat.turn(self)
     for _, p in ipairs(self.players) do self:checkAlive(p) end
     self:beginTurn(me)

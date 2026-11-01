@@ -7,6 +7,7 @@ local D = require "src.defs"
 local S = require "src.ui.state"
 local View = require "src.ui.view"
 local Anim = require "src.ui.anim"
+local Play = require "src.ui.playback"
 local AI = require "src.ai"
 local Audio = require "src.ui.audio"
 local Settings = require "src.settings"
@@ -266,6 +267,8 @@ function O.endTurn()
     local g = S.game
     S.selected, S.panel = nil, nil
     Audio.play("turn")
+    -- The others' turn played back a part at a time (src/ui/playback.lua).
+    Play.start()
     g:endTurn(AI)
     O.collectLog()
     local result, why = g:outcome()
@@ -293,8 +296,9 @@ function O.skipTo(to)
         O.collectLog()
         local result, why = g:outcome()
         if result then S.over = { result = result, why = why } end
-        Anim.events(g)
+        Anim.events(g, true)
     end
+    Play.stop()
     S.anim, S.effects, S.wakes = {}, {}, {}
     for _, u in ipairs(g.units) do u.trail = { u.cell } end
     if S.world then S.world:work() end

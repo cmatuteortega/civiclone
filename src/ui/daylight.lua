@@ -37,6 +37,7 @@ local D = require "src.defs"
 local Cat = require "src.cataclysm"
 local Sky = require "src.skyfall"
 local Sea = require "src.ui.sea"
+local Play = require "src.ui.playback"
 
 local sin, cos, sqrt, max, min, floor, pi = math.sin, math.cos, math.sqrt, math.max, math.min, math.floor, math.pi
 
@@ -271,7 +272,9 @@ function Daylight.update(dt)
     local target = Daylight.force or Daylight.hourOf(g.turn, g)
     if g ~= game or S.plan then
         game, now, from, goal, since = g, target, target, target, CHANGE
-    elseif target ~= goal then
+    elseif target ~= goal and not Play.holding() then
+        -- Not while the others' turn is still being played back: the hour
+        -- turns once all of it is done, not on top of it.
         from, goal, since = now, target, 0
     end
     since = since + dt * (Settings.get("animSpeed") or 1)
@@ -351,7 +354,16 @@ function Daylight.uniforms(t)
     }
 end
 
-local canvas, drawn
+local canvas, drawn, drawnT, drawnAt
+local version = 0
+-- The hour the light picture was last drawn for; the board and the overlay
+-- are lit for that hour, so the two agree.
+local shown
+-- The light picture (the whole map through a shader) is drawn again at most
+-- this often, in seconds, rather than every frame the hour turns or a hex
+-- is built again.
+Daylight.EVERY = 1 / 15
+Daylight.SETTLING = 0.5
 
 -- Draws the light picture for world `w`, if anything it shows has changed.
 function Daylight.draw(w)
@@ -364,9 +376,16 @@ function Daylight.draw(w)
     local lamps, sig = Daylight.lamps(w)
     local t = floor(now * 4000 + 0.5) / 4000
     local still, band = Daylight.still(S.game)
-    local what = table.concat({ t, tostring(w), w.version or 0, sig, still[1], still[3], band }, "|")
-    if what == drawn then return end
-    drawn = what
+    -- Hexes still being built again (World:work): lit once they all are,
+    -- and while stones still fall, not more than every SETTLING seconds.
+    local clock = love.timer.getTime()
+    if not w:busy() and (not Play.holding() or not drawnAt or clock - drawnAt >= Daylight.SETTLING) then
+        version = w.version or 0
+    end
+    local what = table.concat({ tostring(w), version, sig, still[1], still[3], band }, "|")
+    if what == drawn and t == drawnT then return end
+    if drawnAt and clock - drawnAt < Daylight.EVERY then return end
+    drawn, drawnT, drawnAt, shown = what, t, clock, t
 
     local sh = Daylight.light
     for name, v in pairs(Daylight.uniforms(t)) do send(sh, name, v) end
@@ -402,7 +421,7 @@ end
 -- with. The board picture is `cw` pixels across the canvas.
 function Daylight.apply(board, cover, cw)
     local lit = Daylight.light and on() and canvas ~= nil
-    local a = Daylight.at(now)
+    local a = Daylight.at(lit and shown or now)
     -- The storm of the deluge lights the lamps a little, and its lightning
     -- lights everything for a moment (src/ui/rain.lua); the dust of the
     -- sky's falling darkens the day and lights them more, and a stone

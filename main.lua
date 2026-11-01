@@ -177,7 +177,7 @@ local function followPlan()
             O.endTurn()
         end
         if plan.skip then O.skipTo(plan.skip) end
-        Anim.events(S.game)
+        Anim.events(S.game, true)
         SkyFx.flush()
         QuakeFx.flush()
         S.anim, S.effects, S.wakes = {}, {}, {}
@@ -216,7 +216,7 @@ local function followPlan()
                 end
                 if best then
                     g:found(g:addUnit("settler", 1, best.id)).pop = 5
-                    Anim.events(g)
+                    Anim.events(g, true)
                 end
             end
             for _, c in ipairs(g:citiesOf(1)) do
@@ -303,7 +303,7 @@ local function followPlan()
             end
             if best then
                 town = g:found(g:addUnit("settler", 1, best.id))
-                Anim.events(g)
+                Anim.events(g, true)
             end
             if town then
                 town.pop = 6
@@ -707,7 +707,7 @@ local function followPlan()
             for _, cell in ipairs(g:within(from, 7)) do p.explored[cell.id], p.visible[cell.id] = true, true end
             p.sightChanged = true
             S.selected = nil
-            Anim.events(g)
+            Anim.events(g, true)
             SkyFx.flush()
             QuakeFx.flush()
             S.effects = {}

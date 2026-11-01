@@ -14,6 +14,7 @@ local M = require "src.models"
 local World = require "src.world"
 local SkyFx = require "src.ui.sky"
 local QuakeFx = require "src.ui.quake"
+local Play = require "src.ui.playback"
 
 local max, min, floor = math.max, math.min, math.floor
 
@@ -84,8 +85,18 @@ function Anim.of(u)
     return a
 end
 
--- Is anything still walking, lunging or falling?
+-- Is any unit still walking or lunging?
+function Anim.moving()
+    for _, a in pairs(S.anim) do
+        if #a.queue > 0 or (a.lunge and a.lunge > 0) then return true end
+    end
+    return false
+end
+
+-- Must the player wait: is anything still moving, or the others' turn still
+-- being played back (src/ui/playback.lua)?
 function Anim.busy()
+    if Play.active() then return true end
     for _, a in pairs(S.anim) do
         if #a.queue > 0 or (a.lunge and a.lunge > 0) then return true end
     end
@@ -99,110 +110,165 @@ local function face(from, to)
     return floor(math.deg(a) / 60 + 0.5) % 6
 end
 
--- Takes what the game has put on its list since last time.
-function Anim.events(game)
+-- Takes what the game has put on its list since last time: with `all`,
+-- the whole of it at once, whatever is being played back.
+function Anim.events(game, all)
     local changed, seen = {}, {}
     -- Hexes a stone is coming down on: what it does to them waits for it
     -- (src/ui/sky.lua), this many seconds.
     local falling, delayed = {}, {}
-    for _, e in ipairs(game.events) do
-        Audio.hear(game, e)
-        if e.kind == "impact" then
-            local wait, reach = SkyFx.impact(game, e)
-            if wait > 0 then
-                for _, n in ipairs(game:within(game.cells[e.cell], reach)) do
-                    falling[n.id] = max(falling[n.id] or 0, wait)
+    -- Up to the next part of the turn while the one before is still being
+    -- played (src/ui/playback.lua); everything with `all`.
+    local list, k = game.events, 0
+    local me = game.players[1]
+    while k < #list do
+        local e = list[k + 1]
+        if e.kind == "phase" then
+            if not all and Play.active() and not Play.done(Anim.moving()) then break end
+            Play.begin(e.who)
+        else
+            Audio.hear(game, e)
+            if e.kind == "impact" then
+                local wait, reach = SkyFx.impact(game, e)
+                if wait > 0 then
+                    for _, n in ipairs(game:within(game.cells[e.cell], reach)) do
+                        falling[n.id] = max(falling[n.id] or 0, wait)
+                    end
                 end
-            end
-        elseif e.kind == "tremor" or e.kind == "erupt" or e.kind == "wave" or e.kind == "sunder" or e.kind == "uplift"
-            or e.kind == "greatquake" then
-            -- The sundering (src/ui/quake.lua): what it changes waits for
-            -- it to be played.
-            local wait, reach = QuakeFx.event(game, e)
-            if wait > 0 and e.cell then
-                for _, n in ipairs(game:within(game.cells[e.cell], reach)) do
-                    falling[n.id] = max(falling[n.id] or 0, wait)
+            elseif e.kind == "tremor" or e.kind == "erupt" or e.kind == "wave" or e.kind == "sunder" or e.kind == "uplift"
+                or e.kind == "greatquake" then
+                -- The sundering (src/ui/quake.lua): what it changes waits for
+                -- it to be played.
+                local wait, reach = QuakeFx.event(game, e)
+                if wait > 0 and e.cell then
+                    for _, n in ipairs(game:within(game.cells[e.cell], reach)) do
+                        falling[n.id] = max(falling[n.id] or 0, wait)
+                    end
+                    -- And everywhere the lava runs.
+                    for _, id in ipairs(e.lava or {}) do falling[id] = max(falling[id] or 0, wait) end
                 end
-                -- And everywhere the lava runs.
-                for _, id in ipairs(e.lava or {}) do falling[id] = max(falling[id] or 0, wait) end
-            end
-        elseif e.kind == "attack" then
-            local from, to = game.cells[e.from], game.cells[e.to]
-            if e.unit then
-                local a = Anim.of(e.unit)
-                a.face = face(from, to)
-                a.lunge, a.lungeTo = 0.35, { to.x, to.z }
-            end
-            if e.ranged then
-                S.effects[#S.effects + 1] = { kind = "shot", t = 0, life = 0.3,
-                    x0 = from.x, y0 = from.top + 5.5 * M.UNIT_SCALE, z0 = from.z,
-                    x1 = to.x, y1 = to.top + 3.3 * M.UNIT_SCALE, z1 = to.z }
-            end
-        elseif e.kind == "hit" then
-            local cell = game.cells[e.cell]
-            S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.2, text = "-" .. e.amount,
-                x = cell.x, y = cell.top + 26, z = cell.z, delay = 0.15 + (falling[e.cell] or 0) }
-            if e.unit then Anim.of(e.unit).flash = 0.3 end
-            if cell.city then cell.city.flash = 0.3 end
-        elseif e.kind == "death" then
-            local a = S.anim[e.unit.id]
-            local cell = game.cells[e.cell]
-            S.effects[#S.effects + 1] = { kind = "death", t = 0, life = 0.8, unit = e.unit,
-                x = a and a.x or cell.x, y = a and a.y or cell.top, z = a and a.z or cell.z, face = a and a.face or 1 }
-            S.anim[e.unit.id] = nil
-        elseif e.kind == "terrain" then
-            -- Built again once, below, however often it changed; once its
-            -- stone is down, if one is falling on it.
-            if falling[e.cell] then
-                if not delayed[e.cell] then
-                    delayed[e.cell] = true
-                    SkyFx.later(e.cell, falling[e.cell])
+            elseif e.kind == "attack" then
+                local from, to = game.cells[e.from], game.cells[e.to]
+                if e.unit then
+                    local a = Anim.of(e.unit)
+                    a.face = face(from, to)
+                    a.lunge, a.lungeTo = 0.35, { to.x, to.z }
                 end
-            elseif not seen[e.cell] then
-                seen[e.cell] = true
-                changed[#changed + 1] = e.cell
+                if e.ranged then
+                    S.effects[#S.effects + 1] = { kind = "shot", t = 0, life = 0.3,
+                        x0 = from.x, y0 = from.top + 5.5 * M.UNIT_SCALE, z0 = from.z,
+                        x1 = to.x, y1 = to.top + 3.3 * M.UNIT_SCALE, z1 = to.z }
+                end
+            elseif e.kind == "hit" then
+                local cell = game.cells[e.cell]
+                S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.2, text = "-" .. e.amount,
+                    x = cell.x, y = cell.top + 26, z = cell.z, delay = 0.15 + (falling[e.cell] or 0) }
+                if e.unit then Anim.of(e.unit).flash = 0.3 end
+                if cell.city then cell.city.flash = 0.3 end
+            elseif e.kind == "death" then
+                local a = S.anim[e.unit.id]
+                local cell = game.cells[e.cell]
+                S.effects[#S.effects + 1] = { kind = "death", t = 0, life = 0.8, unit = e.unit,
+                    x = a and a.x or cell.x, y = a and a.y or cell.top, z = a and a.z or cell.z, face = a and a.face or 1 }
+                S.anim[e.unit.id] = nil
+            elseif e.kind == "terrain" then
+                -- Built again once, below, however often it changed; once its
+                -- stone is down, if one is falling on it.
+                if falling[e.cell] then
+                    if not delayed[e.cell] then
+                        delayed[e.cell] = true
+                        SkyFx.later(e.cell, falling[e.cell])
+                    end
+                elseif not seen[e.cell] then
+                    seen[e.cell] = true
+                    changed[#changed + 1] = e.cell
+                end
+            elseif (e.kind == "loot" or e.kind == "cleared") and e.text then
+                -- What it brought, rising after the blow.
+                local cell = game.cells[e.cell]
+                S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = e.text,
+                    x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.7 }
+                if e.kind == "cleared" then
+                    S.effects[#S.effects + 1] = { kind = "dust", t = 0, life = 1.0, x = cell.x, y = cell.top, z = cell.z,
+                        seed = e.cell }
+                end
+            elseif e.kind == "sicken" or e.kind == "mend" or e.kind == "pestilence" then
+                -- The plague (src/plague.lua): a town falling sick, mending, or
+                -- losing its people, the word rising over it.
+                local cell = game.cells[e.cell]
+                local text = e.kind == "sicken" and "PLAGUE" or (e.kind == "mend" and "MENDED" or ("-" .. e.n .. " POP"))
+                S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = text,
+                    x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.3 }
+                if e.kind ~= "mend" and cell.city then cell.city.flash = 0.4 end
+            elseif e.kind == "tame" then
+                -- The wild horses gone over to their new people.
+                S.anim[e.unit.id] = nil
+                local cell = game.cells[e.cell]
+                S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = "TAMED",
+                    x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.2 }
             end
-        elseif (e.kind == "loot" or e.kind == "cleared") and e.text then
-            -- What it brought, rising after the blow.
-            local cell = game.cells[e.cell]
-            S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = e.text,
-                x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.7 }
-            if e.kind == "cleared" then
-                S.effects[#S.effects + 1] = { kind = "dust", t = 0, life = 1.0, x = cell.x, y = cell.top, z = cell.z,
-                    seed = e.cell }
+            if e.kind ~= "attack" and e.kind ~= "hit" then S.bordersDirty = true end
+            -- A blow seen: the part waits for it.
+            if (e.kind == "attack" or e.kind == "hit" or e.kind == "death") and me.visible[e.cell or e.to] then
+                Play.saw()
             end
-        elseif e.kind == "sicken" or e.kind == "mend" or e.kind == "pestilence" then
-            -- The plague (src/plague.lua): a town falling sick, mending, or
-            -- losing its people, the word rising over it.
-            local cell = game.cells[e.cell]
-            local text = e.kind == "sicken" and "PLAGUE" or (e.kind == "mend" and "MENDED" or ("-" .. e.n .. " POP"))
-            S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = text,
-                x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.3 }
-            if e.kind ~= "mend" and cell.city then cell.city.flash = 0.4 end
-        elseif e.kind == "tame" then
-            -- The wild horses gone over to their new people.
-            S.anim[e.unit.id] = nil
-            local cell = game.cells[e.cell]
-            S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = "TAMED",
-                x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.2 }
         end
-        if e.kind ~= "attack" and e.kind ~= "hit" then S.bordersDirty = true end
+        k = k + 1
     end
-    for k = #game.events, 1, -1 do game.events[k] = nil end
+    -- What was taken leaves the list; the rest waits.
+    local n = #list
+    for j = 1, n - k do list[j] = list[j + k] end
+    for j = n, n - k + 1, -1 do list[j] = nil end
+    -- All of it played back: the hour may turn.
+    if Play.active() and #list == 0 and not Anim.moving() and Play.done(false) then Play.stop() end
     -- Built again over the next few frames (World:work).
     if S.world then S.world:queue(changed) end
 end
 
+-- Unit u put where it stands now, without walking there, facing the way it
+-- last went.
+local function snap(game, u, a)
+    local t = u.trail
+    if #t > 1 then a.face = face(game.cells[t[#t - 1]], game.cells[t[#t]]) end
+    a.x, a.y, a.z = home(game.cells[u.cell], u)
+    a.queue, a.pose, a.wade, a.ford, a.fordTo = {}, 0, nil, nil, nil
+    u.trail = { u.cell }
+end
+
+-- Did the player see any of the hexes unit u went through?
+local function seenAlong(game, u)
+    local visible = game.players[1].visible
+    for _, id in ipairs(u.trail) do
+        if visible[id] then return true end
+    end
+    return visible[u.cell] == true
+end
+
 function Anim.update(game, dt)
+    Play.update(dt, Anim.moving())
     Anim.events(game)
+    -- The stones and the quakes play on after the player has their turn
+    -- back; the hour waits for them, and for the land they changed.
+    Play.settle(not (SkyFx.busy() or QuakeFx.busy() or (S.world and S.world:busy())))
+    local quick = Play.quick()
     for _, u in ipairs(game.units) do
         local a = Anim.of(u)
-        -- New hexes walked: onto the queue.
-        if #u.trail > 1 then
-            for k = 2, #u.trail do a.queue[#a.queue + 1] = u.trail[k] end
-            u.trail = { u.cell }
+        -- Its part of the turn not come yet: it stands where it stood.
+        local held = not Play.released(u.owner)
+        -- New hexes walked: onto the queue. The others' units walk only
+        -- where the player sees them, and not at all in quick turns.
+        if #u.trail > 1 and not held then
+            if u.owner ~= 1 and (quick or not seenAlong(game, u)) then
+                snap(game, u, a)
+            else
+                for k = 2, #u.trail do a.queue[#a.queue + 1] = u.trail[k] end
+                u.trail = { u.cell }
+                if u.owner ~= 1 then Play.saw() end
+            end
         end
-        if #a.queue > 0 then
+        if held then
+            a.pose = 0
+        elseif #a.queue > 0 then
             local to = game.cells[a.queue[1]]
             local tx, ty, tz = home(to, u)
             local fc = game:cell(H.at(a.x, a.z))
@@ -271,11 +337,16 @@ function Anim.update(game, dt)
             a.pose = floor(a.walk) % 2 + 1
         else
             a.pose, a.wade, a.ford, a.fordTo = 0, nil, nil, nil
-            -- Settle where the unit is, in case it was put there without a walk.
+            -- Settle where the unit is, in case it was put there without a walk;
+            -- straight there if the player cannot see it.
             local cell = game.cells[u.cell]
             local x, y, z = home(cell, u)
             if math.abs(a.x - x) > 0.01 or math.abs(a.z - z) > 0.01 then
-                a.queue[1] = u.cell
+                if u.owner ~= 1 and (quick or not game.players[1].visible[u.cell]) then
+                    snap(game, u, a)
+                else
+                    a.queue[1] = u.cell
+                end
             else
                 a.y = y
             end

@@ -48,6 +48,7 @@ Settings.LIST = {
     -- Gameplay.
     { id = "animSpeed", tab = "gameplay", name = "ANIMATION SPEED", values = { 1, 2, 4 }, default = 1,
         show = function(v) return ({ [1] = "NORMAL", [2] = "FAST", [4] = "FASTEST" })[v] end },
+    { id = "quickTurns", tab = "gameplay", name = "QUICK TURNS", values = ONOFF.values, show = ONOFF.show, default = false },
     { id = "panSpeed", tab = "gameplay", name = "CAMERA PAN SPEED", values = { 0.5, 1, 1.5, 2 }, default = 1,
         show = function(v) return ({ [0.5] = "SLOW", [1] = "NORMAL", [1.5] = "FAST", [2] = "FASTEST" })[v] end },
     { id = "edgePan", tab = "gameplay", name = "PAN AT SCREEN EDGES", values = ONOFF.values, show = ONOFF.show, default = false },
