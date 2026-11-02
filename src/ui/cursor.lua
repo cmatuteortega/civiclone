@@ -8,6 +8,13 @@
 -- however slow the frame. The POINTER setting (src/settings.lua) has it
 -- PIXEL, PIXEL LARGE (twice the size) or the SYSTEM's own. Where the system
 -- has no pointer to give pictures to (a phone), nothing is done.
+--
+-- The SYSTEM's own is the default, because the one thing here that is not
+-- drawn by us is not ours to scale: the picture goes to the window manager
+-- in pixels and comes back sized in points, so on a screen that backs a
+-- point with two pixels (any retina one) a pixel of the pointer lands twice
+-- the size of a pixel of the HUD beside it. PIXEL is right where a point is
+-- a pixel, and is kept for that.
 
 local S = require "src.ui.state"
 local Draw = require "src.ui.draw"

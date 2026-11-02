@@ -39,7 +39,7 @@ Settings.LIST = {
     { id = "touch", tab = "interface", name = "TOUCH BUTTONS", values = { "auto", "on", "off" }, default = "auto",
         show = function(v) return v:upper() end },
     { id = "tooltips", tab = "interface", name = "HEX TOOLTIPS", values = ONOFF.values, show = ONOFF.show, default = true },
-    { id = "pointer", tab = "interface", name = "POINTER", values = { "pixel", "large", "system" }, default = "pixel",
+    { id = "pointer", tab = "interface", name = "POINTER", values = { "pixel", "large", "system" }, default = "system",
         show = function(v) return ({ pixel = "PIXEL", large = "PIXEL, LARGE", system = "SYSTEM" })[v] end },
     { id = "outline", tab = "interface", name = "HEX OUTLINE", values = { 1, 2, 3 }, default = 1,
         show = function(v) return ({ [1] = "THIN", [2] = "THICK", [3] = "BOLD" })[v] end },
