@@ -73,6 +73,7 @@ end
 --- choosing ------------------------------------------------------------------------
 
 function O.select(thing, look)
+    if S.placing and thing ~= S.placing then S.placing = nil end
     if not thing then
         S.selected = nil
         return
@@ -146,9 +147,29 @@ function O.command(cell)
     return false
 end
 
+-- Choosing where a city's next quarter goes (src/quarters.lua): its sites
+-- are marked on the map, and a click on one sets it building there; a click
+-- anywhere else, or Escape, gives it up.
+function O.placeQuarter(city)
+    if city.owner ~= 1 then return end
+    S.placing = city
+    View.lookAt(S.game.cells[city.cell])
+end
+
 -- A left click on the board.
 function O.click(cell)
     local g = S.game
+    if S.placing then
+        local city = S.placing
+        S.placing = nil
+        if cell and g:setBuild(city, "quarter", cell.id) then
+            Audio.play("click")
+            O.select(city)
+        else
+            O.select(city)
+        end
+        return
+    end
     if not cell then O.select(nil) return end
     local u = S.selected and S.selected.unit
     local mil, civ = g.mil[cell.id], g.civ[cell.id]

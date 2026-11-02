@@ -328,6 +328,7 @@ function F.sink(game, city)
         if n.ownerCity == city then n.owner, n.ownerCity = nil, nil end
     end
     cell.city = nil
+    require("src.quarters").dropAll(game, city)
     for k, c in ipairs(game.cities) do
         if c == city then table.remove(game.cities, k) break end
     end

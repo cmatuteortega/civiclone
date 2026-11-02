@@ -32,6 +32,7 @@ local Flood = require "src.flood"
 local Abyss = require "src.ui.abyss"
 local Pest = require "src.ui.pestilence"
 local Audio = require "src.ui.audio"
+local Q = require "src.quarters"
 
 local floor, min = math.floor, math.min
 local IDX = T.IDX
@@ -136,6 +137,18 @@ local function marks()
     S.hoverTurns = nil
     local g = S.game
     local u = selectedUnit()
+    -- Where the city being given a quarter could put it (src/quarters.lua).
+    local placing = S.placing
+    if placing and (placing.dead or placing.owner ~= 1) then S.placing, placing = nil, nil end
+    if placing then
+        for _, cell in ipairs(Q.sites(g, placing)) do
+            lighten(cell, 2)
+            P.hexLine(cell, function() return floor(S.clock * 3) % 2 == 0 and IDX.w or IDX.o end, 2)
+        end
+        P.hexLine(g.cells[placing.cell], IDX.w, 0.5)
+        if S.hover then P.hexLine(S.hover, Q.can(g, placing, S.hover) and IDX.o or IDX.c, 0.5) end
+        return
+    end
     if u and u.owner == 1 and not Anim.busy() then
         if u.moves > 0 then
             local reach = g:reach(u)
@@ -624,13 +637,47 @@ local function things(me)
     end
     for _, c in ipairs(g.cities) do
         local cell = g.cells[c.cell]
+        -- A city of several hexes (src/quarters.lua): how they join, which
+        -- of its quarters is its docks, and its middle without what moved
+        -- there.
+        local site = M.citySite(cell)
+        local built = c.buildings
+        local hexes = c.quarters and #c.quarters > 0 and Q.hexes(g, c)
+        local fabric = hexes and Q.fabric(hexes)
+        if fabric then
+            site.joins, site.towers = fabric[1].joins, fabric[1].towers
+            local docked = false
+            for n = 2, #hexes do
+                local qc = hexes[n]
+                local shore = Anim.shore(g, qc)
+                local docks = shore ~= nil and not docked
+                docked = docked or docks
+                if me.explored[qc.id] then
+                    local f, qs = fabric[n], M.citySite(qc)
+                    local look = Pest.cityLook(c)
+                    local pic = M.quarter(lookOf(c.owner), { biome = qs.biome, hills = qs.hills, snow = qs.snow,
+                        seed = qs.seed, river = qs.river, stage = Q.stage(c, n - 1), toward = f.toward, gate = f.gate,
+                        joins = f.joins, towers = f.towers, shore = shore, drop = shore and qc.top + 2, built = built,
+                        marked = look and look.marked, docks = docks })
+                    list[#list + 1] = { z = qc.z, draw = function()
+                        P.stamp(pic, qc.x, qc.top, qc.z, (c.flash and T.FLASH) or (qc.sacked and T.DARKER2) or nil,
+                            Pest.dark(c))
+                    end }
+                end
+            end
+            if docked then
+                built = {}
+                for k, v in pairs(c.buildings) do built[k] = v end
+                built.harbour, built.lighthouse = nil, nil
+            end
+        end
         if me.explored[cell.id] then
             list[#list + 1] = { z = cell.z, draw = function()
                 local shore = Anim.shore(g, cell)
-                local pic = M.city(lookOf(c.owner), c.pop, c.capital, c.buildings, shore, shore and cell.top + 2,
-                    M.citySite(cell), Pest.cityLook(c))
+                local pic = M.city(lookOf(c.owner), c.pop, c.capital, built, shore, shore and cell.top + 2,
+                    site, Pest.cityLook(c))
                 P.stamp(pic, cell.x, cell.top, cell.z, c.flash and T.FLASH or nil, Pest.dark(c))
-                if me.visible[cell.id] then Smoke.city(cell, c) end
+                if me.visible[cell.id] then Smoke.city(cell, c, site) end
             end }
         end
     end

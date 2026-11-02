@@ -15,6 +15,7 @@ local Demons = require "src.demons"
 local Sun = require "src.stillsun"
 local Plague = require "src.plague"
 local Flood = require "src.flood"
+local Q = require "src.quarters"
 
 local max = math.max
 
@@ -147,6 +148,11 @@ local function chooseBuild(game, p, city)
     -- And whatever else it needs against this one.
     local also = Cat.stage(game) and Cat.also(game, city)
     if also and game:canBuild(city, "building", also) then return "building", also end
+    -- A quarter when it is running out of room (src/quarters.lua).
+    if Q.due(game, city) and city.pop >= Q.housing(game, city) then
+        local site = Q.best(game, city)
+        if site then return "quarter", site.id end
+    end
     for _, id in ipairs({ "monument", "granary", "walls", "library", "harbour", "market", "lighthouse" }) do
         if game:canBuild(city, "building", id) then
             if id ~= "walls" or game.turn > 30 then return "building", id end

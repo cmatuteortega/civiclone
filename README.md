@@ -95,9 +95,19 @@ stretches of map traced by the game's own `World`.
 ![Cities growing, by land](shots/18-cities-growth.png)
 ![Cities in different places](shots/19-cities-sites.png)
 
-And they grow out of their hex (designs for now, `src/quarters.lua` and
-`M.quarter`; the rules to come). Past what its middle can house, a city
-spills over into the hexes beside it, its quarters. A street runs in
+And they grow out of their hex (`src/quarters.lua`). A city's middle houses
+six citizens; at that it grows at a quarter of the pace, and two past it
+not at all, until it builds a quarter: QUARTER in its build list, its hex
+chosen on the map, any of its own land beside one of its hexes and within
+two of its middle (the computer's governors take the poorest, on high
+ground or the shore if they can). The hex is worked no more and each
+quarter houses five more, three at most. A quarter is the city's most
+exposed ground: fire, the rising water, a stone from the sky, a chasm or
+the abyss's blight on its hex takes it, and the people it housed with it;
+an enemy standing in it sacks it, and it houses no one till three turns
+after they are gone. A quarter goes with its city when the city falls.
+
+Its street runs in
 across the edge from the hex it grew out of to a little square, and its
 houses go up in rows along it, gable ends to the street, from the near end
 out, lower than the city's heart. The land makes the quarter: a well and
@@ -114,6 +124,8 @@ sheets below.
 ![A city growing out over one, two and three quarters, by land](shots/61-quarters-growth.png)
 ![The quarter each land, the water and a river make](shots/62-quarters-kinds.png)
 ![Round a city of several hexes: walls and gates, a river, the coast, the levee, the buttress, the plague](shots/63-quarters-rings.png)
+![A walled capital grown out over two quarters, in play](shots/64-quarters-in-play.png)
+![Choosing where a quarter goes: its sites marked on the map, QUARTER in the build list](shots/65-quarter-placing.png)
 
 And the wild is in it (`src/beasts.lua`), and not just on the screen. Wolves come out of
 their dens in pairs and go for anyone near, stronger at night, when they

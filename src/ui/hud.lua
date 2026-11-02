@@ -24,6 +24,7 @@ local Settings = require "src.settings"
 local Clock = require "src.ui.clock"
 local Palette = require "src.palette"
 local Plague = require "src.plague"
+local Q = require "src.quarters"
 
 local floor, max, min = math.floor, math.max, math.min
 local text, rect, button, icon = Draw.text, Draw.rect, Draw.button, Draw.icon
@@ -257,11 +258,15 @@ function cityBody(c, x, y, w, h, mine, items)
     local surplus = f - c.pop * 2
     local need = g:growthNeed(c)
     local grow
+    -- Out of room (src/quarters.lua): slower, or not at all.
+    local pace = Q.pace(g, c)
+    if surplus > 0 and pace < 1 then surplus = surplus * pace end
     if surplus > 0 then grow = math.ceil((need - c.food) / surplus) .. " TURNS"
+    elseif pace == 0 and f - c.pop * 2 > 0 then grow = "NO ROOM"
     elseif surplus < 0 then grow = "STARVING" else grow = "STAGNANT" end
-    text("c", "CITIZENS " .. c.pop .. "   HP " .. max(0, c.hp) .. "/" .. g:maxHp(c), x + 4, y + 12)
+    text("c", "CITIZENS " .. c.pop .. "/" .. Q.housing(g, c) .. "   HP " .. max(0, c.hp) .. "/" .. g:maxHp(c), x + 4, y + 12)
     icon("food", x + 4, y + 20, "w")
-    text("w", signed(surplus) .. "  " .. c.food .. "/" .. need .. "  GROWS IN " .. grow, x + 11, y + 20)
+    text("w", signed(floor(surplus * 10 + 0.5) / 10) .. "  " .. c.food .. "/" .. need .. "  GROWS IN " .. grow, x + 11, y + 20)
     local line = y + 28
     icon("prod", x + 4, line, "c")
     text("c", tostring(p), x + 11, line)
@@ -347,7 +352,7 @@ function cityBody(c, x, y, w, h, mine, items)
         end
         if yy + 10 > y + h - 2 then break end
         local cost = costOf(it)
-        local on = c.build and c.build.kind == it.kind and c.build.id == it.id and not c.build.refit
+        local on = c.build and c.build.kind == it.kind and (c.build.id == it.id or it.kind == "quarter") and not c.build.refit
         -- A band or a ship: named as such, costed as what it carries now.
         local label = it.def.name
         if it.gear then
@@ -357,7 +362,9 @@ function cityBody(c, x, y, w, h, mine, items)
         local turns = g:turnsFor(c, cost, on and c.prod or 0)
         local note = (it.kind == "unit" and it.def.pop and c.pop <= it.def.pop) and "NEEDS 2 POP" or (cost .. "  " .. turns .. "T")
         local hot = button(label, x + 3, yy, w - 6, 10, function()
-            if not on then g:setBuild(c, it.kind, it.id, it.gear) end
+            -- A quarter: its hex is chosen on the map.
+            if it.kind == "quarter" then O.placeQuarter(c)
+            elseif not on then g:setBuild(c, it.kind, it.id, it.gear) end
         end, { on = on, left = true, icon = it.kind == "unit" and it.id or it.def.icon or "city" })
         text(hot and "o" or "u", note, x + w - 5 - Font.width(note), yy + 3)
         if hot then

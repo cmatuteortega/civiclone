@@ -77,10 +77,12 @@ end
 
 -- A city's chimneys: one on a house for every two citizens, three at most,
 -- wherever its layout put those houses.
-function Smoke.city(cell, city)
+-- `site`: the city's site as the board drew it (its quarters' streets on
+-- it), or its own.
+function Smoke.city(cell, city, site)
     if Sea.still() then return end
     local s = M.CITY_SCALE
-    for k, c in ipairs(M.cityChimneys(city.pop, city.buildings, M.citySite(cell))) do
+    for k, c in ipairs(M.cityChimneys(city.pop, city.buildings, site or M.citySite(cell))) do
         chimney(cell.x + c[1] * s, cell.top + c[2] * s, cell.z + c[3] * s, cell.id * 10 + k)
     end
 end

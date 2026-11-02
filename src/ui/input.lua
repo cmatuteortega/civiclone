@@ -204,7 +204,8 @@ function Input.keypressed(key)
     if key == "escape" then
         if Menu.back() then return end
         if S.mode ~= "play" then love.event.quit() return end
-        if S.panel then S.panel = nil
+        if S.placing then S.placing = nil
+        elseif S.panel then S.panel = nil
         elseif S.selected then O.select(nil)
         else Menu.openPause() end
         return

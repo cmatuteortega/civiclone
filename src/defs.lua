@@ -870,6 +870,21 @@ D.CITY = {
     rangedRange = 2,
 }
 
+-- A city's quarters (src/quarters.lua): the hexes it spills over into.
+-- Its middle houses `home` citizens and each quarter `each` more; at its
+-- housing it grows at `slow` the pace, and `over` past it not at all.
+-- A quarter is built as anything is, on a hex of the city's own land beside
+-- one of its hexes and within `reach` of its middle, for `cost[n]` the nth;
+-- `most` at most. One an enemy stands in is sacked and houses no one till
+-- `mend` turns after it is left.
+D.QUARTER = {
+    home = 6, each = 5, most = 3,
+    slow = 0.25, over = 2,
+    cost = { 60, 90, 120 },
+    reach = 2,
+    mend = 3,
+}
+
 -- Combat, as Civilization VI has it: damage = 30 * e^(difference / 25),
 -- times a little luck.
 D.COMBAT = {

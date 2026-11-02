@@ -234,6 +234,29 @@ local function followPlan()
             local u = S.game.mil[cap.cell] or S.game:addUnit("band", 1, cap.cell, { weapon = "club" })
             O.select(u, true)
         elseif plan.select == "city" and cap then O.select(cap, true)
+        -- `--select quarters`: the capital grown out over two quarters on
+        -- the best of its sites, walled, its window open; `--select
+        -- placing`: the capital out of room, choosing where its quarter goes.
+        elseif (plan.select == "quarters" or plan.select == "placing") and cap then
+            local Q = require "src.quarters"
+            local g = S.game
+            for _, n in ipairs(g:within(g.cells[cap.cell], 2)) do
+                if not n.owner and not g:isWater(n) then n.owner, n.ownerCity = 1, cap end
+            end
+            cap.pop = Q.housing(g, cap)
+            if plan.select == "quarters" then
+                for k = 1, 2 do
+                    local site = Q.best(g, cap)
+                    if site then Q.add(g, cap, site) end
+                    cap.pop = cap.pop + (k == 1 and 5 or 3)
+                end
+                cap.buildings.walls, cap.buildings.granary, cap.buildings.monument = true, true, true
+                g:assignWork(cap)
+                O.select(cap, true)
+            else
+                O.select(cap, true)
+                O.placeQuarter(cap)
+            end
         else
             local u = S.game:unitsOf(1)[1]
             if u then O.select(u, true) end

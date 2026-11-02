@@ -18,6 +18,7 @@ local Beasts = require "src.beasts"
 local Cat = require "src.cataclysm"
 local Frost = require "src.frost"
 local Quake = require "src.quake"
+local Q = require "src.quarters"
 
 local floor, ceil, max, min, exp = math.floor, math.ceil, math.max, math.min, math.exp
 
@@ -141,7 +142,7 @@ end
 -- Must a step from one land cell to the next ford a river? Not where either
 -- is a city: a city bridges the rivers by it.
 function Game:fords(from, to)
-    if from.city or to.city then return false end
+    if from.city or to.city or from.quarter or to.quarter then return false end
     if self:riverBetween(from, to) == nil then return false end
     -- Frozen over (src/frost.lua): walked across on the ice.
     return not Frost.riverIced(from, to)
@@ -285,6 +286,7 @@ function Game:describe(cell)
     elseif cell.cleared then parts[#parts + 1] = "- FIREBREAK" end
     if cell.felled and not cell.feature then parts[#parts + 1] = "- FELLED" end
     if cell.lair then parts[#parts + 1] = "- " .. cell.lair.def.name end
+    if cell.quarter then parts[#parts + 1] = "- A QUARTER OF " .. cell.quarter.name .. (cell.sacked and ", SACKED" or "") end
     -- A town the great flood sank (src/flood.lua).
     if cell.ruin then parts[#parts + 1] = "- THE SUNKEN RUINS OF " .. cell.ruin.name end
     return table.concat(parts, " ")
@@ -958,7 +960,7 @@ function Game:assignWork(city)
     local home = self.cells[city.cell]
     local choices = {}
     for _, cell in ipairs(self:within(home, D.CITY.workRadius)) do
-        if cell.owner == city.owner and not cell.city and not cell.workedBy and cell.elev ~= "mountain" then
+        if cell.owner == city.owner and not cell.city and not cell.quarter and not cell.workedBy and cell.elev ~= "mountain" then
             local f, p, g = self:workYield(city, cell)
             choices[#choices + 1] = { cell = cell, v = f * 2.2 + p * 2 + g + self.rng:random() * 0.01 }
         end
@@ -1010,6 +1012,7 @@ end
 -- Can this player build `kind` ("unit" or "building", id) in this city,
 -- a band or a ship carrying `gear` (any it could carry, if not given)?
 function Game:canBuild(city, kind, id, gear)
+    if kind == "quarter" then return Q.can(self, city, id and self.cells[id]) end
     local p = self.players[city.owner]
     if kind == "unit" and D.FORMS[id] then id, gear = D.FORMS[id].unit, D.FORMS[id].gear end
     local def = kind == "unit" and D.UNITS[id] or D.BUILDINGS[id]
@@ -1103,7 +1106,19 @@ end
 
 -- What a city's order is: its name and what it costs. A refit costs what
 -- the new gear costs over the old (at least 5).
+-- A quarter, as the build list shows it: what the next one costs.
+function Game:quarterDef(city)
+    return { name = "QUARTER", short = "QUART.", cost = Q.cost(city) or D.QUARTER.cost[1], icon = "city",
+        says = { "THE CITY SPILLS OVER INTO A HEX BESIDE IT,", "HOUSING " .. D.QUARTER.each .. " MORE CITIZENS.",
+            "THE HEX IS WORKED NO MORE." } }
+end
+
 function Game:buildDef(b)
+    if b.kind == "quarter" then
+        local def = self:quarterDef({})
+        def.cost = b.cost or def.cost
+        return def
+    end
     if b.kind ~= "unit" then return D.BUILDINGS[b.id] end
     local def = D.unitDef(b.id, b.gear)
     if not b.refit then return def end
@@ -1153,6 +1168,11 @@ function Game:buildable(city)
         table.sort(list, function(a, b) return (a.order or a.def.order) < (b.order or b.def.order) end)
         for _, it in ipairs(list) do out[#out + 1] = it end
     end
+    -- A quarter, once the city is near its housing and has somewhere for
+    -- one: the hex is chosen after (src/ui/orders.lua).
+    if Q.due(self, city) then
+        out[#out + 1] = { kind = "quarter", def = self:quarterDef(city) }
+    end
     return out
 end
 
@@ -1164,7 +1184,7 @@ function Game:setBuild(city, kind, id, gear)
         gear = self:bestGear(self.players[city.owner], id)
     end
     if not self:canBuild(city, kind, id, kind == "unit" and (gear or {}) or nil) then return false end
-    city.build = { kind = kind, id = id, gear = gear }
+    city.build = { kind = kind, id = id, gear = gear, cost = kind == "quarter" and Q.cost(city) or nil }
     return true
 end
 
@@ -1235,6 +1255,20 @@ function Game:complete(city)
         self:equip(u, b.gear)
         self:tell(city.owner, city.name .. " REFITTED A " .. was .. ": NOW A " .. u.def.name)
         self:emit({ kind = "built", cell = city.cell, unit = u })
+        city.prod = max(0, city.prod - cost)
+        city.build = nil
+        return true
+    end
+    if b.kind == "quarter" then
+        local cell = self.cells[b.id]
+        if not Q.can(self, city, cell) then
+            -- Taken or lost meanwhile: what was made is kept for the next thing.
+            self:tell(city.owner, city.name .. " CAN NO LONGER BUILD ITS QUARTER THERE")
+            city.build = nil
+            return false
+        end
+        local cost = self:buildDef(b).cost
+        Q.add(self, city, cell)
         city.prod = max(0, city.prod - cost)
         city.build = nil
         return true
@@ -1426,7 +1460,10 @@ function Game:beginTurn(p)
             elseif not self:moveTo(u, u.dest) then u.dest = nil end
         end
     end
-    for _, c in ipairs(self:citiesOf(p.id)) do c.bought = false end
+    for _, c in ipairs(self:citiesOf(p.id)) do
+        c.bought = false
+        Q.tend(self, c)
+    end
 end
 
 -- The end of a player's turn: its cities grow and build, its science and
@@ -1437,8 +1474,16 @@ function Game:finishTurn(p)
         self:assignWork(city)
         local f, pr, g, s, cu = self:cityYield(city)
         sci, gold = sci + s, gold + g
-        -- Food: two a citizen; the rest stored towards the next.
-        city.food = city.food + f - city.pop * 2
+        -- Food: two a citizen; the rest stored towards the next, slower
+        -- when the city is out of room (src/quarters.lua), and none once it
+        -- is well past it.
+        local spare = f - city.pop * 2
+        if spare > 0 then
+            local pace = Q.pace(self, city)
+            if pace == 0 then spare = min(spare, max(0, self:growthNeed(city) - 1 - city.food))
+            else spare = spare * pace end
+        end
+        city.food = city.food + spare
         -- A town the cataclysm keeps from growing (the plague's sick and
         -- shut, src/plague.lua) stores up to the brink.
         local K = Cat.kindOf(self)
