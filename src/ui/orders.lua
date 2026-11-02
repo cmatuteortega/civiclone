@@ -12,6 +12,7 @@ local Play = require "src.ui.playback"
 local AI = require "src.ai"
 local Audio = require "src.ui.audio"
 local Settings = require "src.settings"
+local L = require "src.lang"
 
 local max = math.max
 
@@ -271,7 +272,8 @@ end
 -- Sound loud, soft or off, said in the news.
 function O.cycleSound()
     local level = Audio.cycle()
-    if S.mode == "play" then table.insert(S.msgs, 1, { text = "SOUND: " .. level, t = 0 }) end
+    if S.mode == "play" then table.insert(S.msgs, 1, { text = L("SOUND: {1}", level), t = 0 }
+) end
 end
 
 --- the turn -----------------------------------------------------------------------

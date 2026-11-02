@@ -18,6 +18,7 @@ local View = require "src.ui.view"
 local O = require "src.ui.orders"
 local Board = require "src.ui.board"
 local Font = require "src.font"
+local L = require "src.lang"
 local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
 local Settings = require "src.settings"
@@ -64,11 +65,11 @@ local function topBar()
     if p.researching then
         local t = D.TECH[p.researching]
         local turns = sci > 0 and math.ceil(max(0, t.cost - p.science) / sci) or "-"
-        label = t.name .. " " .. floor(p.science) .. "/" .. t.cost .. " (" .. turns .. ")"
+        label = L(t.name) .. " " .. floor(p.science) .. "/" .. t.cost .. " (" .. turns .. ")"
     elseif #g:researchable(p) > 0 then
-        label = "CHOOSE RESEARCH"
+        label = L"CHOOSE RESEARCH"
     else
-        label = "ALL KNOWN"
+        label = L"ALL KNOWN"
     end
     local w = Font.width(label) + 6
     button(label, x, 1, w, 9, function() S.panel = S.panel == "research" and nil or "research" end,
@@ -83,7 +84,7 @@ local function topBar()
     end
     -- The menu, at the far right.
     button("MENU", S.vw - 25, 1, 24, 9, Menu.openPause)
-    local right = "TURN " .. g.turn .. "  " .. D.year(g.turn)
+    local right = L("TURN {1}", g.turn) .. "  " .. D.year(g.turn)
     text("c", right, S.vw - Font.width(right) - 29, 3)
     -- The clock's strip, if that is its look, left of the turn.
     Clock.inBar(S.vw - Font.width(right) - 33)
@@ -114,15 +115,22 @@ local function unitPanel(u)
     -- The orders' buttons, in rows as many as they need: { a, x, row }.
     local laid, bx, row = {}, 3, 0
     for _, a in ipairs(acts) do
-        local bw = Font.width(a.label) + 8
+        local bw = Font.width(L(a.label)) + 8
         if bx > 3 and bx + bw > w - 3 then bx, row = 3, row + 1 end
         laid[#laid + 1] = { a = a, x = bx, w = bw, row = row }
         bx = bx + bw + 2
     end
-    local h = Win.BAR + 1 + 28 + row * 13
+    -- What it is doing, at the right of the buttons' last row, or on a row
+    -- of its own if it won't fit there.
+    local status = (u.sick and "CARRIES THE PLAGUE") or u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP")
+        or (u.dest and "ON THE MOVE") or (g:embarked(u) and "EMBARKED") or nil
+    status = L(status)
+    local statusRow = row
+    if status and bx + Font.width(status) + 4 > w then statusRow = row + 1 end
+    local h = Win.BAR + 1 + 28 + statusRow * 13
     local rank = D.rank(u.xp)
-    local name = (rank and (rank.name .. " ") or "") .. def.name
-    local who = (u.owner == 1 or u.owner == g.WILD) and name or (g.players[u.owner].name .. " " .. name)
+    local name = rank and L(rank.name .. " {1}", def.name) or L(def.name)
+    local who = (u.owner == 1 or u.owner == g.WILD) and name or L("civ|{1} {2}", g.players[u.owner].name, name)
     Win.add({ id = "unit", title = who, w = w, h = h, x = 2, y = S.vh - h - 2,
         close = function() O.select(nil) end,
         draw = function(x, y)
@@ -132,17 +140,15 @@ local function unitPanel(u)
             icon(u.kind, x + 5, y + 4, team.ink)
             local stats = {}
             local embarked = g:embarked(u)
-            if embarked then stats[#stats + 1] = "STR " .. D.EMBARK.str
-            elseif def.str > 0 then stats[#stats + 1] = "STR " .. def.str end
-            if def.ranged then stats[#stats + 1] = "RNG " .. def.ranged .. "/" .. def.range end
-            stats[#stats + 1] = "HP " .. max(0, u.hp)
-            stats[#stats + 1] = "MOVES " .. u.moves .. "/" .. g:maxMoves(u)
-            if def.charges then stats[#stats + 1] = "BUILDS " .. u.charges end
-            if def.hide then stats[#stats + 1] = "HIDE" end
+            if embarked then stats[#stats + 1] = L("STR {1}", D.EMBARK.str)
+            elseif def.str > 0 then stats[#stats + 1] = L("STR {1}", def.str) end
+            if def.ranged then stats[#stats + 1] = L("RNG {1}/{2}", def.ranged, def.range) end
+            stats[#stats + 1] = L("HP {1}", max(0, u.hp))
+            stats[#stats + 1] = L("MOVES {1}/{2}", u.moves, g:maxMoves(u))
+            if def.charges then stats[#stats + 1] = L("BUILDS {1}", u.charges) end
+            if def.hide then stats[#stats + 1] = L"HIDE" end
             text("c", table.concat(stats, "  "), x + 15, y + 4)
-            local status = (u.sick and "CARRIES THE PLAGUE") or u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP")
-                or (u.dest and "ON THE MOVE") or (embarked and "EMBARKED") or nil
-            if status then text("s", status, x + w - Font.width(status) - 4, y + 18 + row * 13) end
+            if status then text("s", status, x + w - Font.width(status) - 4, y + 18 + statusRow * 13) end
             for _, l in ipairs(laid) do
                 local a = l.a
                 button(a.label, x + l.x, y + 14 + l.row * 13, l.w, 11, a.fn,
@@ -177,22 +183,22 @@ end
 local function unitSays(def, geared)
     local out = {}
     if def.str > 0 then
-        local s = "STRENGTH " .. def.str
-        if def.ranged then s = s .. ", RANGED " .. def.ranged .. " AT " .. def.range end
+        local s = L("STRENGTH {1}", def.str)
+        if def.ranged then s = s .. L(", RANGED {1} AT {2}", def.ranged, def.range) end
         out[#out + 1] = s
     end
-    out[#out + 1] = "MOVES " .. def.moves .. (def.sea and ", AT SEA" or "")
-    if def.pop then out[#out + 1] = "FOUNDS A CITY; TAKES " .. def.pop .. " CITIZEN" end
-    if def.charges then out[#out + 1] = "IMPROVES THE LAND " .. def.charges .. " TIMES" end
-    if geared then out[#out + 1] = "ITS GEAR IS CHOSEN UNDER WHAT IS BUILDING" end
+    out[#out + 1] = def.sea and L("MOVES {1}, AT SEA", def.moves) or L("MOVES {1}", def.moves)
+    if def.pop then out[#out + 1] = L("FOUNDS A CITY; TAKES {1} CITIZEN", def.pop) end
+    if def.charges then out[#out + 1] = L("IMPROVES THE LAND {1} TIMES", def.charges) end
+    if geared then out[#out + 1] = L"ITS GEAR IS CHOSEN UNDER WHAT IS BUILDING" end
     return out
 end
 
 -- The tooltip by the city's window for the build list's row under the
 -- pointer: its name, then what it does.
 local function buildTip(name, says, wx, rowY)
-    local lines = { name }
-    for _, l in ipairs(says) do lines[#lines + 1] = l end
+    local lines = { L(name) }
+    for _, l in ipairs(says) do lines[#lines + 1] = L(l) end
     Win.over(function()
         local w = 0
         for _, l in ipairs(lines) do w = max(w, Font.width(l)) end
@@ -220,16 +226,16 @@ local function gearChoices(c)
         return gear
     end
     if not D.UNITS[b.id].armed then
-        out[#out + 1] = { label = "NONE", on = b.gear.weapon == nil, gear = with("weapon", nil) }
+        out[#out + 1] = { label = L"NONE", on = b.gear.weapon == nil, gear = with("weapon", nil) }
     end
     local weapons = g:gearFor(p, b.id, "weapon")
     -- A weapon taken from the fallen stays on the list for a refit.
     if b.gear.weapon and not g:canMake(p, b.gear.weapon) then table.insert(weapons, 1, b.gear.weapon) end
     for _, id in ipairs(weapons) do
-        out[#out + 1] = { label = D.GEAR[id].name, on = b.gear.weapon == id, gear = with("weapon", id) }
+        out[#out + 1] = { label = L(D.GEAR[id].name), on = b.gear.weapon == id, gear = with("weapon", id) }
     end
     for _, id in ipairs(g:gearFor(p, b.id, "mount")) do
-        out[#out + 1] = { label = D.GEAR[id].name, on = b.gear.mount == id,
+        out[#out + 1] = { label = L(D.GEAR[id].name), on = b.gear.mount == id,
             gear = with("mount", b.gear.mount ~= id and id or nil) }
     end
     return out
@@ -243,7 +249,7 @@ local function cityPanel(c)
     local h = 62 + (mine and (#items * 10 + sectionCount(items) * 9 + 14 + 11) or 0) + (Cat.is(g, "plague") and Cat.stage(g) and 11 or 0)
         + (mine and gearChoices(c) and 12 or 0)
     h = min(h, S.vh - 13 - 24)
-    local cap = c.capital and " (CAPITAL)" or ""
+    local cap = c.capital and L" (CAPITAL)" or ""
     Win.add({ id = "city", title = c.name .. cap, w = w, h = h,
         x = S.vw - w - 2 - (S.touch and TOUCH_W + 2 or 0), y = 13,
         close = function() S.selected = nil end,
@@ -261,12 +267,13 @@ function cityBody(c, x, y, w, h, mine, items)
     -- Out of room (src/quarters.lua): slower, or not at all.
     local pace = Q.pace(g, c)
     if surplus > 0 and pace < 1 then surplus = surplus * pace end
-    if surplus > 0 then grow = math.ceil((need - c.food) / surplus) .. " TURNS"
-    elseif pace == 0 and f - c.pop * 2 > 0 then grow = "NO ROOM"
-    elseif surplus < 0 then grow = "STARVING" else grow = "STAGNANT" end
-    text("c", "CITIZENS " .. c.pop .. "/" .. Q.housing(g, c) .. "   HP " .. max(0, c.hp) .. "/" .. g:maxHp(c), x + 4, y + 12)
+    if surplus > 0 then grow = L("GROWS IN {1} TURNS", math.ceil((need - c.food) / surplus))
+    elseif pace == 0 and f - c.pop * 2 > 0 then grow = L"GROWS IN NO ROOM"
+    elseif surplus < 0 then grow = L"GROWS IN STARVING" else grow = L"GROWS IN STAGNANT" end
+
+    text("c", L("CITIZENS {1}/{2}", c.pop, Q.housing(g, c)) .. "   " .. L("HP {1}", max(0, c.hp) .. "/" .. g:maxHp(c)), x + 4, y + 12)
     icon("food", x + 4, y + 20, "w")
-    text("w", signed(floor(surplus * 10 + 0.5) / 10) .. "  " .. c.food .. "/" .. need .. "  GROWS IN " .. grow, x + 11, y + 20)
+    text("w", signed(floor(surplus * 10 + 0.5) / 10) .. "  " .. c.food .. "/" .. need .. "  " .. grow, x + 11, y + 20)
     local line = y + 28
     icon("prod", x + 4, line, "c")
     text("c", tostring(p), x + 11, line)
@@ -283,8 +290,8 @@ function cityBody(c, x, y, w, h, mine, items)
     table.sort(ids, function(a, b) return D.BUILDINGS[a].order < D.BUILDINGS[b].order end)
     local long, short = {}, {}
     for _, id in ipairs(ids) do
-        long[#long + 1] = D.BUILDINGS[id].name
-        short[#short + 1] = D.BUILDINGS[id].short
+        long[#long + 1] = L(D.BUILDINGS[id].name)
+        short[#short + 1] = L("short|" .. D.BUILDINGS[id].short)
     end
     local line2 = table.concat(long, " ")
     if Font.width(line2) > w - 8 then line2 = table.concat(short, " ") end
@@ -292,10 +299,10 @@ function cityBody(c, x, y, w, h, mine, items)
     local yy = y + 45
     -- What the city weighs first in working its land (D.FOCUS).
     if mine then
-        text("s", "FOCUS", x + 4, yy)
-        local bx = x + 8 + Font.width("FOCUS")
+        text("s", L"FOCUS", x + 4, yy)
+        local bx = x + 8 + Font.width(L"FOCUS")
         for _, id in ipairs(D.FOCUS_ORDER) do
-            local label = D.FOCUS[id].short
+            local label = L("short|" .. D.FOCUS[id].short)
             local bw = Font.width(label) + 6
             button(label, bx, yy - 2, bw, 10, function() g:setFocus(c, id) end,
                 { on = (c.focus or "balanced") == id })
@@ -306,16 +313,17 @@ function cityBody(c, x, y, w, h, mine, items)
     -- The plague (src/plague.lua): how the town is, and its gates.
     if Cat.is(g, "plague") and Cat.stage(g) then
         local how
-        if c.sick then how = "SICK " .. (c.sick - 1) .. " TURNS"
-        elseif Plague.immune(g, c) then how = "MENDED: SPARED " .. (c.immune - g.turn) .. " TURNS"
-        else how = "WELL" end
-        if c.dead then how = how .. "  DEAD " .. c.dead end
+        if c.sick then how = L("SICK {1} TURNS", c.sick - 1)
+        elseif Plague.immune(g, c) then how = L("MENDED: SPARED {1} TURNS", c.immune - g.turn)
+        else how = L"WELL" end
+        if c.dead then how = how .. "  " .. L("DEAD {1}", c.dead) end
         text(c.sick and "w" or "c", how, x + 4, yy)
         if mine then
-            button(c.shut and "OPEN" or "SHUT", x + w - 34, yy - 2, 30, 10, function() Plague.setShut(g, c) end,
+            button(c.shut and "act|OPEN" or "act|SHUT", x
+ + w - 34, yy - 2, 30, 10, function() Plague.setShut(g, c) end,
                 { on = c.shut })
         elseif c.shut then
-            text("s", "SHUT", x + w - 4 - Font.width("SHUT"), yy)
+            text("s", L"SHUT", x + w - 4 - Font.width(L"SHUT"), yy)
         end
         yy = yy + 11
     end
@@ -323,12 +331,12 @@ function cityBody(c, x, y, w, h, mine, items)
     -- What it is building, and what it could.
     if c.build then
         local def = g:buildDef(c.build)
-        text("w", def.name .. " " .. floor(c.prod) .. "/" .. def.cost .. " (" .. g:turnsFor(c, def.cost) .. ")", x + 4, yy)
+        text("w", L(def.name) .. " " .. floor(c.prod) .. "/" .. def.cost .. " (" .. g:turnsFor(c, def.cost) .. ")", x + 4, yy)
         Draw.bar(x + 4, yy + 7, w - 50, c.prod / def.cost, "w", "o")
         local cost = g:buyCost(c)
         local can = cost and me().gold >= cost and not c.bought
         if c.build.refit and not g:refitReady(c) then can = false end
-        button("BUY " .. cost, x + w - 44, yy - 2, 40, 10, function() g:buy(c) end, { off = not can })
+        button(L("BUY {1}", cost), x + w - 44, yy - 2, 40, 10, function() g:buy(c) end, { off = not can })
     else
         text("w", "CHOOSE WHAT TO BUILD", x + 4, yy)
     end
@@ -359,21 +367,22 @@ function cityBody(c, x, y, w, h, mine, items)
         if sec ~= section then
             if yy + 19 > y + h - 2 then break end
             section = sec
-            text("s", SECTIONS[sec], x + 4, yy + 2)
-            rect("k", x + 6 + Font.width(SECTIONS[sec]), yy + 4, w - 10 - Font.width(SECTIONS[sec]), 1)
+            local head = L(SECTIONS[sec])
+            text("s", head, x + 4, yy + 2)
+            rect("k", x + 6 + Font.width(head), yy + 4, w - 10 - Font.width(head), 1)
             yy = yy + 9
         end
         if yy + 10 > y + h - 2 then break end
         local cost = costOf(it)
         local on = c.build and c.build.kind == it.kind and (c.build.id == it.id or it.kind == "quarter") and not c.build.refit
         -- A band or a ship: named as such, costed as what it carries now.
-        local label = it.def.name
+        local label = L(it.def.name)
         if it.gear then
-            label = D.UNITS[it.id].name
+            label = L(D.UNITS[it.id].name)
             if on then cost = g:buildDef(c.build).cost end
         end
         local turns = g:turnsFor(c, cost, on and c.prod or 0)
-        local note = (it.kind == "unit" and it.def.pop and c.pop <= it.def.pop) and "NEEDS 2 POP" or (cost .. "  " .. turns .. "T")
+        local note = (it.kind == "unit" and it.def.pop and c.pop <= it.def.pop) and L"NEEDS 2 POP" or L("{1}  {2}T", cost, turns)
         local hot = button(label, x + 3, yy, w - 6, 10, function()
             -- A quarter: its hex is chosen on the map.
             if it.kind == "quarter" then O.placeQuarter(c)
@@ -392,8 +401,33 @@ end
 
 local researchBody
 
+-- A technology's row in the list: what it is and gives, and how it stands.
+local function researchRow(g, p, sci, t)
+    local known = p.techs[t.id]
+    local can = g:canResearch(p, t.id)
+    local label = L(t.name) .. " - " .. L(t.gives)
+    local note
+    if known then note = L"KNOWN"
+    elseif can then note = L("{1}  {2}T", t.cost, sci > 0 and math.ceil(max(0, t.cost - p.science) / sci) or "-")
+    else
+        local needs = {}
+        for _, n in ipairs(t.needs) do needs[#needs + 1] = L(D.TECH[n].name) end
+        note = L("NEEDS {1}", table.concat(needs, ", "))
+    end
+    return label, note, known, can
+end
+
 local function researchPanel()
-    local w, h = 200, 22 + #D.TECHS * 12
+    -- As wide as its widest row needs, the name and the note apart.
+    local g, p = S.game, me()
+    local _, sci = g:income(p)
+    local w = 200
+    for _, t in ipairs(D.TECHS) do
+        local label, note = researchRow(g, p, sci, t)
+        w = max(w, Font.width(label) + Font.width(note) + 22)
+    end
+    w = min(w, S.vw - 4)
+    local h = 22 + #D.TECHS * 12
     Win.add({ id = "research", title = "RESEARCH", w = w, h = h,
         x = floor((S.vw - w) / 2), y = max(14, floor((S.vh - h) / 2) - 10),
         close = function() S.panel = nil end,
@@ -405,17 +439,8 @@ function researchBody(x, y, w)
     local yy = y + 14
     local _, sci = g:income(p)
     for _, t in ipairs(D.TECHS) do
-        local known = p.techs[t.id]
-        local can = g:canResearch(p, t.id)
-        local label = t.name .. " - " .. t.gives
-        local note
-        if known then note = "KNOWN"
-        elseif can then note = t.cost .. "  " .. (sci > 0 and math.ceil(max(0, t.cost - p.science) / sci) or "-") .. "T"
-        else
-            local needs = {}
-            for _, n in ipairs(t.needs) do needs[#needs + 1] = D.TECH[n].name end
-            note = "NEEDS " .. table.concat(needs, ", ")
-        end
+        local label, note, known, can = researchRow(g, p, sci, t)
+
         local hot = button(label, x + 3, yy, w - 6, 11, function()
             p.researching = t.id
             S.panel = nil
@@ -433,18 +458,18 @@ local function tooltip()
     local lines = {}
     local f, p, gold = g:yield(cell)
     local head = g:describe(cell)
-    if cell.elev ~= "mountain" then head = head .. "   " .. f .. "F " .. p .. "P " .. gold .. "G" end
+    if cell.elev ~= "mountain" then head = head .. "   " .. L("{1}F {2}P {3}G", f, p, gold) end
     lines[1] = head
     local river = g:riverName(cell)
-    if river then lines[#lines + 1] = "BY THE " .. river end
+    if river then lines[#lines + 1] = L("BY THE {1}", river) end
     -- Where it lies under the still sun (src/stillsun.lua).
     local K = Cat.kindOf(g)
     local where = K and K.describe and K.describe(g, cell)
     if where then lines[#lines + 1] = where:sub(3) end
     if cell.lair then
         local l = cell.lair.def
-        lines[#lines + 1] = l.sting and "A SOLDIER CAN TAKE THEIR HONEY, AND BE STUNG"
-            or ("A SOLDIER WALKING IN CLEARS IT: +" .. l.prize.gold .. " GOLD")
+        lines[#lines + 1] = l.sting and L"A SOLDIER CAN TAKE THEIR HONEY, AND BE STUNG"
+            or L("A SOLDIER WALKING IN CLEARS IT: +{1} GOLD", l.prize.gold)
     end
     if cell.owner then
         local owner = g.players[cell.owner]
@@ -456,31 +481,32 @@ local function tooltip()
                 local d = u.def
                 local how = d.temper == "hostile" and "HOSTILE" or (d.temper == "neutral" and "FIGHTS IF HUNTED"
                     or (d.vermin and "BRINGS THE PLAGUE" or "SHY"))
-                lines[#lines + 1] = d.name .. " - " .. how .. " - STR " .. (d.str + Beasts.nightBonus(g, u)) .. " " .. u.hp .. "HP"
-                if d.night then lines[#lines + 1] = D.night(g.turn, g, cell) and "HUNTING BY NIGHT: +" .. d.night .. " STRENGTH"
-                    or "STRONGER AT NIGHT" end
-                if d.across then lines[#lines + 1] = "STRIKES WHAT CROSSES ITS RIVER" end
+                lines[#lines + 1] = L(d.name) .. " - " .. L(how) .. " - " .. L("STR {1}", d.str + Beasts.nightBonus(g, u))
+                    .. " " .. L("{1}HP", u.hp)
+                if d.night then lines[#lines + 1] = D.night(g.turn, g, cell) and L("HUNTING BY NIGHT: +{1} STRENGTH", d.night)
+                    or L"STRONGER AT NIGHT" end
+                if d.across then lines[#lines + 1] = L"STRIKES WHAT CROSSES ITS RIVER" end
                 if d.tame then
-                    lines[#lines + 1] = me().techs[d.tame] and "COME NEXT TO THEM WITH A SOLDIER TO TAME THEM"
-                        or "HORSEBACK RIDING TAMES THEM"
+                    lines[#lines + 1] = me().techs[d.tame] and L"COME NEXT TO THEM WITH A SOLDIER TO TAME THEM"
+                        or L"HORSEBACK RIDING TAMES THEM"
                 end
             elseif u and u.owner ~= 1 then
-                lines[#lines + 1] = g.players[u.owner].name .. " " .. u.def.name .. " " .. u.hp .. "HP"
+                lines[#lines + 1] = L("civ|{1} {2}", g.players[u.owner].name, u.def.name) .. " " .. L("{1}HP", u.hp)
             end
         end
     end
     local sel = S.selected and S.selected.unit
     if sel and sel.owner == 1 and g:canAttack(sel, cell) then
         local dealt, taken = g:forecast(sel, cell)
-        lines[#lines + 1] = "ATTACK: DEALS ABOUT " .. dealt .. ", TAKES ABOUT " .. taken
+        lines[#lines + 1] = L("ATTACK: DEALS ABOUT {1}, TAKES ABOUT {2}", dealt, taken)
         if not sel.def.ranged and g:riverBetween(g.cells[sel.cell], cell) then
-            lines[#lines + 1] = "ACROSS THE RIVER: -" .. D.RIVER.attack .. " STRENGTH"
+            lines[#lines + 1] = L("ACROSS THE RIVER: -{1} STRENGTH", D.RIVER.attack)
         end
     elseif sel and sel.owner == 1 and S.hoverTurns and cell.id ~= sel.cell then
-        local move = "MOVE: " .. S.hoverTurns .. (S.hoverTurns == 1 and " TURN" or " TURNS")
+        local move = S.hoverTurns == 1 and L"MOVE: 1 TURN" or L("MOVE: {1} TURNS", S.hoverTurns)
         if g:dist(g.cells[sel.cell], cell) == 1 and not sel.def.sea and g:passable(g.cells[sel.cell]) and g:passable(cell)
             and g:fords(g.cells[sel.cell], cell) then
-            move = move .. ", FORDING THE RIVER"
+            move = move .. L", FORDING THE RIVER"
         end
         lines[#lines + 1] = move
     end
@@ -640,22 +666,24 @@ end
 function overBody(x, y, w, h)
     local g = S.game
     love.graphics.push()
-    local title = S.over.result == "won" and "VICTORY" or "DEFEAT"
+    local title = L(S.over.result == "won" and "VICTORY" or "DEFEAT")
     love.graphics.translate(x + floor((w - Font.width(title) * 2) / 2), y + 6)
     love.graphics.scale(2, 2)
     text("w", title, 0, 0)
     love.graphics.pop()
-    text("c", S.over.why, x + floor((w - Font.width(S.over.why)) / 2), y + 22)
+    local why = L(S.over.why)
+    text("c", why, x + floor((w - Font.width(why)) / 2), y + 22)
     local yy = y + 34
     for _, p in ipairs(g.players) do
-        local s = p.name .. "  " .. (p.alive and (#g:citiesOf(p.id) .. " CITIES") or "DESTROYED") .. "  SCORE " .. g:score(p)
+        local s = p.name .. "  " .. (p.alive and L("{1} CITIES", #g:citiesOf(p.id)) or L"DESTROYED") .. "  " .. L("SCORE {1}", g:score(p))
         text(p.id == 1 and "w" or "s", s, x + 6, yy)
         yy = yy + 8
     end
     -- Your score, part by part: what you had, and what of it lasted.
     local parts = {}
     for _, part in ipairs(g:scoreParts(me())) do
-        if part[2] ~= 0 then parts[#parts + 1] = part[1] .. " " .. part[2] end
+        if part[2] ~= 0 then parts[#parts + 1] = L(part[1]) .. " " .. part[2] end
+
     end
     local lines, line = {}, ""
     for _, bit in ipairs(parts) do

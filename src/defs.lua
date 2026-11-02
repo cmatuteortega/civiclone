@@ -928,8 +928,10 @@ function D.year(turn)
     local y = -4000 + (turn - 1) * 40
     if turn > 50 then y = -4000 + 49 * 40 + (turn - 50) * 25 end
     if turn > 100 then y = -4000 + 49 * 40 + 50 * 25 + (turn - 100) * 20 end
-    if y < 0 then return (-y) .. " BC" end
-    return (y == 0 and 1 or y) .. " AD"
+    local L = require "src.lang"
+    if y < 0 then return L("{1} BC", -y) end
+    return L("{1} AD", y == 0 and 1 or y)
+
 end
 
 return D

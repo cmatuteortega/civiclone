@@ -45,6 +45,7 @@
 -- begins. Nothing here draws.
 
 local D = require "src.defs"
+local L = require "src.lang"
 local Cat = require "src.cataclysm"
 local Beasts = require "src.beasts"
 
@@ -133,10 +134,10 @@ function Demons.devour(game, city)
     if not Cat.sheltered(city) and city.pop > 1 then
         city.pop = city.pop - 1
         game:assignWork(city)
-        game:tell(city.owner, "THE DEMONS FEED ON " .. city.name .. ": ITS PEOPLE ARE TAKEN")
+        game:tell(city.owner, "THE DEMONS FEED ON {1}: ITS PEOPLE ARE TAKEN", city.name)
         game:emit({ kind = "devour", cell = city.cell })
     else
-        game:tell(city.owner, city.name .. " IS BESIEGED BY DEMONS")
+        game:tell(city.owner, "{1} IS BESIEGED BY DEMONS", city.name)
     end
 end
 
@@ -156,7 +157,7 @@ function Demons.blight(game, cell)
         cell.burntForest = true
     end
     if cell.improvement and cell.improvement ~= "boats" then
-        if cell.owner then game:tell(cell.owner, "THE BLIGHT HAS TAKEN A " .. D.IMPROVEMENT[cell.improvement].name) end
+        if cell.owner then game:tell(cell.owner, "THE BLIGHT HAS TAKEN A {1}", D.IMPROVEMENT[cell.improvement].name) end
         cell.improvement = nil
     end
     if cell.resource == "wheat" then cell.resource = nil end
@@ -276,7 +277,7 @@ local function riseCitadel(game, cell)
     c.citadel = cell.id
     cell.feature, cell.improvement = nil, nil
     Demons.blight(game, cell)
-    game:tell(nil, "THE CITADEL OF THE ABYSS HAS RISEN ON THE " .. game:describe(cell))
+    game:tell(nil, "THE CITADEL OF THE ABYSS HAS RISEN ON THE {1}", game:describe(cell))
     -- Everyone knows where it is.
     for _, p in ipairs(game.players) do
         for _, n in ipairs(game:within(cell, 1)) do p.explored[n.id] = true end
@@ -320,7 +321,7 @@ local function mark(game)
         local cell = siteCitadel(game)
         if cell then
             c.marks[cell.id] = "citadel"
-            game:tell(nil, "THE GROUND IS SPLITTING ON THE " .. game:describe(cell) .. ": SOMETHING IS COMING UP")
+            game:tell(nil, "THE GROUND IS SPLITTING ON THE {1}: SOMETHING IS COMING UP", game:describe(cell))
         end
     end
     if stage == "omen" or not stage then
@@ -340,7 +341,7 @@ local function mark(game)
         end, 1)[1]
         if cell then
             c.marks[cell.id] = "rift"
-            if cell.owner then game:tell(cell.owner, "THE GROUND IS SPLITTING ON THE " .. game:describe(cell)) end
+            if cell.owner then game:tell(cell.owner, "THE GROUND IS SPLITTING ON THE {1}", game:describe(cell)) end
         end
     end
     -- Tentacles, by the shore.
@@ -368,7 +369,7 @@ local function mark(game)
             end, n)
             for _, cell in ipairs(picked) do
                 c.marks[cell.id] = "tentacle"
-                if cell.owner then game:tell(cell.owner, "SOMETHING STIRS IN THE WATER BY THE " .. game:describe(cell)) end
+                if cell.owner then game:tell(cell.owner, "SOMETHING STIRS IN THE WATER BY THE {1}", game:describe(cell)) end
             end
         end
     end
@@ -445,7 +446,7 @@ local function wreck(game, u)
     end
     if #list == 0 then return end
     local cell = list[game.rng:random(#list)]
-    if cell.owner then game:tell(cell.owner, "A TENTACLE HAS TORN APART A " .. D.IMPROVEMENT[cell.improvement].name) end
+    if cell.owner then game:tell(cell.owner, "A TENTACLE HAS TORN APART A {1}", D.IMPROVEMENT[cell.improvement].name) end
     cell.improvement = nil
     game:emit({ kind = "terrain", cell = cell.id })
     game:emit({ kind = "attack", unit = u, from = u.cell, to = cell.id })
@@ -542,10 +543,10 @@ end
 --- the turn ----------------------------------------------------------------------------------
 
 Demons.tell = {
-    omen = function() return ("THE MOON HAS TURNED TO BLOOD. THE RIFTS OPEN IN %d TURNS"):format(D.DEMONS.rifts - D.DEMONS.omen) end,
+    omen = function() return L("THE MOON HAS TURNED TO BLOOD. THE RIFTS OPEN IN {1} TURNS", D.DEMONS.rifts - D.DEMONS.omen) end,
     rifts = function() return "THE RIFTS: DEMONS COME UP OUT OF THE EARTH. RAISE SANCTUMS, SEAL THE RIFTS" end,
     deep = function() return "THE DEEP: TENTACLES RISE FROM THE SEA, AND THE TOWNS LIVE IN DREAD" end,
-    hellgate = function() return ("THE HELLGATE: THE ABYSS IS OPEN. THE WORLD ENDS IN %d TURNS"):format(D.LAST_TURN - D.DEMONS.hellgate + 1) end,
+    hellgate = function() return L("THE HELLGATE: THE ABYSS IS OPEN. THE WORLD ENDS IN {1} TURNS", D.LAST_TURN - D.DEMONS.hellgate + 1) end,
 }
 
 function Demons.play(game, stage)
@@ -580,7 +581,7 @@ function Demons.play(game, stage)
         spreadBlight(game, stage)
         local lair, cc = Demons.citadel(game)
         if lair and game.turn == T.eyeWarn then
-            game:tell(nil, ("THE EYE OF THE ABYSS WILL OPEN IN THE CITADEL IN %d TURNS. RAZE IT"):format(T.eye - game.turn))
+            game:tell(nil, "THE EYE OF THE ABYSS WILL OPEN IN THE CITADEL IN {1} TURNS. RAZE IT", T.eye - game.turn)
         end
         if lair and game.turn == T.eye then
             local eye = Beasts.spawn(game, "abyss", cc.id, cc.id)
@@ -596,7 +597,8 @@ end
 
 -- The citadel has been razed, by player `who`.
 function Demons.razed(game, who)
-    game:tell(nil, "THE CITADEL OF THE ABYSS HAS BEEN RAZED BY " .. game.players[who].name)
+    game:tell(nil, "THE CITADEL OF THE ABYSS HAS BEEN RAZED BY {1}", game.players[who].name)
+
     if game.turn < D.DEMONS.eye then game:tell(nil, "THE EYE OF THE ABYSS WILL NEVER OPEN") end
     game:emit({ kind = "razed", cell = game.cataclysm.citadel })
 end

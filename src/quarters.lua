@@ -181,7 +181,7 @@ function Q.add(game, city, cell)
     game:assignWork(city)
     relay(game, cell)
     game:emit({ kind = "quarter", cell = cell.id, city = city })
-    game:tell(city.owner, city.name .. " HAS SPILLED OVER INTO A NEW QUARTER")
+    game:tell(city.owner, "{1} HAS SPILLED OVER INTO A NEW QUARTER", city.name)
 end
 
 -- A quarter lost (`why` told to its owner): its people with it, down to
@@ -199,7 +199,8 @@ function Q.lose(game, city, cell, why)
             city.food = 0
         end
         game:assignWork(city)
-        if why then game:tell(city.owner, why .. " " .. city.name .. "'S QUARTER") end
+        if why then game:tell(city.owner, why, city.name) end
+
     end
     relay(game, cell)
 end
@@ -214,14 +215,15 @@ function Q.dropAll(game, city)
     city.quarters = {}
 end
 
--- What has become of a quarter's hex that it can't stand: the reason, or nil.
+-- What has become of a quarter's hex that it can't stand: the news of it
+-- ({1}, the city), or nil.
 local function ruined(game, cell)
-    if game:isWater(cell) then return "THE WATER HAS TAKEN" end
-    if cell.fire then return "FIRE HAS TAKEN" end
-    if cell.lava then return "THE FIRE OF THE EARTH HAS TAKEN" end
-    if (cell.rift or 0) >= 2 then return "THE EARTH HAS SWALLOWED" end
-    if cell.crater and cell.crater > 0 then return "A STONE FROM THE SKY HAS TAKEN" end
-    if cell.blight then return "THE ABYSS HAS TAKEN" end
+    if game:isWater(cell) then return "THE WATER HAS TAKEN {1}'S QUARTER" end
+    if cell.fire then return "FIRE HAS TAKEN {1}'S QUARTER" end
+    if cell.lava then return "THE FIRE OF THE EARTH HAS TAKEN {1}'S QUARTER" end
+    if (cell.rift or 0) >= 2 then return "THE EARTH HAS SWALLOWED {1}'S QUARTER" end
+    if cell.crater and cell.crater > 0 then return "A STONE FROM THE SKY HAS TAKEN {1}'S QUARTER" end
+    if cell.blight then return "THE ABYSS HAS TAKEN {1}'S QUARTER" end
 end
 
 -- At the start of the city's owner's turn: quarters the cataclysm has
@@ -237,13 +239,14 @@ function Q.tend(game, city)
         else
             local m = game.mil[cell.id]
             if m and m.owner ~= city.owner and not m.def.civilian then
-                if not cell.sacked then game:tell(city.owner, "THE ENEMY HAS SACKED " .. city.name .. "'S QUARTER") end
+                if not cell.sacked then game:tell(city.owner, "THE ENEMY HAS SACKED {1}'S QUARTER", city.name) end
                 cell.sacked = D.QUARTER.mend
             elseif cell.sacked then
                 cell.sacked = cell.sacked - 1
                 if cell.sacked <= 0 then
                     cell.sacked = nil
-                    game:tell(city.owner, city.name .. "'S QUARTER IS REBUILT")
+                    game:tell(city.owner, "{1}'S QUARTER IS REBUILT", city.name)
+
                 end
             end
         end

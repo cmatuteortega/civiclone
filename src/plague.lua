@@ -37,6 +37,7 @@
 -- great pestilence, and "plague" as each stage begins. Nothing here draws.
 
 local D = require "src.defs"
+local L = require "src.lang"
 local Cat = require "src.cataclysm"
 local Beasts = require "src.beasts"
 
@@ -80,7 +81,7 @@ function Plague.setShut(game, city, shut)
     if shut == nil then shut = not city.shut end
     if (city.shut == true) == shut then return shut end
     city.shut = shut or nil
-    game:tell(city.owner, city.name .. (shut and " IS SHUT: NO ONE COMES IN OR GOES OUT" or " IS OPEN AGAIN"))
+    game:tell(city.owner, shut and "{1} IS SHUT: NO ONE COMES IN OR GOES OUT" or "{1} IS OPEN AGAIN", city.name)
     game:emit({ kind = "shut", cell = city.cell, shut = shut })
     return shut
 end
@@ -89,10 +90,10 @@ end
 function Plague.infect(game, city, how)
     if not open(game, city) then return false end
     city.sick = 1
-    game:tell(city.owner, "THE PLAGUE HAS COME TO " .. city.name .. (how and (", " .. how) or ""))
+    game:tell(city.owner, L("THE PLAGUE HAS COME TO {1}", city.name) .. (how and (", " .. L(how)) or ""))
     -- The player hears of the towns they know falling sick.
     if city.owner ~= 1 and game.players[1] and game.players[1].explored[city.cell] then
-        game:tell(1, "THE PLAGUE HAS COME TO " .. city.name)
+        game:tell(1, "THE PLAGUE HAS COME TO {1}", city.name)
     end
     game:emit({ kind = "sicken", cell = city.cell, city = city })
     return true
@@ -101,7 +102,7 @@ end
 local function mend(game, city)
     city.sick = nil
     city.immune = game.turn + P.immunity
-    game:tell(city.owner, city.name .. " HAS MENDED: THE PLAGUE HAS PASSED IT BY")
+    game:tell(city.owner, "{1} HAS MENDED: THE PLAGUE HAS PASSED IT BY", city.name)
     game:emit({ kind = "mend", cell = city.cell, city = city })
 end
 
@@ -164,9 +165,10 @@ function Plague.describe(game, cell)
     local c = cell.city
     if not c then return nil end
     local bits = {}
-    if c.sick then bits[#bits + 1] = "SICK WITH THE PLAGUE"
-    elseif Plague.immune(game, c) then bits[#bits + 1] = "MENDED, SPARED FOR " .. (c.immune - game.turn) .. " TURNS" end
-    if c.shut then bits[#bits + 1] = "SHUT" end
+    if c.sick then bits[#bits + 1] = L"SICK WITH THE PLAGUE"
+    elseif Plague.immune(game, c) then bits[#bits + 1] = L("MENDED, SPARED FOR {1} TURNS", c.immune - game.turn) end
+    if c.shut then bits[#bits + 1] = L"SHUT" end
+
     if #bits == 0 then return nil end
     return "- " .. table.concat(bits, ", ")
 end
@@ -184,7 +186,7 @@ local function fallow(game, city)
     cell.improvement = nil
     cell.fallow = true
     if cell.resource == "wheat" and game.rng:random() < 0.5 then cell.resource = nil end
-    game:tell(city.owner, "A FARM OF " .. city.name .. " LIES FALLOW: THERE IS NO ONE TO WORK IT")
+    game:tell(city.owner, "A FARM OF {1} LIES FALLOW: THERE IS NO ONE TO WORK IT", city.name)
     game:emit({ kind = "terrain", cell = cell.id })
 end
 
@@ -197,8 +199,8 @@ local function die(game, city, n, quiet)
     city.pyre = game.turn
     game:assignWork(city)
     if not quiet then
-        game:tell(city.owner, n == 1 and (city.name .. " HAS LOST ONE OF ITS PEOPLE TO THE PLAGUE")
-            or (city.name .. " HAS LOST " .. n .. " OF ITS PEOPLE TO THE PLAGUE"))
+        game:tell(city.owner, n == 1 and "{1} HAS LOST ONE OF ITS PEOPLE TO THE PLAGUE"
+            or "{1} HAS LOST {2} OF ITS PEOPLE TO THE PLAGUE", city.name, n)
     end
     game:emit({ kind = "pestilence", cell = city.cell, city = city, n = n })
     if game.rng:random() < P.fallow then fallow(game, city) end
@@ -250,7 +252,7 @@ local function spread(game, s)
     end
     for _, e in ipairs(catch) do
         local from = e[2]
-        Plague.infect(game, e[1], from.owner == e[1].owner and ("FROM " .. from.name) or ("FROM " .. from.name .. " OF " .. game.players[from.owner].name))
+        Plague.infect(game, e[1], from.owner == e[1].owner and L("FROM {1}", from.name) or L("FROM {1} OF {2}", from.name, game.players[from.owner].name))
     end
 end
 
@@ -286,7 +288,8 @@ local function people(game, s)
                         local p = P.bring[s] or 0
                         if c.shut and c.cell ~= u.cell then p = p * P.shut end
                         if game.rng:random() < p then
-                            Plague.infect(game, c, "BROUGHT BY A " .. u.def.name .. (u.owner ~= c.owner and (" OF " .. game.players[u.owner].name) or ""))
+                            Plague.infect(game, c, u.owner ~= c.owner and L("BROUGHT BY A {1} OF {2}", u.def.name, game.players[u.owner].name)
+                                or L("BROUGHT BY A {1}", u.def.name))
                         end
                     end
                 end
@@ -304,7 +307,7 @@ local function people(game, s)
                 if ratsBy(game, cell) then p = max(p, P.catchRats) end
                 if p > 0 and game.rng:random() < p then
                     u.sick = P.carry
-                    game:tell(u.owner, "OUR " .. u.def.name .. " CARRIES THE PLAGUE")
+                    game:tell(u.owner, "OUR {1} CARRIES THE PLAGUE", u.def.name)
                     game:emit({ kind = "carrier", cell = u.cell, unit = u })
                 end
             end
@@ -393,7 +396,7 @@ local function ratsOut(game, s)
                 local u = game:addUnit("rats", Beasts.WILD, at.id)
                 u.home, u.life = c.cell, P.ratLife
                 out = out + 1
-                game:tell(c.owner, "RATS ARE RUNNING OUT OF " .. c.name)
+                game:tell(c.owner, "RATS ARE RUNNING OUT OF {1}", c.name)
                 game:emit({ kind = "rats", cell = at.id, unit = u })
             end
         end
@@ -465,10 +468,10 @@ end
 --- the turn ----------------------------------------------------------------------------------
 
 Plague.tell = {
-    omen = function() return ("THE CROWS ARE GATHERING. THE FEVER COMES IN %d TURNS"):format(P.fever - P.omen) end,
+    omen = function() return L("THE CROWS ARE GATHERING. THE FEVER COMES IN {1} TURNS", P.fever - P.omen) end,
     fever = function() return "THE FEVER: THE PLAGUE GOES FROM TOWN TO TOWN. BUILD LAZARETS, SHUT YOUR GATES" end,
     dying = function() return "THE GREAT DYING: RATS RUN FROM THE SICK TOWNS, AND THE WELL GO HUNGRY FOR FEAR" end,
-    dance = function() return ("THE DANCE OF DEATH. THE WORLD ENDS IN %d TURNS"):format(D.LAST_TURN - P.dance + 1) end,
+    dance = function() return L("THE DANCE OF DEATH. THE WORLD ENDS IN {1} TURNS", D.LAST_TURN - P.dance + 1) end,
 }
 
 function Plague.play(game, stage)
@@ -479,7 +482,7 @@ function Plague.play(game, stage)
             local city = siteOutbreak(game)
             if city then
                 c.zero = city.id
-                game:tell(nil, "A FEVER IS SEEN IN " .. city.name .. " OF " .. game.players[city.owner].name)
+                game:tell(nil, "A FEVER IS SEEN IN {1} OF {2}", city.name, game.players[city.owner].name)
                 game:emit({ kind = "zero", cell = city.cell, city = city })
             end
         end
@@ -498,7 +501,8 @@ function Plague.play(game, stage)
     end
     ratsOut(game, stage)
     if game.turn == P.warn then
-        game:tell(nil, ("THE GREAT PESTILENCE WILL COME IN %d TURNS. SHUT THE TOWNS NEAR THE SICK"):format(P.great - P.warn))
+        game:tell(nil, "THE GREAT PESTILENCE WILL COME IN {1} TURNS. SHUT THE TOWNS NEAR THE SICK", P.great - P.warn)
+
     end
     if game.turn == P.great then great(game) end
 end

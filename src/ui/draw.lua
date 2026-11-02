@@ -5,6 +5,7 @@
 local T = require "src.tracer"
 local Font = require "src.font"
 local Sheet = require "src.ui.sheet"
+local L = require "src.lang"
 local S = require "src.ui.state"
 
 local floor = math.floor
@@ -27,7 +28,13 @@ function Draw.frame(k, x, y, w, h)
     Draw.rect(k, x + w - 1, y, 1, h)
 end
 
+-- Text is shown in the player's language (src/lang.lua). A line written out
+-- whole in the code is looked up here, so it needn't be at every call; a line
+-- put together, or one measured or cut before it is drawn, is the caller's to
+-- word with L() first. Looking up a line already in the language changes
+-- nothing (tests/lang_test.lua sees to it).
 function Draw.text(k, s, x, y)
+    s = L.word(s)
     Draw.color(k)
     Font.print(s, floor(x), floor(y))
 end
@@ -58,6 +65,7 @@ Draw.inside = inside
 -- greyed out and does nothing. Answers whether the pointer is over it.
 function Draw.button(label, x, y, w, h, fn, opts)
     opts = opts or {}
+    label = L.word(label)
     local r = { x = x, y = y, w = w, h = h, fn = (not opts.off) and fn or nil, label = label }
     S.buttons[#S.buttons + 1] = r
     local hot = inside(r, S.mouse.x, S.mouse.y) and not opts.off

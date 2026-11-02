@@ -11,6 +11,7 @@
 -- src/defs.lua (D.BEASTS, D.LAIRS, D.WILD). Nothing here draws.
 
 local D = require "src.defs"
+local L = require "src.lang"
 
 local floor, min = math.floor, math.min
 
@@ -233,21 +234,21 @@ local function give(game, who, prize, cell)
     -- Glory (the demons' slain, src/demons.lua) counts in the score.
     if prize.glory and prize.glory > 0 then
         p.glory = (p.glory or 0) + prize.glory
-        bits[#bits + 1] = "+" .. prize.glory .. " GLORY"
+        bits[#bits + 1] = L("+{1} GLORY", prize.glory)
     end
     if prize.gold and prize.gold > 0 then
         p.gold = p.gold + prize.gold
-        bits[#bits + 1] = "+" .. prize.gold .. " GOLD"
+        bits[#bits + 1] = L("+{1} GOLD", prize.gold)
     end
     local city = nearestCity(game, who, cell)
     if city then
         if prize.food and prize.food > 0 then
             city.food = city.food + prize.food
-            bits[#bits + 1] = "+" .. prize.food .. " FOOD TO " .. city.name
+            bits[#bits + 1] = L("+{1} FOOD TO {2}", prize.food, city.name)
         end
         if prize.culture and prize.culture > 0 then
             city.culture = city.culture + prize.culture
-            bits[#bits + 1] = "+" .. prize.culture .. " CULTURE"
+            bits[#bits + 1] = L("+{1} CULTURE", prize.culture)
         end
     end
     return table.concat(bits, ", "), bits[1]
@@ -266,11 +267,11 @@ function Beasts.slain(game, u, by, killer)
             local gear = { weapon = killer.gear.weapon, mount = killer.gear.mount, armour = killer.gear.armour }
             gear[g.slot] = loot.gear
             game:equip(killer, gear)
-            game:tell(by, "OUR " .. killer.def.name .. " TOOK THE " .. g.name)
+            game:tell(by, "OUR {1} TOOK THE {2}", killer.def.name, g.name)
         end
     end
     local words, first = give(game, by, loot, cell)
-    game:tell(by, u.def.name .. " SLAIN" .. (words ~= "" and (": " .. words) or ""))
+    game:tell(by, L("{1} SLAIN", u.def.name) .. (words ~= "" and (": " .. words) or ""))
     if first then game:emit({ kind = "loot", cell = cell.id, text = first }) end
 end
 
@@ -291,9 +292,9 @@ function Beasts.arrive(game, u, cell)
         end
         Beasts.removeLair(game, lair)
         local words, first = give(game, u.owner, def.prize, cell)
-        local what = def.sting and "WILD BEES ROBBED OF THEIR HONEY" or (def.name .. " CLEARED")
+        local what = def.sting and L"WILD BEES ROBBED OF THEIR HONEY" or L("{1} CLEARED", def.name)
         if def.demon then
-            what = def.citadel and "THE CITADEL OF THE ABYSS RAZED" or "RIFT SEALED"
+            what = L(def.citadel and "THE CITADEL OF THE ABYSS RAZED" or "RIFT SEALED")
             if cell.blight then
                 cell.blight = nil
                 game:emit({ kind = "terrain", cell = cell.id })
@@ -321,7 +322,8 @@ function Beasts.tame(game, h, who, by)
     if by and not by.dead and by.unit == "band" and not by.gear.mount then
         local was = by.def.name
         game:equip(by, { weapon = by.gear.weapon, mount = h.def.mount or "horse", armour = by.gear.armour })
-        game:tell(who, "WILD HORSES TAMED: OUR " .. was .. " IS NOW A " .. by.def.name)
+        game:tell(who, "WILD HORSES TAMED: OUR {1} IS NOW A {2}", was, by.def.name)
+
         game:emit({ kind = "tame", cell = at, unit = h, rider = by })
         return
     end

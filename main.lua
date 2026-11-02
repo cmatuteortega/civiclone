@@ -33,6 +33,7 @@ local Draw = require "src.ui.draw"
 local Game = require "src.game"
 local World = require "src.world"
 local Font = require "src.font"
+local L = require "src.lang"
 local Audio = require "src.ui.audio"
 local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
@@ -186,11 +187,13 @@ function love.load(args)
         if a == "--size" and args[n + 1] then S.sizeArg = { args[n + 1]:match("^(%d+)x(%d+)$") } end
         -- `--clock look`: the clock drawn so (arc, dial, strip, scene, off).
         if a == "--clock" then require("src.ui.clock").force = args[n + 1] end
-        -- `--open settings:audio` (or `pause`, `newgame`, `dev`) shows a menu in the picture.
+        -- `--open settings:audio` (or `pause`, `newgame`, `dev`, `research`) shows a menu in the picture.
         if a == "--open" and S.plan then S.plan.open = args[n + 1] end
         -- `--bare`: the map alone, with no HUD, banners or windows over it.
         -- The new game window's pictures (assets/menu/) are taken so.
         if a == "--bare" and S.plan then S.plan.bare = true end
+        -- `--lang es`: the words in that language, this time only.
+        if a == "--lang" then S.langArg = args[n + 1] end
         -- `--sounds` writes every sound as a .wav into the save folder, and quits.
         if a == "--sounds" then
             print("wrote " .. Audio.dump())
@@ -198,8 +201,16 @@ function love.load(args)
         end
     end
     -- Pictures are taken as the game starts, whatever the player has set.
-    if not S.plan then Settings.load() end
+    if not S.plan and not Settings.load() then
+        -- The first time, the words in the system's language, if the game has it.
+        local sys = (os.getenv("LC_ALL") or os.getenv("LC_MESSAGES") or os.getenv("LANG") or ""):match("^(%a%a)")
+        for _, c in ipairs(require("src.lang").LIST) do
+            if c == sys then Settings.set("lang", c) end
+        end
+    end
+    if S.langArg then Settings.set("lang", S.langArg) end
     Menu.applyAll()
+
     if S.sizeArg and S.sizeArg[1] then
         love.window.setMode(tonumber(S.sizeArg[1]), tonumber(S.sizeArg[2]), { resizable = true })
         love.resize(love.graphics.getDimensions())
@@ -994,6 +1005,8 @@ local function followPlan()
         if what == "settings" then Menu.openSettings(tab ~= "" and tab or nil) end
         if what == "newgame" then Menu.openNewGame() end
         if what == "dev" then Menu.openDev() end
+        if what == "research" then S.panel = "research" end
+
     end
     if plan.next and plan.frames == 26 then
         local AI = require "src.ai"
@@ -1180,7 +1193,7 @@ end
 -- What the kept game is, for under CONTINUE: "TURN 42 - THE DELUGE".
 local function keptLine(info)
     local c = Menu.CATACLYSMS[info.cataclysm] or Menu.CATACLYSMS.none
-    return "TURN " .. info.turn .. " - " .. (c and c.name or "NO CATACLYSM")
+    return L("TURN {1}", info.turn) .. " - " .. L(c and c.name or "NO CATACLYSM")
 end
 
 local function title()
@@ -1197,7 +1210,7 @@ local function title()
     bigText("u", "HEXTINCT", cx + 2, y + 10, 5)
     bigText("w", "HEXTINCT", cx, y + 8, 5)
     Draw.rect("n", cx - floor(pw / 2) + 10, y + 38, pw - 20, 1)
-    local sub = "BUILD AN EMPIRE. CHOOSE HOW IT ENDS."
+    local sub = L"BUILD AN EMPIRE. CHOOSE HOW IT ENDS."
     Draw.text("c", sub, cx - floor(Font.width(sub) / 2), y + 43)
 
     local bw = 160
@@ -1216,7 +1229,8 @@ local function title()
 
     local below = y + ph + 6
     if S.titleNote then
-        Draw.text("w", S.titleNote, cx - floor(Font.width(S.titleNote) / 2), below)
+        local note = L(S.titleNote)
+        Draw.text("w", note, cx - floor(Font.width(note) / 2), below)
         below = below + 9
     end
     local help = S.touch and {
@@ -1226,19 +1240,20 @@ local function title()
         "CAPITAL, HEX GRID AND SOUND",
     } or (function()
         -- As the keys are bound now.
-        local function k(cmd) return Settings.keyName(Settings.key(cmd)) end
+        local function k(cmd) return L(Settings.keyName(Settings.key(cmd))) end
         return {
             "LEFT CLICK: SELECT   RIGHT CLICK: MOVE OR ATTACK",
-            "DRAG, ARROWS OR " .. k("panUp") .. k("panLeft") .. k("panDown") .. k("panRight") .. ": PAN   WHEEL: ZOOM   "
-                .. k("grid") .. ": GRID   " .. k("research") .. ": RESEARCH",
-            k("main") .. ": NEXT   " .. k("endTurn") .. ": END TURN   " .. k("skip") .. ": SKIP",
-            k("found") .. ": FOUND CITY   " .. k("fortify") .. ": FORTIFY   " .. k("farm") .. ": FARM   "
-                .. k("mine") .. ": MINE   " .. k("capital") .. ": CAPITAL",
-            k("sound") .. ": SOUND   ESC: MENU   DRAG A WINDOW BY ITS TITLE",
+            L("DRAG, ARROWS OR {1}: PAN   WHEEL: ZOOM   {2}: GRID   {3}: RESEARCH",
+                k("panUp") .. k("panLeft") .. k("panDown") .. k("panRight"), k("grid"), k("research")),
+            L("{1}: NEXT   {2}: END TURN   {3}: SKIP", k("main"), k("endTurn"), k("skip")),
+            L("{1}: FOUND CITY   {2}: FORTIFY   {3}: FARM   {4}: MINE   {5}: CAPITAL",
+                k("found"), k("fortify"), k("farm"), k("mine"), k("capital")),
+            L("{1}: SOUND   ESC: MENU   DRAG A WINDOW BY ITS TITLE", k("sound")),
         }
     end)()
     -- Only as much of it as there is room for below the panel.
     for k, l in ipairs(help) do
+        l = L(l)
         local ly = below + (k - 1) * 7
         if ly + 6 <= S.vh then Draw.text("n", l, cx - floor(Font.width(l) / 2), ly) end
     end
@@ -1247,7 +1262,8 @@ end
 local function loading()
     backdrop()
     local cx, cy = floor(S.vw / 2), floor(S.vh / 2)
-    local s = "SURVEYING THE LAND"
+    local s = L"SURVEYING THE LAND"
+
     Draw.rect("o", cx - 70, cy - 14, 140, 26)
     Draw.text("w", s, cx - floor(Font.width(s) / 2), cy - 9)
     Draw.bar(cx - 60, cy + 2, 120, S.progress or 0, "w", "n")

@@ -44,6 +44,7 @@
 -- as each stage begins. Nothing here draws.
 
 local D = require "src.defs"
+local L = require "src.lang"
 
 local max = math.max
 
@@ -148,7 +149,7 @@ function Cat.label(game)
     local s = Cat.stage(game)
     if not s then return nil end
     local left = max(0, D.LAST_TURN - game.turn + 1)
-    return Cat.kindOf(game).words[s] .. " " .. left
+    return L(Cat.kindOf(game).words[s]) .. " " .. left
 end
 
 --- what holds the heat off --------------------------------------------------------
@@ -296,7 +297,7 @@ function Cat.ignite(game, cell)
     cell.fire = D.HEAT.burn
     game:emit({ kind = "ignite", cell = cell.id })
     game:emit({ kind = "terrain", cell = cell.id })
-    if cell.owner then game:tell(cell.owner, "FIRE! THE " .. what .. " IS BURNING") end
+    if cell.owner then game:tell(cell.owner, "FIRE! THE {1} IS BURNING", what) end
 end
 
 -- A fire that has burnt out: the trees to stumps, the farm and the grain
@@ -321,7 +322,7 @@ local function hurt(game, u, amount, how)
     game:removeUnit(u)
     game:emit({ kind = "death", cell = u.cell, unit = u })
     if u.owner ~= game.WILD then
-        game:tell(u.owner, "OUR " .. u.def.name .. " " .. how)
+        game:tell(u.owner, "OUR {1} " .. how, u.def.name)
         game:checkAlive(game.players[u.owner])
     end
 end
@@ -480,7 +481,9 @@ local function failRivers(game, n)
                     local o = side.cell.owner
                     if o and not told[o] then
                         told[o] = true
-                        game:tell(o, (s.e.name or "A RIVER") .. " IS RUNNING DRY")
+                        if s.e.name then game:tell(o, "{1} IS RUNNING DRY", s.e.name)
+                        else game:tell(o, "A RIVER IS RUNNING DRY") end
+
                     end
                 end
                 break
@@ -579,10 +582,11 @@ end
 --- the turn -------------------------------------------------------------------------
 
 local TELL = {
-    omen = function() return ("THE SUN GROWS CRUEL. THE GREAT DROUGHT COMES IN %d TURNS"):format(D.HEAT.drought - D.HEAT.omen) end,
+    omen = function() return L("THE SUN GROWS CRUEL. THE GREAT DROUGHT COMES IN {1} TURNS", D.HEAT.drought - D.HEAT.omen) end,
     drought = function() return "THE GREAT DROUGHT: THE LAND IS DRYING. BUILD CISTERNS" end,
     fires = function() return "THE WILDFIRES: THE FORESTS ARE BURNING" end,
-    scorch = function() return ("THE SCORCH: THE EARTH BAKES. THE WORLD ENDS IN %d TURNS"):format(D.LAST_TURN - D.HEAT.scorch + 1) end,
+    scorch = function() return L("THE SCORCH: THE EARTH BAKES. THE WORLD ENDS IN {1} TURNS", D.LAST_TURN - D.HEAT.scorch + 1) end,
+
 }
 
 -- The heat's part of a turn, in stage `stage`.
@@ -590,8 +594,8 @@ local function heatTurn(game, stage)
     if Cat.past(game, "fires") then fires(game, stage) end
     failRivers(game, D.HEAT.riverDry[stage] or 0)
     if game.turn == D.HEAT.warn then
-        game:tell(nil, ("THE SEA IS DRAWING BACK FROM THE SHORES: IN %d TURNS THE SHALLOWS WILL BE DRY"):format(
-            D.HEAT.ebb - game.turn))
+        game:tell(nil, "THE SEA IS DRAWING BACK FROM THE SHORES: IN {1} TURNS THE SHALLOWS WILL BE DRY",
+            D.HEAT.ebb - game.turn)
         game:emit({ kind = "mark" })
     end
     if game.turn == D.HEAT.ebb then

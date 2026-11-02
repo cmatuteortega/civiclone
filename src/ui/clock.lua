@@ -19,6 +19,7 @@
 local S = require "src.ui.state"
 local Draw = require "src.ui.draw"
 local Font = require "src.font"
+local L = require "src.lang"
 local Daylight = require "src.ui.daylight"
 local Settings = require "src.settings"
 
@@ -161,7 +162,7 @@ end
 local function dial(right, top, t)
     local R = 13
     local d = R * 2 + 1
-    local name, day = Clock.name(t), "DAY " .. Clock.day()
+    local name, day = L(Clock.name(t)), L("DAY {1}", Clock.day())
     local tw = max(Font.width(name), Font.width(day))
     local w, h = d + tw + 10, d + 6
     local x, y = right - w, top
@@ -234,7 +235,7 @@ local function strip(right, top, t)
     -- The marker, at now.
     rect("w", x + half, y - 1, 1, 2)
     rect("w", x + half, y + h - 1, 1, 2)
-    local name = Clock.name(t)
+    local name = L(Clock.name(t))
     text("c", name, x - Font.width(name) - 5, y + 1)
     return x - Font.width(name) - 5
 end
@@ -306,7 +307,8 @@ local function scene(right, top, t)
         end
     end
     Draw.frame("n", ix - 1, iy - 1, iw + 2, ih + 2)
-    local s = Clock.name(t) .. "  DAY " .. Clock.day()
+    local s = L(Clock.name(t)) .. "  " .. L("DAY {1}", Clock.day())
+
     label(s, x, y + h - 8, w)
 end
 

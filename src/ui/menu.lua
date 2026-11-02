@@ -14,6 +14,7 @@ local Win = require "src.ui.windows"
 local View = require "src.ui.view"
 local Settings = require "src.settings"
 local Font = require "src.font"
+local L = require "src.lang"
 local D = require "src.defs"
 local Save = require "src.save"
 
@@ -37,6 +38,7 @@ local TIPS = {
     showFps = "FRAMES A SECOND IN THE CORNER",
     uiScale = "HOW BIG THE MENUS, PANELS AND LETTERING ARE, IN WHOLE PIXELS",
     mapScale = "HOW BIG A PIXEL OF THE MAP IS BEFORE ANY ZOOM",
+    lang = "THE LANGUAGE OF EVERYTHING ON THE SCREEN",
     touch = "BUTTONS DOWN THE RIGHT FOR WHAT KEYS DO",
     tooltips = "WHAT IS ON THE HEX UNDER THE POINTER, AT THE BOTTOM",
     newsTime = "HOW LONG THE NEWS STAYS AT THE TOP LEFT",
@@ -160,6 +162,7 @@ local function changed(id)
     if id == "uiScale" or id == "mapScale" then View.fit()
     elseif id == "touch" then Menu.applyTouch()
     elseif id == "grid" then S.grid = Settings.get("grid")
+    elseif id == "lang" then L.set(Settings.get("lang"))
     end
     Settings.save()
 end
@@ -167,6 +170,8 @@ end
 -- Everything as saved, at the start.
 function Menu.applyAll()
     S.grid = Settings.get("grid")
+    L.set(Settings.get("lang"))
+
     Menu.applyTouch()
     if not S.phone then
         local _, _, f = love.window.getMode()
@@ -381,7 +386,7 @@ local function settingRows(x, y, w)
                 chooser(s.id, cx, y, cw, nil, stepDisplay, { off = S.phone })
             elseif s.id == "uiScale" or s.id == "mapScale" then
                 local v = Settings.get(s.id)
-                local label = v == 0 and ("AUTO (" .. (s.id == "uiScale" and S.uz or View.baseZoom()) .. "X)") or (v .. "X")
+                local label = v == 0 and L("AUTO ({1}X)", s.id == "uiScale" and S.uz or View.baseZoom()) or (v .. "X")
                 chooser(s.id, cx, y, cw, s.id == "uiScale" and uiScales() or mapScales(), stepScale, { label = label })
             else
                 chooser(s.id, cx, y, cw)
@@ -444,10 +449,12 @@ local function settingsWindow()
             else settingRows(x, bodyY, ww) end
             -- What the setting under the pointer does.
             rect("o", x + 2, footY, ww - 4, 1)
-            if tip then text("s", Font.cut(tip, floor((ww - 10) / 4)), x + 5, footY + 3) end
-            button("RESET " .. tab:upper(), x + 4, y + hh - 15, 96, 12, function()
+            if tip then text("s", Font.cut(L(tip), floor((ww - 10) / 4)), x + 5, footY + 3) end
+            button(L("RESET {1}", tab:upper()), x + 4, y + hh - 15, 96, 12, function()
                 local old = { mode = Settings.get("mode"), resolution = Settings.get("resolution"), vsync = Settings.get("vsync") }
                 Settings.reset(tab)
+                L.set(Settings.get("lang"))
+
                 if tab == "display" then startTrial(trial or old) end
                 Menu.applyTouch()
                 S.grid = Settings.get("grid")
@@ -615,7 +622,7 @@ local function newGameWindow()
             end
             rect("o", x + 2, y + 14, ww - 4, 1)
             local ty = Menu.TYPES[newType]
-            text("s", Font.cut(ty.about, floor((ww - 10) / 4)), x + 5, y + 17)
+            text("s", Font.cut(L(ty.about), floor((ww - 10) / 4)), x + 5, y + 17)
 
             -- Its endings down the left, with what to expect of the one in
             -- hand under them; the picture of it on the right.
@@ -636,9 +643,9 @@ local function newGameWindow()
             local shown = under
             if not shown or Menu.TYPE_OF[shown.id] ~= ty then shown = Menu.CATACLYSMS[pick] end
             if not shown or Menu.TYPE_OF[shown.id] ~= ty then shown = ty.list[1] end
-            text("k", "ENDS AT TURN " .. (shown.last or D.LAST_TURN), x + 7, yy + 3)
+            text("k", L("ENDS AT TURN {1}", shown.last or D.LAST_TURN), x + 7, yy + 3)
             yy = yy + 13
-            for k, l in ipairs(Font.wrap(shown.about, floor(bw / 4), 6)) do
+            for k, l in ipairs(Font.wrap(L(shown.about), floor(bw / 4), 6)) do
                 text("c", l, x + 7, yy + (k - 1) * 8)
             end
 
@@ -670,7 +677,9 @@ local function devWindow()
     local g = S.game
     local jumps = { { "+1", 1 }, { "+5", 5 }, { "+10", 10 }, { "+25", 25 } }
     local stages = {}
-    for _, st in ipairs(Cat.stagesOf(g)) do stages[#stages + 1] = { Cat.name(g, st[1]):gsub("^THE ", ""), st[2] } end
+    -- The stages' names without their article, to fit.
+    local function bare(s) return (s:gsub("^THE ", ""):gsub("^EL ", ""):gsub("^LA ", ""):gsub("^LOS ", ""):gsub("^LAS ", "")) end
+    for _, st in ipairs(Cat.stagesOf(g)) do stages[#stages + 1] = { bare(L(Cat.name(g, st[1]))), st[2] } end
     stages[#stages + 1] = { "LAST TURN", g:lastTurn() }
     local w, h = 200, 11 + 26 + 14 + 8 + #stages * 14 + 24
     Win.add({
@@ -679,7 +688,7 @@ local function devWindow()
         close = function() S.dev = false end,
         draw = function(x, y, ww, hh)
             local stage = Cat.stage(g)
-            text("w", "TURN " .. g.turn .. (stage and ("  " .. Cat.name(g, stage)) or ""), x + 6, y + 4)
+            text("w", L("TURN {1}", g.turn) .. (stage and ("  " .. L(Cat.name(g, stage))) or ""), x + 6, y + 4)
             text("s", "THE COMPUTER PLAYS YOUR SIDE UP TO THE TURN", x + 6, y + 13)
             local bw = floor((ww - 12 - 6) / #jumps)
             for k, j in ipairs(jumps) do
@@ -691,7 +700,7 @@ local function devWindow()
             yy = yy + 9
             for _, st in ipairs(stages) do
                 local past = g.turn >= st[2]
-                button(st[1] .. "  (TURN " .. st[2] .. ")", x + 6, yy, ww - 12, 12, function() O.skipTo(st[2]) end,
+                button(L(st[1]) .. "  (" .. L("TURN {1}", st[2]) .. ")", x + 6, yy, ww - 12, 12, function() O.skipTo(st[2]) end,
                     { off = past or S.over ~= nil })
                 yy = yy + 14
             end
@@ -701,7 +710,11 @@ local function devWindow()
 end
 
 local function question(id, title, lines, yes, yesLabel, no, noLabel)
+    local said = {}
+    for k, l in ipairs(lines) do said[k] = L(l) end
+    lines = said
     local w = 40
+
     for _, l in ipairs(lines) do w = max(w, Font.width(l) + 16) end
     w = min(w, S.vw - 4)
     local h = 11 + #lines * 8 + 24
@@ -733,7 +746,7 @@ function Menu.draw()
         end, a.label, function() S.ask = nil end, "CANCEL")
     end
     if trial then
-        question("trial", "DISPLAY", { "KEEP THESE DISPLAY SETTINGS?", "GOING BACK IN " .. ceil(trial.left) .. " SECONDS" },
+        question("trial", "DISPLAY", { "KEEP THESE DISPLAY SETTINGS?", L("GOING BACK IN {1} SECONDS", ceil(trial.left)) },
             function() endTrial(true) end, "KEEP", function() endTrial(false) end, "GO BACK")
     end
 end

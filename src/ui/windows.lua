@@ -15,6 +15,7 @@
 local S = require "src.ui.state"
 local Draw = require "src.ui.draw"
 local Font = require "src.font"
+local L = require "src.lang"
 local Settings = require "src.settings"
 
 local floor, max, min, abs = math.floor, math.max, math.min, math.abs
@@ -79,7 +80,7 @@ local function chrome(w)
     local front = w.front
     Draw.rect(front and "k" or "n", x + 1, y + 1, w.w - 2, Win.BAR - 1)
     Draw.rect("o", x + 1, y + Win.BAR, w.w - 2, 1)
-    local title = w.title or ""
+    local title = L.word(w.title or "")
     local room = w.w - 8 - (w.close and 12 or 0)
     title = Font.cut(title, floor(room / 4))
     Draw.text(front and "w" or "c", title, x + 4, y + 3)

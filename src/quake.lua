@@ -63,6 +63,7 @@
 -- "sundering" as each stage begins. Nothing here draws.
 
 local D = require "src.defs"
+local L = require "src.lang"
 local H = require "src.hex"
 local Cat = require "src.cataclysm"
 
@@ -97,8 +98,8 @@ local function where(game, cell)
         local d = game:dist(cell, game.cells[c.cell])
         if d <= 5 and (not bd or d < bd) then best, bd = c, d end
     end
-    if best then return bd == 0 and ("AT " .. best.name) or ("NEAR " .. best.name) end
-    return "FAR FROM ANY TOWN"
+    if best then return bd == 0 and L("AT {1}", best.name) or L("NEAR {1}", best.name) end
+    return L"FAR FROM ANY TOWN"
 end
 Q.where = where
 
@@ -348,16 +349,16 @@ local function quakeCity(game, city, blow, heart)
         if #list > 0 then
             local id = list[floor(rng:random() * #list) + 1]
             city.buildings[id] = nil
-            game:tell(city.owner, "THE QUAKE HAS BROUGHT DOWN THE " .. D.BUILDINGS[id].name .. " OF " .. city.name)
+            game:tell(city.owner, "THE QUAKE HAS BROUGHT DOWN THE {1} OF {2}", D.BUILDINGS[id].name, city.name)
             game:emit({ kind = "terrain", cell = city.cell })
         end
     end
     if rng:random() < D.QUAKE.kill * (braced_ and 0.5 or 1) and city.pop > 1 and not Cat.sheltered(city) then
         city.pop = city.pop - 1
         game:assignWork(city)
-        game:tell(city.owner, city.name .. " HAS BEEN SHAKEN: ITS PEOPLE DIE UNDER THE RUBBLE")
+        game:tell(city.owner, "{1} HAS BEEN SHAKEN: ITS PEOPLE DIE UNDER THE RUBBLE", city.name)
     else
-        game:tell(city.owner, city.name .. " HAS BEEN SHAKEN BY A QUAKE")
+        game:tell(city.owner, "{1} HAS BEEN SHAKEN BY A QUAKE", city.name)
     end
 end
 
@@ -380,7 +381,7 @@ function Q.quake(game, cell)
         elseif land(game, n) and not braced(n) then
             if (n.improvement == "mine" or n.improvement == "farm") and rng:random() < QK.wreck then
                 if n.owner then
-                    game:tell(n.owner, "A QUAKE HAS WRECKED A " .. D.IMPROVEMENT[n.improvement].name)
+                    game:tell(n.owner, "A QUAKE HAS WRECKED A {1}", D.IMPROVEMENT[n.improvement].name)
                 end
                 n.improvement = nil
                 game:emit({ kind = "terrain", cell = n.id })
@@ -567,7 +568,7 @@ local function tear(game, cell)
             if cell.resource and cell.resource ~= "stone" then cell.resource = nil end
             if cell.workedBy then cell.workedBy = nil end
             strandAll(game, cell, "FELL INTO THE RIFT")
-            if cell.owner then game:tell(cell.owner, "THE EARTH HAS SPLIT OPEN UNDER THE " .. what) end
+            if cell.owner then game:tell(cell.owner, "THE EARTH HAS SPLIT OPEN UNDER THE {1}", what) end
         elseif step == 3 and cell.owner then
             game:tell(cell.owner, "THE SEA IS POURING INTO THE RIFT")
         end
@@ -709,14 +710,14 @@ function Q.raise(game, cell)
         cell.elev = "hills"
         cell.top = cell.top + D.ELEV.hills.rise
         if cell.improvement == "farm" then cell.improvement = nil end
-        if cell.owner then game:tell(cell.owner, "THE " .. what .. " HAS RISEN INTO HILLS") end
+        if cell.owner then game:tell(cell.owner, "THE {1} HAS RISEN INTO HILLS", what) end
     else
         cell.elev = "mountain"
         cell.top = cell.top + D.ELEV.mountain.rise - D.ELEV.hills.rise
         cell.feature, cell.improvement = nil, nil
         if cell.resource == "wheat" then cell.resource = nil end
         if cell.workedBy then cell.workedBy = nil end
-        if cell.owner then game:tell(cell.owner, "THE " .. what .. " HAS RISEN INTO MOUNTAINS") end
+        if cell.owner then game:tell(cell.owner, "THE {1} HAS RISEN INTO MOUNTAINS", what) end
     end
     cell.fault, cell.flood = nil, nil
     for k = 0, 5 do
@@ -783,7 +784,7 @@ function Q.wake(game, n)
         cell.fault = nil
         c.volcanoes[#c.volcanoes + 1] = cell.id
         game:emit({ kind = "terrain", cell = cell.id })
-        game:tell(nil, "A VOLCANO HAS WOKEN " .. where(game, cell))
+        game:tell(nil, "A VOLCANO HAS WOKEN {1}", where(game, cell))
     end
 end
 
@@ -799,10 +800,10 @@ local function flood(game, cell)
         cell.burntForest = true
     end
     if cell.improvement then
-        if cell.owner then game:tell(cell.owner, "LAVA HAS TAKEN A " .. D.IMPROVEMENT[cell.improvement].name) end
+        if cell.owner then game:tell(cell.owner, "LAVA HAS TAKEN A {1}", D.IMPROVEMENT[cell.improvement].name) end
         cell.improvement = nil
     elseif cell.owner then
-        game:tell(cell.owner, "LAVA IS POURING OVER THE " .. what)
+        game:tell(cell.owner, "LAVA IS POURING OVER THE {1}", what)
     end
     if cell.resource == "wheat" then cell.resource = nil end
     for _, u in ipairs(Cat.unitsOn(game, cell)) do Cat.hurt(game, u, D.QUAKE.lavaHit, "WAS BURNT BY THE LAVA") end
@@ -846,7 +847,7 @@ function Q.erupt(game, cell)
     local ids = {}
     for _, h in ipairs(took) do ids[#ids + 1] = h.id end
     game:emit({ kind = "erupt", cell = cell.id, lava = ids, turn = game.turn })
-    game:tell(nil, "THE VOLCANO " .. where(game, cell) .. " HAS ERUPTED")
+    game:tell(nil, "THE VOLCANO {1} HAS ERUPTED", where(game, cell))
     for _, h in ipairs(took) do flood(game, h) end
     -- The forests by it catch, and the cities by it burn.
     for _, h in ipairs(took) do
@@ -928,7 +929,7 @@ function Q.heave(game, from, size)
             c.marks[cell.id] = "wave"
             c.waveFrom[cell.id] = from.id
             hit = hit + 1
-            if cell.owner then game:tell(cell.owner, "THE SEA HAS DRAWN BACK FROM THE " .. game:describe(cell) .. ": A WAVE IS COMING") end
+            if cell.owner then game:tell(cell.owner, "THE SEA HAS DRAWN BACK FROM THE {1}: A WAVE IS COMING", game:describe(cell)) end
         end
     end
     if hit > 0 then game:emit({ kind = "mark" }) end
@@ -966,7 +967,7 @@ function Q.strike(game, cell, from)
     if cell.city then
         if not cell.city.buildings.levee then
             Cat.harm(game, cell.city, QK.waveCity)
-            game:tell(cell.city.owner, "A WAVE HAS STRUCK " .. cell.city.name)
+            game:tell(cell.city.owner, "A WAVE HAS STRUCK {1}", cell.city.name)
         end
     else
         -- The water lies on the low land a while, and takes what is on it
@@ -991,7 +992,7 @@ local function ebb(game)
                 cell.silt = true
                 if cell.improvement == "farm" or cell.improvement == "mine" then
                     if cell.owner then
-                        game:tell(cell.owner, "THE WAVE HAS WASHED AWAY A " .. D.IMPROVEMENT[cell.improvement].name)
+                        game:tell(cell.owner, "THE WAVE HAS WASHED AWAY A {1}", D.IMPROVEMENT[cell.improvement].name)
                     end
                     cell.improvement = nil
                 end
@@ -1050,14 +1051,14 @@ local function mark(game)
     end, n)
     for _, cell in ipairs(picked) do
         c.marks[cell.id] = "quake"
-        if cell.owner then game:tell(cell.owner, "THE GROUND SHAKES UNDER THE " .. game:describe(cell) .. ": A QUAKE IS COMING") end
+        if cell.owner then game:tell(cell.owner, "THE GROUND SHAKES UNDER THE {1}: A QUAKE IS COMING", game:describe(cell)) end
     end
     if stage == "fire" then
         for _, id in ipairs(c.volcanoes or {}) do
             local v = game.cells[id]
             if v.volcano and not c.marks[id] and rng:random() < QK.erupt then
                 c.marks[id] = "erupt"
-                game:tell(nil, "THE VOLCANO " .. where(game, v) .. " IS ABOUT TO ERUPT")
+                game:tell(nil, "THE VOLCANO {1} IS ABOUT TO ERUPT", where(game, v))
             end
         end
     end
@@ -1092,7 +1093,7 @@ function Q.great(game)
             if lost > 0 then
                 city.pop = max(1, city.pop - lost)
                 game:assignWork(city)
-                game:tell(city.owner, city.name .. " HAS LOST ITS PEOPLE UNDER THE RUBBLE OF THE GREAT QUAKE")
+                game:tell(city.owner, "{1} HAS LOST ITS PEOPLE UNDER THE RUBBLE OF THE GREAT QUAKE", city.name)
             end
         end
         local cell = game.cells[city.cell]
@@ -1113,10 +1114,10 @@ end
 --- the turn ----------------------------------------------------------------------------------
 
 Q.tell = {
-    omen = function() return ("THE GROUND TREMBLES. THE TREMORS COME IN %d TURNS"):format(D.QUAKE.tremors - D.QUAKE.omen) end,
+    omen = function() return L("THE GROUND TREMBLES. THE TREMORS COME IN {1} TURNS", D.QUAKE.tremors - D.QUAKE.omen) end,
     tremors = function() return "THE TREMORS: QUAKES SHAKE THE LAND AND FAULTS OPEN IN IT. BUILD BUTTRESSES" end,
     rift = function() return "THE SUNDERING: THE RIFT TEARS THE LAND APART, AND THE MOUNTAINS RISE" end,
-    fire = function() return ("THE FIRE BELOW: THE VOLCANOES WAKE. THE WORLD ENDS IN %d TURNS"):format(D.LAST_TURN - D.QUAKE.fire + 1) end,
+    fire = function() return L("THE FIRE BELOW: THE VOLCANOES WAKE. THE WORLD ENDS IN {1} TURNS", D.LAST_TURN - D.QUAKE.fire + 1) end,
 }
 
 function Q.play(game, stage)
@@ -1149,8 +1150,8 @@ function Q.play(game, stage)
         local path = Q.planRift(game)
         if path then
             layRift(game, path)
-            game:tell(nil, ("THE GROUND HAS CRACKED FROM SEA TO SEA, %s: THE GREAT RIFT WILL TEAR THERE")
-                :format(where(game, path[floor(#path / 2) + 1])))
+            game:tell(nil, "THE GROUND HAS CRACKED FROM SEA TO SEA, {1}: THE GREAT RIFT WILL TEAR THERE",
+                where(game, path[floor(#path / 2) + 1]))
             for _, cell in ipairs(path) do game:emit({ kind = "terrain", cell = cell.id }) end
         end
     end
@@ -1163,8 +1164,9 @@ function Q.play(game, stage)
     end
     if stage == "fire" and not c.volcanoes then Q.wake(game, QK.volcanoes) end
     if game.turn == QK.warn then
-        game:tell(nil, ("THE GREAT QUAKE COMES IN %d TURNS: THE WHOLE RIFT WILL OPEN, AND THE SEA COME IN ON EVERY SHORE")
-            :format(QK.great - QK.warn))
+        game:tell(nil, "THE GREAT QUAKE COMES IN {1} TURNS: THE WHOLE RIFT WILL OPEN, AND THE SEA COME IN ON EVERY SHORE",
+            QK.great - QK.warn)
+
     end
     if game.turn == QK.great then Q.great(game) end
     -- The sea runs into the cracks that reach it.

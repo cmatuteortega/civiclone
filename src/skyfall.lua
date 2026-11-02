@@ -40,6 +40,7 @@
 -- draws.
 
 local D = require "src.defs"
+local L = require "src.lang"
 local Cat = require "src.cataclysm"
 local Frost = require "src.frost"
 
@@ -123,8 +124,9 @@ local function mark(game)
     for _, cell in ipairs(picked) do
         c.marks[cell.id] = game.rng:random() < big and "big" or "small"
         if cell.owner then
-            local what = c.marks[cell.id] == "big" and "A GREAT STONE" or "A STONE"
-            game:tell(cell.owner, what .. " IS FALLING ON THE " .. game:describe(cell))
+            game:tell(cell.owner, c.marks[cell.id] == "big" and "A GREAT STONE IS FALLING ON THE {1}"
+                or "A STONE IS FALLING ON THE {1}", game:describe(cell))
+
         end
     end
     game:emit({ kind = "mark" })
@@ -166,7 +168,7 @@ function Sky.crater(game, cell, depth)
     cell.crater = (cell.crater or 0) + 1
     cell.glow = D.SKY.glow
     if cell.improvement then
-        if cell.owner then game:tell(cell.owner, "A " .. D.IMPROVEMENT[cell.improvement].name .. " HAS BEEN STRUCK FROM THE SKY") end
+        if cell.owner then game:tell(cell.owner, "A {1} HAS BEEN STRUCK FROM THE SKY", D.IMPROVEMENT[cell.improvement].name) end
         cell.improvement = nil
     end
     if cell.feature == "forest" then
@@ -201,9 +203,9 @@ local function strikeCity(game, city, amount, pop)
     if pop > 0 and not Cat.sheltered(city) and city.pop > 1 then
         city.pop = max(1, city.pop - pop)
         game:assignWork(city)
-        game:tell(city.owner, city.name .. " HAS BEEN STRUCK FROM THE SKY: ITS PEOPLE DIE")
+        game:tell(city.owner, "{1} HAS BEEN STRUCK FROM THE SKY: ITS PEOPLE DIE", city.name)
     else
-        game:tell(city.owner, city.name .. " HAS BEEN STRUCK FROM THE SKY")
+        game:tell(city.owner, "{1} HAS BEEN STRUCK FROM THE SKY", city.name)
     end
 end
 
@@ -239,7 +241,7 @@ function Sky.heartfall(game, cell)
                 c.pop = max(1, c.pop - lost)
                 game:assignWork(c)
                 Cat.harm(game, c, c.hp)
-                game:tell(c.owner, c.name .. " LIES UNDER THE HEART OF THE COMET")
+                game:tell(c.owner, "{1} LIES UNDER THE HEART OF THE COMET", c.name)
             elseif d == 1 then
                 strikeCity(game, c, S.ringCity, S.pop)
             else
@@ -268,10 +270,11 @@ end
 --- the turn ----------------------------------------------------------------------------------
 
 Sky.tell = {
-    omen = function() return ("A COMET HAS BEEN SEEN IN THE SKY. THE STARFALL COMES IN %d TURNS"):format(D.SKY.starfall - D.SKY.omen) end,
+    omen = function() return L("A COMET HAS BEEN SEEN IN THE SKY. THE STARFALL COMES IN {1} TURNS", D.SKY.starfall - D.SKY.omen) end,
     starfall = function() return "THE STARFALL: STONES FALL FROM THE SKY WHERE THEY ARE SEEN COMING. DIG SHELTERS" end,
     bombard = function() return "THE BOMBARDMENT: GREAT STONES FALL, AND THE DUST HIDES THE SUN" end,
-    dark = function() return ("THE LONG NIGHT: THE SUN IS GONE. THE WORLD ENDS IN %d TURNS"):format(D.LAST_TURN - D.SKY.dark + 1) end,
+    dark = function() return L("THE LONG NIGHT: THE SUN IS GONE. THE WORLD ENDS IN {1} TURNS", D.LAST_TURN - D.SKY.dark + 1) end,
+
 }
 
 function Sky.play(game, stage)
@@ -297,8 +300,8 @@ function Sky.play(game, stage)
         local cell = aim(game)
         if cell then
             c.heart = cell.id
-            game:tell(nil, ("THE HEART OF THE COMET WILL FALL ON THE %s IN %d TURNS"):format(game:describe(cell),
-                D.SKY.heart - game.turn))
+            game:tell(nil, "THE HEART OF THE COMET WILL FALL ON THE {1} IN {2} TURNS", game:describe(cell),
+                D.SKY.heart - game.turn)
             game:emit({ kind = "mark", heart = cell.id })
         end
     end

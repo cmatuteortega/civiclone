@@ -15,6 +15,8 @@ local World = require "src.world"
 local SkyFx = require "src.ui.sky"
 local QuakeFx = require "src.ui.quake"
 local Play = require "src.ui.playback"
+local L = require "src.lang"
+
 
 local max, min, floor = math.max, math.min, math.floor
 
@@ -196,7 +198,7 @@ function Anim.events(game, all)
                 -- The plague (src/plague.lua): a town falling sick, mending, or
                 -- losing its people, the word rising over it.
                 local cell = game.cells[e.cell]
-                local text = e.kind == "sicken" and "PLAGUE" or (e.kind == "mend" and "MENDED" or ("-" .. e.n .. " POP"))
+                local text = e.kind == "sicken" and "PLAGUE" or (e.kind == "mend" and "MENDED" or ("-" .. e.n .. " " .. L"POP"))
                 S.effects[#S.effects + 1] = { kind = "number", t = 0, life = 1.8, text = text,
                     x = cell.x, y = cell.top + 30, z = cell.z, delay = 0.3 }
                 if e.kind ~= "mend" and cell.city then cell.city.flash = 0.4 end

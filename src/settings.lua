@@ -7,6 +7,8 @@
 -- src/ui/menu.lua, applies the display ones; the rest are read where they
 -- matter).
 
+local Lang = require "src.lang"
+
 local Settings = {}
 
 -- Every setting, in the order the menu shows them: its tab, its name, what it
@@ -30,13 +32,16 @@ Settings.LIST = {
         show = function(v) return v:upper() end },
     { id = "showFps", tab = "display", name = "SHOW FRAME RATE", values = ONOFF.values, show = ONOFF.show, default = false },
     -- Interface.
+    { id = "lang", tab = "interface", name = "LANGUAGE", values = Lang.LIST, default = "en",
+        show = function(v) return Lang.NAMES[v] end },
     { id = "uiScale", tab = "interface", name = "INTERFACE SIZE", default = 0 },
     { id = "mapScale", tab = "interface", name = "MAP PIXEL SIZE", default = 0 },
     { id = "touch", tab = "interface", name = "TOUCH BUTTONS", values = { "auto", "on", "off" }, default = "auto",
         show = function(v) return v:upper() end },
     { id = "tooltips", tab = "interface", name = "HEX TOOLTIPS", values = ONOFF.values, show = ONOFF.show, default = true },
     { id = "newsTime", tab = "interface", name = "NEWS STAYS FOR", values = { 4, 8, 16, 30 }, default = 8,
-        show = function(v) return v .. " SECONDS" end },
+        show = function(v) return Lang("{1} SECONDS", v) end },
+
     { id = "lockWindows", tab = "interface", name = "LOCK WINDOWS", values = ONOFF.values, show = ONOFF.show, default = false },
     { id = "snapWindows", tab = "interface", name = "SNAP WINDOWS TO EDGES", values = ONOFF.values, show = ONOFF.show, default = true },
     -- Audio: each 0..100, in tens.

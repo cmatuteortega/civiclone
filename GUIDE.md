@@ -140,6 +140,15 @@ with your first idle unit (the settler) selected.
 These are the default keys. All but Esc and the arrows can be changed in
 Settings → Controls (Esc, or MENU at the top right, opens the menu).
 
+### Language
+
+Everything on the screen, the news included, is in **English** or
+**Spanish** (ESPAÑOL): Settings → Interface → LANGUAGE, kept between games.
+The first time the game runs it takes the system's language if it has it
+(`LANG` and the like), and English otherwise. The names of cities, rivers
+and civilizations are the same in both. News already given stays in the
+language it was given in.
+
 ## The screen
 
 **Top bar.** From left to right: your gold and its change per turn, science
@@ -1927,7 +1936,10 @@ and picks up where it left off.
 | --- | --- |
 | `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders and their works (felling, firebreaks, dousing, mending, the AI fighting fire), 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, the rivers running dry from their springs, the great ebb and the salt flats walked on, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, the great flood over the lowland and then the upland, towns sunk to ruins and a levee holding through the first, a civilization gone with its towns, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, the great storm's cyclones formed on the line, seen coming, running along it and striking, the gales, a whole game to its end), the shattering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
+| `love . --lang es` | The words in Spanish (or `en`), for this run only; with `--shot` and `--open settings:interface` (or `pause`, `newgame`, `dev`, `research`), a picture of that window in it |
+| `luajit tools/lang_keys.lua es` | The lines the Spanish table has not yet (see [Translations](#translations)); with no language, every line the game can show |
 | `love . --seed N` | Play the map from seed N |
+
 | `love . --play` | Skip the title |
 | `love . --resume` | Straight into the game that was kept, as CONTINUE does |
 | `love . --shot title.png` | With no `--play`, a picture of the title screen; `--open newgame` or `--open settings` shows that window over it |
@@ -1961,3 +1973,29 @@ and picks up where it left off.
 To change the game, start in `src/defs.lua`: the map size, last turn, terrain
 yields, unit and building stats, the technology tree, city and combat
 numbers, civilization names and their city lists are all there.
+
+### Translations
+
+The code writes every line in English, as it is shown (`src/lang.lua`):
+`L"NEW GAME"`, or with what goes into it, `L("{1} WAS FOUNDED", city.name)`;
+the news is worded the same way through `game:tell(who, "{1} WAS FOUNDED",
+city.name)`. Each other language is a table from those English lines to its
+own, in `src/locale/<code>.lua`, with the line itself as the key; a line the
+table hasn't is shown in English. What goes into a line is looked up too, so
+a unit's or a building's name comes out in the language around it, and a
+line can agree with it: `{1:O/A}` is `O` for a masculine word and `A` for a
+feminine one, as the table's `fem` list says. A line written whole and drawn
+straight away needs no `L`: `Draw.text`, `Draw.button` and the windows'
+titles look up what they are given. One that is measured, cut or wrapped
+before it is drawn has to be worded first, so it is measured in the
+language it is shown in. Where one English line is two things in another
+language, it starts with what it is, in small letters and a bar, which is
+never shown (`"act|SHUT"`, the button, against `"SHUT"`, a town's state).
+
+`tools/lang_keys.lua` finds every line in the code's literals (in capitals,
+or with a `{1}`), and makes the few put together at run time.
+`tests/lang_test.lua` fails while a table misses any, while a translated line
+looked up again would change, while one uses a letter the font hasn't, and
+while one drops or adds a `{1}`; and it plays a whole game of every
+cataclysm in Spanish, every piece of news in it put together and in Spanish.
+A new language is a new table and its code in `Lang.LIST` and `Lang.NAMES`.

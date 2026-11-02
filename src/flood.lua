@@ -40,6 +40,7 @@
 -- as each stage begins (with `stage`). Nothing here draws.
 
 local D = require "src.defs"
+local L = require "src.lang"
 local Cat = require "src.cataclysm"
 
 local max = math.max
@@ -144,7 +145,7 @@ function F.inundate(game, cell)
     cell.flood = D.FLOOD.last
     game:emit({ kind = "flood", cell = cell.id })
     game:emit({ kind = "terrain", cell = cell.id })
-    if cell.owner then game:tell(cell.owner, "FLOOD! THE " .. what .. " IS UNDER WATER") end
+    if cell.owner then game:tell(cell.owner, "FLOOD! THE {1} IS UNDER WATER", what) end
 end
 
 -- The water gone down: the farm and the mine washed away, silt left, and
@@ -153,7 +154,7 @@ local function recede(game, cell)
     cell.flood = nil
     cell.silt = true
     if cell.improvement == "farm" or cell.improvement == "mine" then
-        if cell.owner then game:tell(cell.owner, "THE FLOOD HAS WASHED AWAY A " .. D.IMPROVEMENT[cell.improvement].name) end
+        if cell.owner then game:tell(cell.owner, "THE FLOOD HAS WASHED AWAY A {1}", D.IMPROVEMENT[cell.improvement].name) end
         cell.improvement = nil
     end
     if cell.terrain == "desert" then cell.terrain = "plains" end
@@ -248,7 +249,7 @@ function F.drown(game, cell, quiet)
     if cell.workedBy then cell.workedBy = nil end
     if not quiet then
         for _, u in ipairs(Cat.unitsOn(game, cell)) do strand(game, u, cell) end
-        if cell.owner then game:tell(cell.owner, "THE SEA HAS TAKEN THE " .. what) end
+        if cell.owner then game:tell(cell.owner, "THE SEA HAS TAKEN THE {1}", what) end
     end
     game:emit({ kind = "terrain", cell = cell.id })
     -- The water beside it meets new land: its shore is drawn again.
@@ -334,7 +335,7 @@ function F.sink(game, city)
     end
     city.dead = true
     game:emit({ kind = "sunk", cell = cell.id, city = city })
-    game:tell(nil, city.name .. " HAS SUNK BENEATH THE SEA")
+    game:tell(nil, "{1} HAS SUNK BENEATH THE SEA", city.name)
 end
 
 -- Unit u, on a hex the great flood has taken: rowing, if it can be on the
@@ -418,21 +419,22 @@ end
 function F.describe(game, cell)
     if game:isWater(cell) or not F.doomed(game, cell) then return nil end
     local _, left = F.coming(game)
-    return left == 1 and "- THE SEA TAKES IT NEXT TURN" or ("- THE SEA TAKES IT IN " .. left .. " TURNS")
+    return left == 1 and L"- THE SEA TAKES IT NEXT TURN" or L("- THE SEA TAKES IT IN {1} TURNS", left)
+
 end
 
 --- the turn --------------------------------------------------------------------------------
 
 F.tell = {
-    omen = function() return ("THE RAINS WILL NOT STOP. THE LONG RAINS COME IN %d TURNS"):format(D.FLOOD.rains - D.FLOOD.omen) end,
+    omen = function() return L("THE RAINS WILL NOT STOP. THE LONG RAINS COME IN {1} TURNS", D.FLOOD.rains - D.FLOOD.omen) end,
     rains = function() return "THE LONG RAINS: THE LAND GROWS RICH, AND THE LOWLANDS SODDEN. BUILD LEVEES" end,
     floods = function() return "THE FLOODS: THE RIVERS HAVE BURST THEIR BANKS" end,
-    sea = function() return ("THE RISING SEA: THE COASTS DROWN. THE WORLD ENDS IN %d TURNS"):format(D.LAST_TURN - D.FLOOD.sea + 1) end,
+    sea = function() return L("THE RISING SEA: THE COASTS DROWN. THE WORLD ENDS IN {1} TURNS", D.LAST_TURN - D.FLOOD.sea + 1) end,
 }
 
 local function towns(n)
-    if n == 0 then return "NO TOWN" end
-    return n == 1 and "1 TOWN" or (n .. " TOWNS")
+    if n == 0 then return L"NO TOWN" end
+    return n == 1 and L"1 TOWN" or L("{1} TOWNS", n)
 end
 
 function F.play(game, stage)
@@ -440,16 +442,17 @@ function F.play(game, stage)
     if stage == "sea" then rise(game) end
     local FL = D.FLOOD
     if game.turn == FL.warn then
-        game:tell(nil, ("THE GREAT FLOOD COMES: IN %d TURNS THE SEA WILL TAKE THE LOWLANDS, IN %d THE UPLANDS. "
-            .. "ONLY THE HILLS WILL STAND"):format(FL.great - game.turn, FL.second - game.turn))
+        game:tell(nil, "THE GREAT FLOOD COMES: IN {1} TURNS THE SEA WILL TAKE THE LOWLANDS, IN {2} THE UPLANDS. "
+            .. "ONLY THE HILLS WILL STAND", FL.great - game.turn, FL.second - game.turn)
         game:emit({ kind = "mark" })
     elseif game.turn == FL.great then
         local _, sunk = F.deluge(game, FL.levels[1], true)
-        game:tell(nil, ("THE GREAT FLOOD: THE SEA HAS TAKEN THE LOWLANDS, %s WITH THEM. "
-            .. "THE UPLANDS GO IN %d TURNS"):format(towns(#sunk), FL.second - game.turn))
+        game:tell(nil, "THE GREAT FLOOD: THE SEA HAS TAKEN THE LOWLANDS, {1} WITH THEM. "
+            .. "THE UPLANDS GO IN {2} TURNS", towns(#sunk), FL.second - game.turn)
     elseif game.turn == FL.second then
         local _, sunk = F.deluge(game, FL.levels[2], false)
-        game:tell(nil, ("THE SEA HAS RISEN OVER THE UPLANDS, %s WITH THEM. ONLY THE HILLS STAND"):format(towns(#sunk)))
+        game:tell(nil, "THE SEA HAS RISEN OVER THE UPLANDS, {1} WITH THEM. ONLY THE HILLS STAND", towns(#sunk))
+
     elseif game.turn > FL.warn and game.turn < FL.second then
         game:emit({ kind = "mark" })
     end

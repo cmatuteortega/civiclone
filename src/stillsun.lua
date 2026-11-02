@@ -51,6 +51,7 @@
 -- Nothing here draws.
 
 local D = require "src.defs"
+local L = require "src.lang"
 local H = require "src.hex"
 local Cat = require "src.cataclysm"
 local Frost = require "src.frost"
@@ -185,8 +186,8 @@ end
 -- What the screen says of where the hex lies.
 function Sun.describe(game, cell)
     local z = Sun.zone(game, cell)
-    local out = z and ({ day = "- ENDLESS DAY", night = "- ENDLESS NIGHT", twilight = "- TWILIGHT" })[z]
-    if out and Sun.stormAt(game, cell) then out = out .. " - THE STORM IS COMING" end
+    local out = z and L(({ day = "- ENDLESS DAY", night = "- ENDLESS NIGHT", twilight = "- TWILIGHT" })[z])
+    if out and Sun.stormAt(game, cell) then out = out .. " " .. L"- THE STORM IS COMING" end
     return out
 end
 
@@ -309,7 +310,7 @@ local function form(game)
         life = S.life[1] + floor(game.rng:random() * (S.life[2] - S.life[1] + 1)) }
     c.cyclones[#c.cyclones + 1] = cy
     game:emit({ kind = "cyclone", id = cy.id, cell = cell.id, formed = true, turn = game.turn })
-    if cell.owner then game:tell(cell.owner, "A CYCLONE HAS FORMED BY THE " .. game:describe(cell)) end
+    if cell.owner then game:tell(cell.owner, "A CYCLONE HAS FORMED BY THE {1}", game:describe(cell)) end
     return cy
 end
 Sun.form = form
@@ -328,7 +329,7 @@ function Sun.strike(game, cell)
             end
         else
             Cat.harm(game, n.city, eye and S.eyeCity or S.ringCity)
-            game:tell(n.city.owner, "THE STORM HAS STRUCK " .. n.city.name)
+            game:tell(n.city.owner, "THE STORM HAS STRUCK {1}", n.city.name)
         end
         local r = game.rng
         local changed = false
@@ -339,7 +340,7 @@ function Sun.strike(game, cell)
             if n.owner then game:tell(n.owner, "THE STORM HAS BLOWN A FOREST DOWN") end
         end
         if n.improvement and r:random() < (eye and S.wreck.eye or S.wreck.ring) then
-            if n.owner then game:tell(n.owner, "THE STORM HAS WRECKED A " .. D.IMPROVEMENT[n.improvement].name) end
+            if n.owner then game:tell(n.owner, "THE STORM HAS WRECKED A {1}", D.IMPROVEMENT[n.improvement].name) end
             n.improvement = nil
             changed = true
         end
@@ -355,8 +356,8 @@ local function storm(game)
     local S = D.SUN
     local c = game.cataclysm
     if game.turn == S.warn then
-        game:tell(nil, ("THE WINDS ARE RISING: THE HEAT OF THE DAY AND THE COLD OF THE NIGHT WILL MEET IN A GREAT "
-            .. "STORM IN %d TURNS"):format(S.storm - game.turn))
+        game:tell(nil, "THE WINDS ARE RISING: THE HEAT OF THE DAY AND THE COLD OF THE NIGHT WILL MEET IN A GREAT "
+            .. "STORM IN {1} TURNS", S.storm - game.turn)
     end
     if game.turn < S.storm - 1 then return end
     c.cyclones = c.cyclones or {}
@@ -400,12 +401,13 @@ end
 --- the turn ------------------------------------------------------------------------------
 
 Sun.tell = {
-    omen = function() return ("THE DAYS GROW LONG: THE SUN IS SLOWING. IT WILL STAND STILL IN %d TURNS"):format(
+    omen = function() return L("THE DAYS GROW LONG: THE SUN IS SLOWING. IT WILL STAND STILL IN {1} TURNS",
         D.SUN.still - D.SUN.omen) end,
     still = function() return "THE SUN STANDS STILL: ONE SIDE OF THE WORLD IN ENDLESS DAY, ONE IN ENDLESS NIGHT" end,
     sear = function() return "THE SEARING AND THE FROST: THE DAY BURNS, AND THE NIGHT FREEZES THE SEA" end,
-    twilight = function() return ("THE LAST TWILIGHT: THE BAND NARROWS. THE WORLD ENDS IN %d TURNS"):format(
+    twilight = function() return L("THE LAST TWILIGHT: THE BAND NARROWS. THE WORLD ENDS IN {1} TURNS",
         D.LAST_TURN - D.SUN.twilight + 1) end,
+
 }
 
 -- Tells every civilization where its cities lie, as the sun stops.
@@ -419,10 +421,11 @@ local function tellSides(game)
             end
             if n.day + n.night + n.twilight > 0 then
                 local parts = {}
-                if n.day > 0 then parts[#parts + 1] = n.day .. " IN THE DAY (BUILD CISTERNS)" end
-                if n.night > 0 then parts[#parts + 1] = n.night .. " IN THE NIGHT (BUILD HEARTHS)" end
-                if n.twilight > 0 then parts[#parts + 1] = n.twilight .. " IN THE TWILIGHT" end
-                game:tell(p.id, "OF OUR CITIES " .. table.concat(parts, ", "))
+                if n.day > 0 then parts[#parts + 1] = L("{1} IN THE DAY (BUILD CISTERNS)", n.day) end
+                if n.night > 0 then parts[#parts + 1] = L("{1} IN THE NIGHT (BUILD HEARTHS)", n.night) end
+                if n.twilight > 0 then parts[#parts + 1] = L("{1} IN THE TWILIGHT", n.twilight) end
+                game:tell(p.id, "OF OUR CITIES {1}", table.concat(parts, ", "))
+
             end
         end
     end

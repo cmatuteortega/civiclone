@@ -15,6 +15,7 @@ local P = require "src.ui.pixels"
 local Draw = require "src.ui.draw"
 local Anim = require "src.ui.anim"
 local Font = require "src.font"
+local L = require "src.lang"
 local View = require "src.ui.view"
 local Sea = require "src.ui.sea"
 local World = require "src.world"
@@ -935,7 +936,7 @@ function Board.banners()
         if l.def.citadel and me.explored[l.cell] then
             local cell = g.cells[l.cell]
             local sx, sy = screen(cell.x, cell.top + 44, cell.z - 4)
-            local name = "CITADEL"
+            local name = L"CITADEL"
             local w = Font.width(name) + 4
             local x, y = sx - floor(w / 2), sy - 12
             Draw.rect("w", x - 1, y - 1, w + 2, 11)
@@ -957,7 +958,8 @@ function Board.banners()
         if e.kind == "number" and t > 0 then
             local sx, sy = screen(e.x, e.y, e.z)
             sy = sy - floor(t * 10)
-            Draw.shadowed("w", e.text, sx - floor(Font.width(e.text) / 2), sy)
+            local said = L(e.text)
+            Draw.shadowed("w", said, sx - floor(Font.width(said) / 2), sy)
         elseif e.kind == "shot" then
             local f = min(1, e.t / e.life)
             local x0, y0 = screen(e.x0, e.y0, e.z0)

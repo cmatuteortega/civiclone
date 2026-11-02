@@ -19,6 +19,7 @@ local Cat = require "src.cataclysm"
 local Frost = require "src.frost"
 local Quake = require "src.quake"
 local Q = require "src.quarters"
+local L = require "src.lang"
 
 local floor, ceil, max, min, exp = math.floor, math.ceil, math.max, math.min, math.exp
 
@@ -250,14 +251,14 @@ end
 function Game:describe(cell)
     local parts = {}
     if cell.elev == "mountain" then
-        parts[1] = "MOUNTAINS"
+        parts[1] = L"MOUNTAINS"
     else
-        parts[1] = D.TERRAIN[cell.terrain].name
-        if cell.elev == "hills" then parts[#parts + 1] = "HILLS" end
+        parts[1] = L(D.TERRAIN[cell.terrain].name)
+        if cell.elev == "hills" then parts[#parts + 1] = L"HILLS" end
     end
-    if cell.feature then parts[#parts + 1] = D.FEATURE[cell.feature].name end
-    if cell.resource then parts[#parts + 1] = D.RESOURCE[cell.resource].name end
-    if cell.improvement then parts[#parts + 1] = D.IMPROVEMENT[cell.improvement].name end
+    if cell.feature then parts[#parts + 1] = L(D.FEATURE[cell.feature].name) end
+    if cell.resource then parts[#parts + 1] = L(D.RESOURCE[cell.resource].name) end
+    if cell.improvement then parts[#parts + 1] = L(D.IMPROVEMENT[cell.improvement].name) end
     if self:onRiver(cell) then parts[#parts + 1] = "RIVER"
     elseif cell.dry and not self:isWater(cell) then parts[#parts + 1] = "DRY RIVERBED" end
     if cell.flood then parts[#parts + 1] = "- FLOODED"
@@ -285,10 +286,14 @@ function Game:describe(cell)
     elseif cell.burnt then parts[#parts + 1] = "- BURNT"
     elseif cell.cleared then parts[#parts + 1] = "- FIREBREAK" end
     if cell.felled and not cell.feature then parts[#parts + 1] = "- FELLED" end
-    if cell.lair then parts[#parts + 1] = "- " .. cell.lair.def.name end
-    if cell.quarter then parts[#parts + 1] = "- A QUARTER OF " .. cell.quarter.name .. (cell.sacked and ", SACKED" or "") end
+    if cell.lair then parts[#parts + 1] = "- " .. L(cell.lair.def.name) end
+    if cell.quarter then
+        parts[#parts + 1] = cell.sacked and L("- A QUARTER OF {1}, SACKED", cell.quarter.name) or L("- A QUARTER OF {1}", cell.quarter.name)
+    end
     -- A town the great flood sank (src/flood.lua).
-    if cell.ruin then parts[#parts + 1] = "- THE SUNKEN RUINS OF " .. cell.ruin.name end
+    if cell.ruin then parts[#parts + 1] = L("- THE SUNKEN RUINS OF {1}", cell.ruin.name) end
+    -- Each part in the language now: a line written whole is looked up here.
+    for k, s in ipairs(parts) do parts[k] = L(s) end
     return table.concat(parts, " ")
 end
 
@@ -296,9 +301,11 @@ end
 
 function Game:emit(e) self.events[#self.events + 1] = e end
 
--- Something to tell player `who` (or everyone, if nil).
-function Game:tell(who, text)
-    self.log[#self.log + 1] = { turn = self.turn, who = who, text = text }
+-- Something to tell player `who` (or everyone, if nil), in the player's
+-- language: `text` is the English, with what goes into it after it, as
+-- src/lang.lua puts them together ("{1} WAS FOUNDED", name).
+function Game:tell(who, text, ...)
+    self.log[#self.log + 1] = { turn = self.turn, who = who, text = L(text, ...) }
 end
 
 --- units ---------------------------------------------------------------------------
@@ -633,11 +640,11 @@ function Game:capture(by, u)
     if by.owner == Game.WILD then return self:kill(u, Game.WILD, by) end
     local cell = u.cell
     self:removeUnit(u)
-    self:tell(u.owner, "A " .. u.def.name .. " WAS CAPTURED")
+    self:tell(u.owner, "A {1} WAS CAPTURED", u.def.name)
     if u.kind == "settler" or u.kind == "builder" then
         local taken = self:addUnit("builder", by.owner, cell)
         taken.moves = 0
-        self:tell(by.owner, "CAPTURED A " .. u.def.name)
+        self:tell(by.owner, "CAPTURED A {1}", u.def.name)
     end
     self:emit({ kind = "capture", cell = cell })
 end
@@ -657,7 +664,7 @@ function Game:harden(u, n)
     local was = D.rank(u.xp)
     u.xp = (u.xp or 0) + n
     local now = D.rank(u.xp)
-    if now and now ~= was then self:tell(u.owner, "OUR " .. u.def.name .. " IS NOW " .. now.name) end
+    if now and now ~= was then self:tell(u.owner, "OUR {1} IS NOW " .. now.name, u.def.name) end
 end
 
 -- What a band that won a fight takes from the one it beat: a better weapon
@@ -670,21 +677,25 @@ function Game:plunder(u, from)
     local mine, theirs = gear.weapon and D.GEAR[gear.weapon], from.gear.weapon and D.GEAR[from.gear.weapon]
     if theirs and (not mine or ((mine.ranged ~= nil) == (theirs.ranged ~= nil) and theirs.cost > mine.cost)) then
         gear.weapon = from.gear.weapon
-        took[#took + 1] = theirs.name
+        took[#took + 1] = L(theirs.name)
     end
     if from.gear.mount and not gear.mount then
         gear.mount = from.gear.mount
-        took[#took + 1] = D.GEAR[from.gear.mount].name
+        took[#took + 1] = L(D.GEAR[from.gear.mount].name)
     end
     if from.gear.armour and not gear.armour then
         gear.armour = from.gear.armour
-        took[#took + 1] = D.GEAR[from.gear.armour].name
+        took[#took + 1] = L(D.GEAR[from.gear.armour].name)
     end
     if #took == 0 then return end
     local was = u.def.name
     self:equip(u, gear)
-    self:tell(u.owner, "OUR " .. was .. " TOOK THE ENEMY'S " .. table.concat(took, " AND ")
-        .. (u.def.name ~= was and (": NOW A " .. u.def.name) or ""))
+    local all = table.concat(took, L" AND ")
+    if u.def.name ~= was then
+        self:tell(u.owner, "OUR {1} TOOK THE ENEMY'S {2}: NOW A {3}", was, all, u.def.name)
+    else
+        self:tell(u.owner, "OUR {1} TOOK THE ENEMY'S {2}", was, all)
+    end
     self:emit({ kind = "loot", cell = u.cell, text = table.concat(took, " ") })
 end
 
@@ -881,10 +892,11 @@ function Game:kill(u, by, killer)
         return
     end
     if by == Game.WILD then
-        self:tell(u.owner, "OUR " .. u.def.name .. " WAS KILLED BY " .. (killer and ("A " .. killer.def.name) or "THE WILD"))
+        if killer then self:tell(u.owner, "OUR {1} WAS KILLED BY A {2}", u.def.name, killer.def.name)
+        else self:tell(u.owner, "OUR {1} WAS KILLED BY THE WILD", u.def.name) end
     else
-        self:tell(u.owner, "OUR " .. u.def.name .. " WAS KILLED")
-        if by then self:tell(by, "ENEMY " .. u.def.name .. " DESTROYED") end
+        self:tell(u.owner, "OUR {1} WAS KILLED", u.def.name)
+        if by then self:tell(by, "ENEMY {1} DESTROYED", u.def.name) end
     end
     self:checkAlive(self.players[u.owner])
 end
@@ -930,7 +942,7 @@ function Game:found(u)
     self:assignWork(city)
     self:look(p)
     self:emit({ kind = "found", cell = cell.id, city = city })
-    self:tell(u.owner, name .. " WAS FOUNDED")
+    self:tell(u.owner, "{1} WAS FOUNDED", name)
     local K = Cat.kindOf(self)
     if K and K.founded then K.founded(self, u, city) end
     return city
@@ -1120,7 +1132,7 @@ end
 -- A quarter, as the build list shows it: what the next one costs.
 function Game:quarterDef(city)
     return { name = "QUARTER", short = "QUART.", cost = Q.cost(city) or D.QUARTER.cost[1], icon = "city",
-        says = { "THE CITY SPILLS OVER INTO A HEX BESIDE IT,", "HOUSING " .. D.QUARTER.each .. " MORE CITIZENS.",
+        says = { "THE CITY SPILLS OVER INTO A HEX BESIDE IT,", L("HOUSING {1} MORE CITIZENS.", D.QUARTER.each),
             "THE HEX IS WORKED NO MORE." } }
 end
 
@@ -1135,7 +1147,7 @@ function Game:buildDef(b)
     if not b.refit then return def end
     local u = self:unitById(b.refit)
     local was = u and u.gear and D.gearCost(u.gear) or 0
-    return { name = "REFIT " .. def.name, cost = max(5, D.gearCost(b.gear) - was), refit = true, unit = def }
+    return { name = L("REFIT {1}", def.name), cost = max(5, D.gearCost(b.gear) - was), refit = true, unit = def }
 end
 
 function Game:unitById(id)
@@ -1257,14 +1269,14 @@ function Game:complete(city)
         local u = self:unitById(b.refit)
         if not u or u.owner ~= city.owner or u.cell ~= city.cell then
             -- Gone, or gone off: what was made is kept for the next thing.
-            if u and u.owner == city.owner then self:tell(city.owner, "OUR " .. u.def.name .. " LEFT " .. city.name .. " BEFORE IT WAS REFITTED") end
+            if u and u.owner == city.owner then self:tell(city.owner, "OUR {1} LEFT {2} BEFORE IT WAS REFITTED", u.def.name, city.name) end
             city.build = nil
             return false
         end
         local cost = self:buildDef(b).cost
         local was = u.def.name
         self:equip(u, b.gear)
-        self:tell(city.owner, city.name .. " REFITTED A " .. was .. ": NOW A " .. u.def.name)
+        self:tell(city.owner, "{1} REFITTED A {2}: NOW A {3}", city.name, was, u.def.name)
         self:emit({ kind = "built", cell = city.cell, unit = u })
         city.prod = max(0, city.prod - cost)
         city.build = nil
@@ -1274,7 +1286,7 @@ function Game:complete(city)
         local cell = self.cells[b.id]
         if not Q.can(self, city, cell) then
             -- Taken or lost meanwhile: what was made is kept for the next thing.
-            self:tell(city.owner, city.name .. " CAN NO LONGER BUILD ITS QUARTER THERE")
+            self:tell(city.owner, "{1} CAN NO LONGER BUILD ITS QUARTER THERE", city.name)
             city.build = nil
             return false
         end
@@ -1296,12 +1308,12 @@ function Game:complete(city)
             city.food = 0
             self:assignWork(city)
         end
-        self:tell(city.owner, city.name .. " TRAINED A " .. def.name)
+        self:tell(city.owner, "{1} TRAINED A {2}", city.name, def.name)
         self:emit({ kind = "built", cell = city.cell, unit = u })
     else
         city.buildings[b.id] = true
         if b.id == "walls" then city.hp = self:maxHp(city) end
-        self:tell(city.owner, city.name .. " BUILT A " .. D.BUILDINGS[b.id].name)
+        self:tell(city.owner, "{1} BUILT A {2}", city.name, D.BUILDINGS[b.id].name)
         self:emit({ kind = "built", cell = city.cell })
     end
     local def = self:buildDef(b)
@@ -1379,8 +1391,8 @@ function Game:conquer(u, city)
     self:relocate(u, cell.id)
     self:assignWork(city)
     self:emit({ kind = "conquer", cell = cell.id, city = city, from = old })
-    self:tell(old, city.name .. " HAS FALLEN TO " .. self.players[u.owner].name)
-    self:tell(u.owner, "WE HAVE TAKEN " .. city.name)
+    self:tell(old, "{1} HAS FALLEN TO {2}", city.name, self.players[u.owner].name)
+    self:tell(u.owner, "WE HAVE TAKEN {1}", city.name)
     self:checkAlive(self.players[old])
 end
 
@@ -1394,7 +1406,7 @@ function Game:checkAlive(p)
     if not p.everCity and self.turn < 5 then return end
     p.alive = false
     for _, u in ipairs(self:unitsOf(p.id)) do self:removeUnit(u) end
-    self:tell(nil, p.name .. " HAS BEEN DESTROYED")
+    self:tell(nil, "{1} HAS BEEN DESTROYED", p.name)
     self:emit({ kind = "eliminated", player = p.id })
 end
 
@@ -1503,13 +1515,13 @@ function Game:finishTurn(p)
             city.food = city.food - self:growthNeed(city)
             city.pop = city.pop + 1
             self:assignWork(city)
-            self:tell(p.id, city.name .. " HAS GROWN TO " .. city.pop)
+            self:tell(p.id, "{1} HAS GROWN TO {2}", city.name, city.pop)
             self:emit({ kind = "grow", cell = city.cell, city = city })
         elseif city.food < 0 then
             if city.pop > 1 then
                 city.pop = city.pop - 1
                 self:assignWork(city)
-                self:tell(p.id, city.name .. " IS STARVING")
+                self:tell(p.id, "{1} IS STARVING", city.name)
             end
             city.food = 0
         end
@@ -1548,7 +1560,7 @@ function Game:finishTurn(p)
                 local by = b and b.gear and b.gear.weapon and self:replacement(p, b.gear.weapon)
                 if by then b.gear = { weapon = by, mount = b.gear.mount, armour = b.gear.armour } end
             end
-            self:tell(p.id, "WE HAVE LEARNED " .. t.name)
+            self:tell(p.id, "WE HAVE LEARNED {1}", t.name)
             self:emit({ kind = "tech", player = p.id, tech = t.id })
         end
     else
@@ -1807,7 +1819,8 @@ function Game:work(u, what)
         local city = cell.ownerCity
         if city and city.owner == u.owner then
             city.prod = city.prod + D.WORKS.chop.prod
-            self:tell(u.owner, ("THE FOREST'S WOOD HAS GONE TO %s: %d PRODUCTION"):format(city.name, D.WORKS.chop.prod))
+            self:tell(u.owner, "THE FOREST'S WOOD HAS GONE TO {1}: {2} PRODUCTION", city.name, D.WORKS.chop.prod)
+
         end
         self:emit({ kind = "terrain", cell = cell.id })
     elseif what == "clear" then
