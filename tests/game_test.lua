@@ -166,6 +166,35 @@ return {
             assert(w.cell == spot.id, "the winner moves into the hex")
         end
     end },
+    { "a city offers only the best of each line", function()
+        local g = newGame()
+        local city = g:found(find(g, 1, "settler"))
+        local p = g.players[1]
+        local function offered(id)
+            for _, it in ipairs(g:buildable(city)) do if it.id == id then return true end end
+        end
+        assert(offered("slinger") and offered("warrior"), "the first soldiers are offered")
+        p.techs.archery = true
+        assert(not offered("slinger") and offered("archer"), "the archer takes the slinger's place")
+        p.techs.bronze = true
+        assert(not offered("warrior") and offered("spearman"), "the spearman takes the warrior's place")
+        p.techs.iron = true
+        assert(not offered("spearman") and offered("swordsman"), "and the swordsman the spearman's")
+        assert(g:replacement(p, "warrior") == "swordsman", "the newest of the line")
+    end },
+    { "a soldier under way becomes what replaces it, keeping its production", function()
+        local g = newGame()
+        local city = g:found(find(g, 1, "settler"))
+        local p = g.players[1]
+        g:setBuild(city, "unit", "slinger")
+        city.prod = 10
+        p.researching = "archery"
+        p.science = D.TECH.archery.cost
+        g:endTurn(AI)
+        assert(p.techs.archery, "archery was learned")
+        assert(city.build and city.build.id == "archer", "the slinger became an archer")
+        assert(city.prod >= 10, "what was made is kept")
+    end },
     { "a city grows, builds what it is told and learns", function()
         local g = newGame()
         local city = g:found(find(g, 1, "settler"))

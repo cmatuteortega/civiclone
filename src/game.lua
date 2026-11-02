@@ -941,6 +941,7 @@ function Game:canBuild(city, kind, id)
     local def = kind == "unit" and D.UNITS[id] or D.BUILDINGS[id]
     if not def then return false end
     if def.tech and not p.techs[def.tech] then return false end
+    if kind == "unit" and self:replacement(p, id) then return false end
     if kind == "building" and city.buildings[id] then return false end
     -- What holds a cataclysm off, only against that one ("any": against
     -- whichever it is, but not when there is none).
@@ -955,6 +956,19 @@ function Game:canBuild(city, kind, id)
     -- Ships, harbours and lighthouses only by the water.
     if (def.sea or def.coastal) and not self:coastal(self.cells[city.cell]) then return false end
     return true
+end
+
+-- What this player builds now in place of a unit, if it has left it
+-- behind: the newest of its line that research has opened (a warrior
+-- gives way to the spearman, and he to the swordsman).
+function Game:replacement(p, id)
+    local by, best = D.REPLACED_BY[id], nil
+    while by do
+        local t = D.UNITS[by].tech
+        if t and not p.techs[t] then break end
+        best, by = by, D.REPLACED_BY[by]
+    end
+    return best
 end
 
 -- Everything the city could build now, units then buildings, in order.
@@ -1268,6 +1282,13 @@ function Game:finishTurn(p)
             p.science = p.science - t.cost
             p.techs[t.id] = true
             p.researching = nil
+            -- A unit left behind under way becomes what took its place,
+            -- keeping what was made.
+            for _, city in ipairs(self:citiesOf(p.id)) do
+                local b = city.build
+                local by = b and b.kind == "unit" and self:replacement(p, b.id)
+                if by and self:canBuild(city, "unit", by) then city.build = { kind = "unit", id = by } end
+            end
             self:tell(p.id, "WE HAVE LEARNED " .. t.name)
             self:emit({ kind = "tech", player = p.id, tech = t.id })
         end

@@ -88,7 +88,7 @@ local function chooseBuild(game, p, city)
     local guard = game.mil[city.cell]
     -- A city with no one in it, or a civilization with too few, trains a soldier.
     if (not guard and soldiers < cities * 2) or soldiers < cities then
-        return "unit", bestSoldier(game, city, game.rng:random() < 0.3) or "warrior"
+        return "unit", bestSoldier(game, city, game.rng:random() < 0.3) or game:replacement(p, "warrior") or "warrior"
     end
     if cities + count(game, p, "settler") < 5 and city.pop >= 2 and game.turn > 4
         and count(game, p, "settler") == 0 then
@@ -146,7 +146,7 @@ local function chooseBuild(game, p, city)
         end
     end
     if soldiers < cities * 3 + math.floor(game.turn / 15) then
-        return "unit", bestSoldier(game, city, game.rng:random() < 0.35) or "warrior"
+        return "unit", bestSoldier(game, city, game.rng:random() < 0.35) or game:replacement(p, "warrior") or "warrior"
     end
     return "unit", "builder"
 end
@@ -542,7 +542,9 @@ function AI.play(game, p)
     for _, city in ipairs(game:citiesOf(p.id)) do
         if not city.build then
             local kind, id = chooseBuild(game, p, city)
-            if not game:setBuild(city, kind, id) then game:setBuild(city, "unit", "warrior") end
+            if not game:setBuild(city, kind, id) then
+                game:setBuild(city, "unit", game:replacement(p, "warrior") or "warrior")
+            end
         end
         -- Buy a soldier when an enemy is at the gates.
         if city.hp < game:maxHp(city) and city.build and city.build.kind == "unit" then game:buy(city) end

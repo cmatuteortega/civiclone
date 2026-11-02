@@ -381,7 +381,10 @@ do: zoom in and out, next unit, go to the capital, the hex grid and sound.
   two a citizen grows it (Civ VI's 15 + 8n + n^1.5). Culture claims new hexes
   at the border. Production builds units and buildings, and gold can buy them.
 - **Units.** Settler, builder (3 improvements), warrior, scout, slinger, then
-  archer, spearman, horseman and swordsman through research. One military and
+  archer, spearman, horseman and swordsman through research. A unit gives way
+  to the one that takes its place (the archer the slinger's, the spearman the
+  warrior's, the swordsman the spearman's), so a city offers only the best of
+  each line. One military and
   one civilian unit fit on a hex. A unit with full moves can always take one
   step. Wounded units heal when they rest.
 - **Combat.** Civ VI's formula: damage = 30 × e^(Δstrength / 25), with a

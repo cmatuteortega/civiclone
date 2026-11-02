@@ -364,6 +364,11 @@ then 20. Turn 1 is 4000 BC.
 | Galley | 65 | 25 | — | 3 | 2 | Sailing; a city on the water |
 | Quadrireme | 110 | 20 | 25 / 2 | 3 | 2 | Shipbuilding; a city on the water |
 
+- **Lines:** a unit gives way to the one that takes its place. Once you can
+  build an archer no city offers the slinger; the spearman takes the
+  warrior's place, and the swordsman the spearman's. What a city had under
+  way becomes the new unit, keeping the production put into it. Units
+  already on the map stay as they are.
 - **Stacking:** one military and one civilian unit per hex, of any one civilization.
 - **HP:** every unit has 100 HP.
 - **Orders:**

@@ -80,21 +80,27 @@ D.IMPROVEMENT = {
 -- `ranged` and `range` a ranged unit's shot, `moves` its movement points.
 -- `pop`: a settler takes a citizen with it. `sea`: a ship, that sails the
 -- coast (and the ocean, after Cartography) and is built only by a city on
--- the water.
+-- the water. `replaces`: once it can be built, the unit it names no longer
+-- can -- a city offers only the best of each line.
 D.UNITS = {
     settler = { name = "SETTLER", cost = 70, str = 0, moves = 2, sight = 2, civilian = true, pop = 1, order = 1 },
     builder = { name = "BUILDER", cost = 45, str = 0, moves = 2, sight = 2, civilian = true, charges = 3, order = 2 },
     warrior = { name = "WARRIOR", cost = 40, str = 20, moves = 2, sight = 2, order = 3 },
     scout = { name = "SCOUT", cost = 30, str = 10, moves = 3, sight = 3, order = 4 },
     slinger = { name = "SLINGER", cost = 35, str = 5, ranged = 15, range = 2, moves = 2, sight = 2, order = 5 },
-    archer = { name = "ARCHER", cost = 60, str = 15, ranged = 25, range = 2, moves = 2, sight = 2, tech = "archery", order = 6 },
-    spearman = { name = "SPEARMAN", cost = 65, str = 25, moves = 2, sight = 2, tech = "bronze", order = 7 },
+    archer = { name = "ARCHER", cost = 60, str = 15, ranged = 25, range = 2, moves = 2, sight = 2, tech = "archery", replaces = "slinger", order = 6 },
+    spearman = { name = "SPEARMAN", cost = 65, str = 25, moves = 2, sight = 2, tech = "bronze", replaces = "warrior", order = 7 },
     horseman = { name = "HORSEMAN", cost = 80, str = 36, moves = 4, sight = 2, tech = "horses", order = 8 },
-    swordsman = { name = "SWORDSMAN", cost = 90, str = 35, moves = 2, sight = 2, tech = "iron", order = 9 },
+    swordsman = { name = "SWORDSMAN", cost = 90, str = 35, moves = 2, sight = 2, tech = "iron", replaces = "spearman", order = 9 },
     galley = { name = "GALLEY", cost = 65, str = 25, moves = 3, sight = 2, sea = true, tech = "sailing", order = 10 },
     quadrireme = { name = "QUADRIREME", cost = 110, str = 20, ranged = 25, range = 2, moves = 3, sight = 2, sea = true,
         tech = "shipbuilding", order = 11 },
 }
+-- What took each unit's place: D.REPLACED_BY.slinger == "archer".
+D.REPLACED_BY = {}
+for id, def in pairs(D.UNITS) do
+    if def.replaces then D.REPLACED_BY[def.replaces] = id end
+end
 
 -- The wild: animals that are on the map for the rules, not only the screen
 -- (src/beasts.lua). They belong to no civilization (owner 0, Game.WILD),
