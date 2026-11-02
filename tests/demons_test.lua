@@ -277,11 +277,11 @@ return {
         local g = newGame()
         settle(g, 1)
         local city = cityOf(g)
-        g.players[1].techs.writing = true
+        g.players[1].techs.mysticism = true
         assert(g:canBuild(city, "building", "sanctum"))
         local h = Game.new({ seed = 5, wild = false, cataclysm = "heat" })
         settle(h, 1)
-        h.players[1].techs.writing = true
+        h.players[1].techs.mysticism = true
         assert(not h:canBuild(cityOf(h), "building", "sanctum"))
         city.buildings.sanctum = true
         local spot = beside(g, g.cells[city.cell])

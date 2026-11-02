@@ -279,6 +279,60 @@ return {
         for _, v in ipairs(back.units) do if v.kind == "archer" then found = v end end
         assert(found and found.unit == "band" and found.gear.weapon == "bow" and found.def.ranged == 25)
     end },
+    { "the tech tree: each needs only the tier before, and none sits on another", function()
+        local at = {}
+        for _, t in ipairs(D.TECHS) do
+            for _, need in ipairs(t.needs) do
+                assert(D.TECH[need].tier == t.tier - 1, t.id .. " needs " .. need .. " from the tier just before")
+                local leads = false
+                for _, l in ipairs(D.TECH[need].leads) do leads = leads or l == t.id end
+                assert(leads, need .. " leads to " .. t.id)
+            end
+            for _, o in ipairs(at[t.tier] or {}) do
+                assert(math.abs(o - t.row) >= 1, t.id .. " has its own row")
+            end
+            at[t.tier] = at[t.tier] or {}
+            table.insert(at[t.tier], t.row)
+        end
+    end },
+    { "what a technology unlocks is read off the defs", function()
+        local function names(id)
+            local out = {}
+            for _, u in ipairs(D.unlocks(id)) do out[#out + 1] = u.name end
+            return table.concat(out, ",")
+        end
+        assert(names("masonry") == "WALLS,BUTTRESS", names("masonry"))
+        assert(names("irrigation") == "DRAINING MARSHES,CISTERN,LEVEE", names("irrigation"))
+        assert(names("sailing") == "SHIP,FISHING BOATS,EMBARKING", names("sailing"))
+        assert(names("mysticism") == "SANCTUM")
+        -- Every building, piece of gear and improvement with a tech is unlocked by one there is.
+        for _, defs in ipairs({ D.BUILDINGS, D.GEAR, D.UNITS, D.IMPROVEMENT }) do
+            for id, def in pairs(defs) do assert(not def.tech or D.TECH[def.tech], id .. "'s tech is in the tree") end
+        end
+        for _, t in ipairs(D.TECHS) do assert(#D.unlocks(t.id) > 0, t.id .. " unlocks something") end
+    end },
+    { "research toward a far technology queues the way and follows it", function()
+        local g = newGame()
+        g:found(find(g, 1, "settler"))
+        local p = g.players[1]
+        assert(table.concat(g:researchPath(p, "currency"), ",") == "pottery,writing,mining,bronze,currency")
+        assert(g:researchToward(p, "currency"))
+        assert(p.researching == "pottery" and #p.queue == 4 and g:researchGoal(p) == "currency")
+        p.science = D.TECH.pottery.cost
+        g:endTurn(AI)
+        assert(p.techs.pottery and p.researching == "writing", "on to the next on the way")
+        -- One learned some other way is passed over.
+        p.techs.mining = true
+        p.science = D.TECH.writing.cost
+        g:endTurn(AI)
+        assert(p.researching == "bronze", "mining, already known, skipped")
+        p.techs.bronze = true
+        p.researching, p.science = "currency", D.TECH.currency.cost
+        table.remove(p.queue, 1)
+        g:endTurn(AI)
+        assert(p.techs.currency and p.researching == nil and p.queue == nil, "and at the end, done")
+        assert(not g:researchToward(p, "pottery"), "nothing to do toward what is known")
+    end },
     { "a city grows, builds what it is told and learns", function()
         local g = newGame()
         local city = g:found(find(g, 1, "settler"))

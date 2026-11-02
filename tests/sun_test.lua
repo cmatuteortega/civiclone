@@ -184,7 +184,7 @@ return {
         assert(Sun.zone(g, cell) == "day")
         assert(Cat.thirst(g, city) == D.SUN.thirst.sear)
         assert(Sun.wardFor(g, city) == "cistern" and Cat.ward(g, city) == "cistern")
-        assert(g:canBuild(city, "building", "cistern") or not g.players[1].techs.masonry)
+        assert(g:canBuild(city, "building", "cistern") or not g.players[1].techs.irrigation)
         city.buildings.cistern = true
         assert(Cat.thirst(g, city) == D.SUN.thirst.sear - D.SUN.ward)
         city.buildings.cistern = nil

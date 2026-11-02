@@ -155,7 +155,7 @@ return {
         local s
         for _, u in ipairs(g.units) do if u.owner == 1 and u.kind == "settler" then s = u end end
         local city = g:found(s)
-        g.players[1].techs.masonry = true
+        g.players[1].techs.masonry, g.players[1].techs.irrigation = true, true
         assert(not g:canBuild(city, "building", "cistern"))
         assert(g:canBuild(city, "building", "walls"))
         g.turn = D.PLAIN_LAST_TURN + 1

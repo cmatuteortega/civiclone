@@ -175,8 +175,15 @@ grey out when the unit has no moves left.
 - What it is building, with progress and turns, and a **BUY** button with its gold price
 - Everything it can build, with cost and turns. Click one to switch to it
 
-**Research panel**: every technology, what it unlocks, its cost and turns,
-or what it still needs. Click an available one to research it.
+**Research panel**: the technologies as a tree, a column for each tier, with
+a line from each to what it leads to. Each shows its cost and a little
+picture for everything it unlocks; hover over one for the names, what it
+needs and what it leads to. Click an available one to research it, or one
+further on to queue the whole way to it: each is researched in turn, and the
+top bar shows where research is heading (`POTTERY 21/25 (1) > CARTOGRAPHY`).
+Once the cataclysm is foretold, a star marks the technologies with a ward
+against it. On a screen too narrow for the tree it is a list, a branch at a
+time, each indented under the one it needs.
 
 **Tooltip** (bottom centre) for the hex under the pointer:
 
@@ -601,10 +608,10 @@ more, **3** at most:
 | Walls | 80 | +10 strength, +100 HP, the city shoots | Masonry |
 | Harbour | 90 | +1 food on each worked water hex | Shipbuilding; a city on the water |
 | Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
-| Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less. The same against the day of [the still sun](#the-still-sun) | Masonry; only in the heat death or under the still sun |
-| Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less, and the city holds through the first rising of the great flood (not the second). Against the waves of [the shattering](#the-shattering): a wave does the city no harm | Masonry; only in the deluge or the shattering |
+| Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less. The same against the day of [the still sun](#the-still-sun) | Irrigation; only in the heat death or under the still sun |
+| Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less, and the city holds through the first rising of the great flood (not the second). Against the waves of [the shattering](#the-shattering): a wave does the city no harm | Irrigation; only in the deluge or the shattering |
 | Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Mining; only when there is a cataclysm |
-| Sanctum | 70 | Against [the demons](#the-abyss): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Writing; only against the demons |
+| Sanctum | 70 | Against [the demons](#the-abyss): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Mysticism; only against the demons |
 | Hearth | 70 | Against the night of [the still sun](#the-still-sun): its land freezes a quarter as fast, its farms keep their food through the night, its people go 2 less cold. The same against the long night of [the sky's falling](#the-sky-falls) | Pottery; only under the still sun or the falling sky |
 | Lazaret | 70 | Against [the plague](#the-plague): half as many of its sick die, it mends sooner (+12% a turn), and its people go hungry 1 less, sick or well | Writing; only in the plague |
 | Buttress | 70 | Against [the shattering](#the-shattering): a quake does it half the harm, brings none of its buildings down and kills half as many, the great quake none; no fault opens on its land, and its people fear 2 less | Masonry; only in the shattering |
@@ -742,7 +749,7 @@ builds. The unit panel shows the button for a work only where it can be done
 | Chop | C | A forest inside your borders, not burning or blighted | Fells it: **20 production** to the city whose land it is, stumps left (FELLED). The land can then be farmed. A fire takes a forest 40% of the time, other ground 8% |
 | Firebreak | X | Your grassland, grain or farm that could burn, not a forest | Cuts and burns it back: the farm and grain are gone, grassland goes to plains, and **it never catches fire**. Sowing a farm on it again makes it able to burn again |
 | Douse | Q | A fire on its hex or beside it, inside your borders or out | Every fire there burns **2 turns less**; a fire by a river, the coast or in a cistern's city's land **goes out at once**. A fire put out leaves what burning out would (stumps, no farm, plains) |
-| Mend | Y | Your hex hurt by a cataclysm (one hurt per work, in this order) | **Blight** burnt off (only out of every rift's and the citadel's reach); **baked earth** watered back to plains (by a river or in a cistern's city's land); **black rock** broken up (its obsidian lost); a **cold crater** filled (not one with star iron in it); the **ash** dug in (the volcanic soil at once); a **marsh** drained to grassland (needs Masonry) |
+| Mend | Y | Your hex hurt by a cataclysm (one hurt per work, in this order) | **Blight** burnt off (only out of every rift's and the citadel's reach); **baked earth** watered back to plains (by a river or in a cistern's city's land); **black rock** broken up (its obsidian lost); a **cold crater** filled (not one with star iron in it); the **ash** dug in (the volcanic soil at once); a **marsh** drained to grassland (needs Irrigation) |
 
 Lava, chasms, the rift, drowned land, salt flats, snow and sea ice can't be
 mended. A builder that douses a fire it stands in still takes the fire's
@@ -755,20 +762,25 @@ researched. When it reaches the cost, the technology is learned and the
 rest carries over. Science made while nothing is chosen is not lost: it
 waits for the next choice.
 
+The technologies grow from three roots: Pottery, Mining and Archery.
+Currency joins two branches, needing both Writing and Bronze Working.
+
 | Technology | Cost | Needs | Unlocks |
 | --- | --- | --- | --- |
 | Pottery | 25 | — | Granary, Hearth |
-| Mining | 25 | — | Mines, Shelter |
-| Archery | 35 | — | Bow |
-| Masonry | 40 | Mining | Walls, Cistern, Levee |
-| Writing | 50 | Pottery | Library, Sanctum |
-| Bronze Working | 55 | Mining | Spear |
-| Horseback Riding | 60 | Archery | Horse |
-| Currency | 80 | Writing | Market |
-| Iron Working | 100 | Bronze Working | Sword |
-| Sailing | 40 | Pottery | Ships, embarking, fishing boats |
+| Sailing | 40 | Pottery | Ships, fishing boats, embarking |
 | Shipbuilding | 70 | Sailing | Bolt thrower, Harbour |
-| Cartography | 90 | Shipbuilding | Ocean travel, Lighthouse |
+| Cartography | 90 | Shipbuilding | Lighthouse, the open ocean |
+| Writing | 50 | Pottery | Library, Lazaret |
+| Mysticism | 45 | Writing | Sanctum |
+| Currency | 80 | Writing, Bronze Working | Market |
+| Mining | 25 | — | Mines, Shelter |
+| Bronze Working | 55 | Mining | Spear |
+| Iron Working | 100 | Bronze Working | Sword |
+| Masonry | 40 | Mining | Walls, Buttress |
+| Irrigation | 50 | Masonry | Cistern, Levee, draining marshes |
+| Archery | 35 | — | Bow |
+| Horseback Riding | 60 | Archery | Horse |
 
 ## The sea
 

@@ -21,16 +21,18 @@ end
 return {
     { "once the cataclysm is foretold, research makes for its ward", function()
         local g, p = foretold("heat", 2)
-        assert(AI.research(g, p) == "mining", "masonry's first step, for the cistern")
+        assert(AI.research(g, p) == "mining", "irrigation's first step, for the cistern")
         p.techs.mining = true
-        assert(AI.research(g, p) == "masonry", "then the cistern's own")
+        assert(AI.research(g, p) == "masonry", "then masonry")
         p.techs.masonry = true
+        assert(AI.research(g, p) == "irrigation", "then the cistern's own")
+        p.techs.irrigation = true
         local next = AI.research(g, p)
-        assert(next and next ~= "masonry", "and then free to choose again")
+        assert(next and next ~= "irrigation", "and then free to choose again")
     end },
     { "a rival puts a building by for its ward and buys it with gold over its reserve", function()
         local g, p, city = foretold("heat", 3)
-        p.techs.mining, p.techs.masonry = true, true
+        p.techs.mining, p.techs.masonry, p.techs.irrigation = true, true, true
         city.build = { kind = "building", id = "monument" }
         p.gold = 1000
         AI.play(g, p)
@@ -39,7 +41,7 @@ return {
     end },
     { "a rival short of gold makes its ward, but doesn't buy it", function()
         local g, p, city = foretold("heat", 2)
-        p.techs.mining, p.techs.masonry = true, true
+        p.techs.mining, p.techs.masonry, p.techs.irrigation = true, true, true
         city.build = { kind = "building", id = "monument" }
         p.gold = p.civ.reserve + 20
         AI.play(g, p)
@@ -49,7 +51,7 @@ return {
     { "before the omen nothing is bought or put by", function()
         local g, p, city = foretold("heat", 3)
         g.turn = D.HEAT.omen - 1
-        p.techs.mining, p.techs.masonry = true, true
+        p.techs.mining, p.techs.masonry, p.techs.irrigation = true, true, true
         city.build = { kind = "building", id = "monument" }
         p.gold = 1000
         AI.play(g, p)

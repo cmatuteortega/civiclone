@@ -430,7 +430,7 @@ do: zoom in and out, next unit, go to the capital, the hex grid and sound.
   wins moves in. Ranged units take no damage back. Cities have their own
   strength and HP, and walls let a city shoot. A melee unit takes a city
   brought down to 0 HP.
-- **Science.** Nine technologies unlock mines, buildings and units.
+- **Science.** Fourteen technologies in a tree of three branches unlock mines, buildings, gear and wards. Pick one far off and the way to it is queued.
 - **Winning.** Destroy both rivals or hold every capital (domination). If
   you reach the last turn, the higher score wins. The score counts what
   lasted: people kept, land still good, cities standing with their wards. You lose if you have no cities

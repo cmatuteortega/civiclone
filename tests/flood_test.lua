@@ -145,12 +145,12 @@ return {
     { "the levee is built only against the deluge, the cistern only against the heat", function()
         local g = newGame()
         local city = settle(g)
-        g.players[1].techs.masonry = true
+        g.players[1].techs.irrigation = true
         assert(g:canBuild(city, "building", "levee"))
         assert(not g:canBuild(city, "building", "cistern"))
         local h = Game.new({ seed = 5, wild = false })
         local c2 = settle(h)
-        h.players[1].techs.masonry = true
+        h.players[1].techs.irrigation = true
         assert(h:canBuild(c2, "building", "cistern") and not h:canBuild(c2, "building", "levee"))
     end },
     { "the sea takes the low shore, lowest first, but not the hills nor a levee's land", function()

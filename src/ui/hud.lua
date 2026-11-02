@@ -67,6 +67,8 @@ local function topBar()
         local t = D.TECH[p.researching]
         local turns = sci > 0 and math.ceil(max(0, t.cost - p.science) / sci) or "-"
         label = L(t.name) .. " " .. floor(p.science) .. "/" .. t.cost .. " (" .. turns .. ")"
+        local goal = g:researchGoal(p)
+        if goal ~= p.researching then label = label .. " > " .. L(D.TECH[goal].name) end
     elseif #g:researchable(p) > 0 then
         label = L"CHOOSE RESEARCH"
     else
@@ -408,55 +410,251 @@ end
 
 --- research ------------------------------------------------------------------------
 
-local researchBody
+-- The research panel: the technologies as a tree, a column for each tier
+-- and a line from each to what it leads to, where the screen is wide
+-- enough; else a list, a branch at a time, each indented under its root.
+-- A click on one not yet learnable sets research on the way to it, the
+-- rest queued (Game:researchToward). The tooltip over one says what it
+-- unlocks, what it needs and what it leads to.
 
--- A technology's row in the list: what it is and gives, and how it stands.
-local function researchRow(g, p, sci, t)
-    local known = p.techs[t.id]
-    local can = g:canResearch(p, t.id)
-    local label = L(t.name) .. " - " .. L(t.gives)
-    local note
-    if known then note = L"KNOWN"
-    elseif can then note = L("{1}  {2}T", t.cost, sci > 0 and math.ceil(max(0, t.cost - p.science) / sci) or "-")
-    else
-        local needs = {}
-        for _, n in ipairs(t.needs) do needs[#needs + 1] = L(D.TECH[n].name) end
-        note = L("NEEDS {1}", table.concat(needs, ", "))
+local NODE_H, PITCH, GAP, PAD = 19, 22, 16, 4
+
+local function turnsFor(p, sci, cost)
+    return sci > 0 and math.ceil(max(0, cost) / sci) or "-"
+end
+
+-- The way to `id` from here: { techs, science, turns }, science already
+-- put by counted against the first.
+local function wayTo(g, p, sci, id)
+    local path, cost = g:researchPath(p, id), 0
+    for _, t in ipairs(path) do cost = cost + D.TECH[t].cost end
+    return #path, cost, turnsFor(p, sci, cost - p.science)
+end
+
+-- Where `id` stands: "known", "now" (under way), "queued", "can" or "locked";
+-- and for one queued, its place in the queue.
+local function standing(g, p, id)
+    if p.techs[id] then return "known" end
+    if p.researching == id then return "now" end
+    for k, q in ipairs(p.queue or {}) do if q == id then return "queued", k end end
+    return g:canResearch(p, id) and "can" or "locked"
+end
+
+-- Does it unlock a ward against the cataclysm foretold?
+local function doomWard(g, id)
+    if not Cat.stage(g) then return false end
+    for _, u in ipairs(D.unlocks(id)) do
+        if u.ward and u.ward ~= "any" and g:wardsOff(u) then return true end
     end
-    return label, note, known, can
+    return false
+end
+
+local function namesOf(ids)
+    local out = {}
+    for _, id in ipairs(ids) do out[#out + 1] = L(D.TECH[id].name) end
+    return table.concat(out, ", ")
+end
+
+-- The tooltip by a technology: what it unlocks, then where it sits.
+local function researchTip(g, p, sci, t, nx, ny, nw)
+    local lines = { L(t.name) }
+    for _, u in ipairs(D.unlocks(t.id)) do
+        local line = "  " .. L(u.name)
+        if u.ward and u.ward ~= "any" then line = line .. L" (WARD)" end
+        lines[#lines + 1] = line
+    end
+    if doomWard(g, t.id) then lines[#lines + 1] = L"HOLDS OFF WHAT IS COMING" end
+    if #t.needs > 0 then lines[#lines + 1] = L("NEEDS {1}", namesOf(t.needs)) end
+    if #t.leads > 0 then lines[#lines + 1] = L("LEADS TO {1}", namesOf(t.leads)) end
+    local st = standing(g, p, t.id)
+    if st == "locked" or st == "queued" then
+        local n, cost, turns = wayTo(g, p, sci, t.id)
+        lines[#lines + 1] = L("THE WAY: {1} TECHS, {2} SCIENCE, {3}T", n, cost, turns)
+    end
+    Win.over(function()
+        local w = 0
+        for _, l in ipairs(lines) do w = max(w, Font.width(l)) end
+        local bw, bh = w + 6, #lines * 8 + 3
+        local x = nx + nw + 3
+        if x + bw > S.vw then x = nx - bw - 3 end
+        x = max(0, x)
+        local y = max(12, min(ny, S.vh - bh - 2))
+        rect("o", x, y, bw, bh)
+        for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, x + 3, y + 2 + (k - 1) * 8) end
+    end)
+end
+
+local function choose(g, p, id)
+    if p.techs[id] then return end
+    g:researchToward(p, id)
+end
+
+-- The short note on a technology's right: its cost, its place in the
+-- queue, or that it is known or under way.
+local function noteOf(t, st, k)
+    if st == "known" then return "" end
+    if st == "now" then return L"NOW" end
+    if st == "queued" then return tostring(k + 1) end
+    return tostring(t.cost)
+end
+
+local function nodeWidth()
+    local w = 0
+    for _, t in ipairs(D.TECHS) do w = max(w, Font.width(L(t.name)) + Font.width("100") + 9) end
+    return w
+end
+
+local TIERS, ROWS = 0, 0
+for _, t in ipairs(D.TECHS) do TIERS, ROWS = max(TIERS, t.tier), max(ROWS, t.row + 1) end
+
+-- The tree's size, and whether the screen has room for it.
+local function treeSize()
+    local nw = nodeWidth()
+    local w = PAD * 2 + TIERS * nw + (TIERS - 1) * GAP
+    local h = Win.BAR + 4 + floor((ROWS - 1) * PITCH) + NODE_H + 4 + 12
+    return w, h, nw
+end
+local function treeFits()
+    local w, h = treeSize()
+    return w <= S.vw - 4 and h <= S.vh - 14
+end
+
+-- A technology in the tree: a button with its name and note, and under
+-- them a little picture for each thing it unlocks.
+local function treeNode(g, p, sci, t, x, y, nw)
+    local st, k = standing(g, p, t.id)
+    local hot = button("", x, y, nw, NODE_H, function() choose(g, p, t.id) end,
+        { on = st == "known", strong = st == "now" or st == "queued" })
+    local ink = st == "locked" and "u" or "o"
+    text(ink, L(t.name), x + 3, y + 3)
+    local note = noteOf(t, st, k)
+    text(ink, note, x + nw - 3 - Font.width(note), y + 3)
+    local ix = x + 3
+    for _, u in ipairs(D.unlocks(t.id)) do
+        icon(u.icon, ix, y + 11, ink)
+        ix = ix + 7
+    end
+    if doomWard(g, t.id) then
+        rect("o", x + nw - 10, y + 10, 8, 7)
+        icon("star", x + nw - 9, y + 11, "w")
+    end
+    if hot then researchTip(g, p, sci, t, x, y, nw) end
+end
+
+-- Where each technology sits in the tree, its left and top.
+local function treeAt(t, x, y, nw)
+    return x + PAD + (t.tier - 1) * (nw + GAP), y + 4 + floor(t.row * PITCH)
+end
+
+local function treeBody(x, y, w, nw)
+    local g, p = S.game, me()
+    local _, sci = g:income(p)
+    -- The way being made: what is under way and queued, lines and all.
+    local onWay = {}
+    if p.researching then onWay[p.researching] = true end
+    for _, q in ipairs(p.queue or {}) do onWay[q] = true end
+    -- The lines first, under the technologies: out of the parent's right,
+    -- down (or up) in the gap between the columns, into the child's left.
+    -- Each parent turns at its own place in the gap, so lines from two
+    -- parents never run together.
+    local turnAt = {}
+    for _, t in ipairs(D.TECHS) do
+        local n = 0
+        for _, o in ipairs(D.TECHS) do
+            if o.tier == t.tier and o.row < t.row then n = n + 1 end
+        end
+        turnAt[t.id] = 4 + (n % 3) * 4
+    end
+    for pass = 1, 2 do
+        for _, t in ipairs(D.TECHS) do
+            for _, need in ipairs(t.needs) do
+                local lit = onWay[t.id] and (onWay[need] or p.techs[need])
+                if (pass == 2) == (lit and true or false) then
+                    local px, py = treeAt(D.TECH[need], x, y, nw)
+                    local cx, cy = treeAt(t, x, y, nw)
+                    local k = lit and "w" or "n"
+                    local x1, y1, y2 = px + nw, py + 9, cy + 9
+                    local ex = x1 + turnAt[need]
+                    rect(k, x1, y1, ex - x1 + 1, 1)
+                    rect(k, ex, min(y1, y2), 1, math.abs(y2 - y1) + 1)
+                    rect(k, ex, y2, cx - ex, 1)
+                end
+            end
+        end
+    end
+    for _, t in ipairs(D.TECHS) do
+        local nx, ny = treeAt(t, x, y, nw)
+        treeNode(g, p, sci, t, nx, ny, nw)
+    end
+    -- At the foot, where research is making for.
+    local fy = y + 4 + floor((ROWS - 1) * PITCH) + NODE_H + 4
+    local goal = g:researchGoal(p)
+    local line
+    if goal then
+        local n, cost, turns = wayTo(g, p, sci, goal)
+        line = L("MAKING FOR {1}: {2} TECHS, {3} SCIENCE, {4}T", L(D.TECH[goal].name), n, cost, turns)
+        if n == 1 then line = L("RESEARCHING {1}: {2} SCIENCE, {3}T", L(D.TECH[goal].name), cost, turns) end
+    else
+        line = L"CHOOSE A TECHNOLOGY; ONE FURTHER ON QUEUES THE WAY TO IT"
+    end
+    text("c", line, x + PAD, fy + 2)
+end
+
+-- The list, for a screen with no room for the tree: a branch at a time,
+-- each indented by its tier with a line from its root.
+local function listRow(g, p, sci, t)
+    local st, k = standing(g, p, t.id)
+    local note
+    if st == "known" then note = L"KNOWN"
+    elseif st == "now" then note = L("{1}  {2}T", t.cost, turnsFor(p, sci, t.cost - p.science))
+    elseif st == "queued" then note = L("NEXT {1}", k + 1)
+    elseif st == "can" then note = L("{1}  {2}T", t.cost, turnsFor(p, sci, t.cost - p.science))
+    else note = L("NEEDS {1}", namesOf(t.needs)) end
+    return st, note
+end
+
+local function listSize()
+    local g, p = S.game, me()
+    local _, sci = g:income(p)
+    local w = 160
+    for _, t in ipairs(D.TECHS) do
+        local _, note = listRow(g, p, sci, t)
+        w = max(w, (t.tier - 1) * 6 + Font.width(L(t.name)) + Font.width(note) + 22)
+    end
+    return min(w, S.vw - 4), Win.BAR + 4 + #D.TECHS * 11 + 4
+end
+
+local function listBody(x, y, w)
+    local g, p = S.game, me()
+    local _, sci = g:income(p)
+    local yy = y + 4
+    for _, t in ipairs(D.TECHS) do
+        local st, note = listRow(g, p, sci, t)
+        local ind = (t.tier - 1) * 6
+        if t.tier > 1 then
+            rect("n", x + 3 + ind - 4, yy - 1, 1, 6)
+            rect("n", x + 3 + ind - 4, yy + 5, 3, 1)
+        end
+        local bx, bw = x + 3 + ind, w - 6 - ind
+        local hot = button(L(t.name), bx, yy, bw, 10, function() choose(g, p, t.id) end,
+            { on = st == "known", strong = st == "now" or st == "queued", left = true })
+        text(st == "locked" and "u" or "o", note, bx + bw - 3 - Font.width(note), yy + 3)
+        if hot then researchTip(g, p, sci, t, bx, yy, bw) end
+        yy = yy + 11
+    end
 end
 
 local function researchPanel()
-    -- As wide as its widest row needs, the name and the note apart.
-    local g, p = S.game, me()
-    local _, sci = g:income(p)
-    local w = 200
-    for _, t in ipairs(D.TECHS) do
-        local label, note = researchRow(g, p, sci, t)
-        w = max(w, Font.width(label) + Font.width(note) + 22)
-    end
-    w = min(w, S.vw - 4)
-    local h = 22 + #D.TECHS * 12
+    local tree = treeFits()
+    local w, h, nw
+    if tree then w, h, nw = treeSize() else w, h = listSize() end
+    h = min(h, S.vh - 14)
     Win.add({ id = "research", title = "RESEARCH", w = w, h = h,
         x = floor((S.vw - w) / 2), y = max(14, floor((S.vh - h) / 2) - 10),
         close = function() S.panel = nil end,
-        draw = function(x, y) researchBody(x, y - Win.BAR - 1, w) end })
-end
-
-function researchBody(x, y, w)
-    local g, p = S.game, me()
-    local yy = y + 14
-    local _, sci = g:income(p)
-    for _, t in ipairs(D.TECHS) do
-        local label, note, known, can = researchRow(g, p, sci, t)
-
-        local hot = button(label, x + 3, yy, w - 6, 11, function()
-            p.researching = t.id
-            S.panel = nil
-        end, { off = not can, on = p.researching == t.id or known, left = true })
-        text(can and (hot and "o" or "u") or "k", note, x + w - 5 - Font.width(note), yy + 3)
-        yy = yy + 12
-    end
+        draw = function(x, y)
+            if tree then treeBody(x, y, w, nw) else listBody(x, y, w) end
+        end })
 end
 
 --- the hex under the pointer --------------------------------------------------------

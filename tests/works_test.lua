@@ -158,8 +158,8 @@ return {
         assert(not cell.ashfall and cell.soil)
         cell.terrain = "marsh"
         b.moves = 2
-        assert(not has(g:worksFor(b), "mend"), "draining needs masonry")
-        p.techs.masonry = true
+        assert(not has(g:worksFor(b), "mend"), "draining needs irrigation")
+        p.techs.irrigation = true
         mend()
         assert(cell.terrain == "grass")
         b.moves = 2

@@ -95,7 +95,7 @@ D.WORKS = {
     chop = { name = "CHOP", prod = 20 },
     clear = { name = "FIREBREAK" },
     douse = { name = "DOUSE", turns = 2 },
-    mend = { name = "MEND", marshTech = "masonry" },
+    mend = { name = "MEND", marshTech = "irrigation" },
 }
 
 -- Units. A city trains four things: a settler, a builder, a band and a
@@ -395,7 +395,7 @@ D.BUILDINGS = {
     -- farms keep their food through the drought, fire spreads onto its
     -- hexes less, and its people thirst less.
     -- Under the still sun (D.SUN) it holds off the endless day as well.
-    cistern = { name = "CISTERN", short = "CIST.", cost = 70, ward = { heat = true, sun = true }, tech = "masonry",
+    cistern = { name = "CISTERN", short = "CIST.", cost = 70, ward = { heat = true, sun = true }, tech = "irrigation",
         order = 8, icon = "star",
         says = {
             "AGAINST THE HEAT AND THE ENDLESS DAY:",
@@ -407,7 +407,7 @@ D.BUILDINGS = {
     -- can't take it, the city takes no harm from the water beside it, and
     -- its people sicken less.
     -- In the sundering (D.QUAKE) it keeps the waves out of the city.
-    levee = { name = "LEVEE", short = "LEVEE", cost = 70, ward = { flood = true, quake = true }, tech = "masonry",
+    levee = { name = "LEVEE", short = "LEVEE", cost = 70, ward = { flood = true, quake = true }, tech = "irrigation",
         order = 9, icon = "star",
         says = {
             "AGAINST THE DELUGE AND THE WAVES:",
@@ -427,7 +427,7 @@ D.BUILDINGS = {
     -- lamp kept burning. No rift opens on the city's land and the blight
     -- never takes it, the city shoots the demons near it even without walls,
     -- and its people dread less.
-    sanctum = { name = "SANCTUM", short = "SANCT.", cost = 70, ward = "demons", tech = "writing", order = 11, icon = "star",
+    sanctum = { name = "SANCTUM", short = "SANCT.", cost = 70, ward = "demons", tech = "mysticism", order = 11, icon = "star",
         says = {
             "AGAINST THE DEMONS:",
             "NO RIFT OPENS ON ITS LAND, NO BLIGHT,",
@@ -872,23 +872,76 @@ D.QUAKE = {
     warn = 144, great = 150, greatCity = 40, greatPop = 0.25, nearTowns = 2,
 }
 
--- Technologies, in the order the list shows them.
+-- Technologies, in the order the list shows them: a branch at a time, each
+-- root followed by what grows from it. `needs` are always of the tier just
+-- before (the research tree in src/ui/hud.lua draws them so), and `row` is where the tree
+-- draws it in its column. What each unlocks is found from the defs above
+-- (D.unlocks); `also` is what it does that no def says.
 D.TECHS = {
-    { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY, HEARTH" },
-    { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES, SHELTER" },
-    { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "BOW" },
-    { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN, LEVEE, BUTTRESS" },
-    { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY, SANCTUM, LAZARET" },
-    { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, gives = "SPEAR" },
-    { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, gives = "HORSE" },
-    { id = "currency", name = "CURRENCY", cost = 80, needs = { "writing" }, gives = "MARKET" },
-    { id = "iron", name = "IRON WORKING", cost = 100, needs = { "bronze" }, gives = "SWORD" },
-    { id = "sailing", name = "SAILING", cost = 40, needs = { "pottery" }, gives = "SHIPS, EMBARKING, FISHING BOATS" },
-    { id = "shipbuilding", name = "SHIPBUILDING", cost = 70, needs = { "sailing" }, gives = "BOLT THROWER, HARBOUR" },
-    { id = "cartography", name = "CARTOGRAPHY", cost = 90, needs = { "shipbuilding" }, gives = "OCEAN, LIGHTHOUSE" },
+    { id = "pottery", name = "POTTERY", cost = 25, needs = {}, row = 0.75 },
+    { id = "sailing", name = "SAILING", cost = 40, needs = { "pottery" }, row = 0, also = { "EMBARKING" } },
+    { id = "shipbuilding", name = "SHIPBUILDING", cost = 70, needs = { "sailing" }, row = 0 },
+    { id = "cartography", name = "CARTOGRAPHY", cost = 90, needs = { "shipbuilding" }, row = 0,
+        also = { "THE OPEN OCEAN" } },
+    { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, row = 1.5 },
+    { id = "mysticism", name = "MYSTICISM", cost = 45, needs = { "writing" }, row = 1 },
+    { id = "currency", name = "CURRENCY", cost = 80, needs = { "writing", "bronze" }, row = 2 },
+    { id = "mining", name = "MINING", cost = 25, needs = {}, row = 3.25 },
+    { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, row = 2.5 },
+    { id = "iron", name = "IRON WORKING", cost = 100, needs = { "bronze" }, row = 3 },
+    { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, row = 4 },
+    { id = "irrigation", name = "IRRIGATION", cost = 50, needs = { "masonry" }, row = 4 },
+    { id = "archery", name = "ARCHERY", cost = 35, needs = {}, row = 5 },
+    { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, row = 5 },
 }
 D.TECH = {}
 for _, t in ipairs(D.TECHS) do D.TECH[t.id] = t end
+-- Its tier: one past the deepest of what it needs, the roots 1.
+local function tier(t)
+    if not t.tier then
+        local n = 0
+        for _, need in ipairs(t.needs) do n = math.max(n, tier(D.TECH[need])) end
+        t.tier = n + 1
+    end
+    return t.tier
+end
+for _, t in ipairs(D.TECHS) do tier(t) end
+-- What learning it leads to: D.TECH.mining.leads == { "bronze", "masonry" }.
+for _, t in ipairs(D.TECHS) do t.leads = {} end
+for _, t in ipairs(D.TECHS) do
+    for _, need in ipairs(t.needs) do table.insert(D.TECH[need].leads, t.id) end
+end
+
+-- What a technology unlocks, read off the defs: a list of { name, kind, ward,
+-- icon } in a steady order, units and gear first, then what builders do,
+-- then buildings, then what no def says. `kind` is "unit", "gear", "land",
+-- "building" or "also"; `ward` is a building's (D.BUILDINGS) against the
+-- cataclysm.
+local UNLOCKS = {}
+function D.unlocks(id)
+    if UNLOCKS[id] then return UNLOCKS[id] end
+    local out = {}
+    local function add(list, kind, icon)
+        table.sort(list, function(a, b) return (a.order or 99) < (b.order or 99) end)
+        for _, def in ipairs(list) do
+            out[#out + 1] = { name = def.name, kind = kind, ward = def.ward, icon = icon(def) }
+        end
+    end
+    local function where(defs)
+        local list = {}
+        for _, def in pairs(defs) do if def.tech == id then list[#list + 1] = def end end
+        return list
+    end
+    add(where(D.UNITS), "unit", function() return "ship" end)
+    add(where(D.GEAR), "gear", function(g) return g.slot == "mount" and "horse" or g.form or "warrior" end)
+    local land = where(D.IMPROVEMENT)
+    if D.WORKS.mend.marshTech == id then land[#land + 1] = { name = "DRAINING MARSHES", order = 50 } end
+    add(land, "land", function(i) return i.prod and i.prod > 0 and "prod" or "food" end)
+    add(where(D.BUILDINGS), "building", function(b) return b.icon end)
+    for _, name in ipairs(D.TECH[id].also or {}) do out[#out + 1] = { name = name, kind = "also", icon = "boat" } end
+    UNLOCKS[id] = out
+    return out
+end
 
 -- A city's focus: how it weighs food, production and gold in choosing the
 -- hexes its citizens work. `balanced` is what a city does unless told.
@@ -958,7 +1011,7 @@ D.CIVS = {
         leaning = { archery = 4, bronze = 4, horses = 4, iron = 4 },
         cities = { "NOCTIS", "DUSKMERE", "GLOAMING", "CINDERFALL", "SHADEHALL", "EVENFORD", "MIRKWALL" } },
     { name = "VARRO", leader = "KING TESS", look = "stripe", reserve = 40,
-        leaning = { pottery = 4, mining = 3, masonry = 4, writing = 4, currency = 3, sailing = 3 },
+        leaning = { pottery = 4, mining = 3, masonry = 4, writing = 4, currency = 3, sailing = 3, irrigation = 3 },
         cities = { "TESSERA", "BANDHOLM", "STRIATA", "LATTICE", "GRATEFORD", "CHEVRON", "ZIGRATH" } },
 }
 

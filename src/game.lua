@@ -1422,6 +1422,38 @@ function Game:canResearch(p, id)
     return true
 end
 
+-- The way to technology `id`: every one it needs that `p` doesn't know yet,
+-- each after what it needs, and `id` last. Empty if it is known.
+function Game:researchPath(p, id)
+    local out, seen = {}, {}
+    local function walk(t)
+        if p.techs[t] or seen[t] then return end
+        seen[t] = true
+        for _, need in ipairs(D.TECH[t].needs) do walk(need) end
+        out[#out + 1] = t
+    end
+    walk(id)
+    return out
+end
+
+-- Sets `p` researching toward `id`: straight at it if it can be, else at
+-- the first on the way, with the rest queued to follow, each as the one
+-- before is learned. What science it has stays with it.
+function Game:researchToward(p, id)
+    local path = self:researchPath(p, id)
+    if #path == 0 then return false end
+    p.researching = table.remove(path, 1)
+    p.queue = #path > 0 and path or nil
+    return true
+end
+
+-- Where research is making for: the last queued, else what is under way.
+function Game:researchGoal(p)
+    local q = p.queue
+    if q and #q > 0 then return q[#q] end
+    return p.researching
+end
+
 function Game:researchable(p)
     local out = {}
     for _, t in ipairs(D.TECHS) do
@@ -1557,6 +1589,12 @@ function Game:finishTurn(p)
             p.science = p.science - t.cost
             p.techs[t.id] = true
             p.researching = nil
+            -- The next on the way to what it is making for.
+            while p.queue and #p.queue > 0 and not p.researching do
+                local next = table.remove(p.queue, 1)
+                if self:canResearch(p, next) then p.researching = next end
+            end
+            if p.queue and #p.queue == 0 then p.queue = nil end
             -- A weapon left behind, on a unit under way, becomes what took
             -- its place, keeping what was made.
             for _, city in ipairs(self:citiesOf(p.id)) do

@@ -405,7 +405,7 @@ return {
         for _, u in ipairs(g.units) do
             if u.owner == 1 and u.kind == "settler" then city = g:found(u) break end
         end
-        g.players[1].techs.masonry = true
+        g.players[1].techs.irrigation = true
         assert(g:canBuild(city, "building", "levee"), "the levee is a ward here too")
         local cell = g.cells[city.cell]
         city.buildings.levee = true
