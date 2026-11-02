@@ -177,6 +177,18 @@ local function sources(game, stage)
     return out
 end
 
+-- Is blighted hex `cell` out of every rift's and the citadel's reach (or
+-- in a sanctum's city's land), so that it can heal? `src` is sources(), if
+-- it is to hand.
+function Demons.free(game, cell, src)
+    if hallowed(cell) then return true end
+    src = src or sources(game, Cat.stage(game))
+    for _, s in ipairs(src) do
+        if game:dist(cell, s.cell) <= s.reach then return false end
+    end
+    return true
+end
+
 local function spreadBlight(game, stage)
     local src = sources(game, stage)
     for _, s in ipairs(src) do
@@ -188,13 +200,7 @@ local function spreadBlight(game, stage)
     -- Out of every reach, it heals.
     for _, cell in ipairs(game.cells) do
         if cell.blight then
-            local free = true
-            if not hallowed(cell) then
-                for _, s in ipairs(src) do
-                    if game:dist(cell, s.cell) <= s.reach then free = false break end
-                end
-            end
-            if free and game.rng:random() < D.DEMONS.heal then
+            if Demons.free(game, cell, src) and game.rng:random() < D.DEMONS.heal then
                 cell.blight = nil
                 game:emit({ kind = "terrain", cell = cell.id })
             end

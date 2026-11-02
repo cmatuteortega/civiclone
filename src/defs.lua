@@ -75,6 +75,28 @@ D.IMPROVEMENT = {
     mine = { name = "MINE", food = 0, prod = 2, key = "M", tech = "mining" },
     boats = { name = "FISHING BOATS", food = 1, prod = 0, key = "N", tech = "sailing" },
 }
+-- What else a builder can do to the land (Game:worksFor): each takes all its
+-- moves and one of its builds, as an improvement does.
+--   chop   fells a forest inside its borders: the wood, `prod` production,
+--          goes to the city whose land it is, and stumps are left.
+--   clear  cuts a firebreak: the grass, the grain and the farm cut and burnt
+--          back, so that nothing there can catch fire again (a farm built on
+--          it again can).
+--   douse  beats out the fires on its hex and beside it: each burns `turns`
+--          less, and one by a river, the coast or a cistern's city goes out.
+--          A fire put out burns out, as it would have.
+--   mend   heals one thing the cataclysm did to its hex: the blight burnt off
+--          (only out of every rift's and the citadel's reach), baked earth
+--          watered back to plains (by a river or in a cistern's city's
+--          land), black rock broken up (its obsidian lost), a cold crater
+--          filled (not one with star iron in it), the ash dug in (the soil
+--          rich at once), a marsh drained to grassland (`marshTech`).
+D.WORKS = {
+    chop = { name = "CHOP", prod = 20 },
+    clear = { name = "FIREBREAK" },
+    douse = { name = "DOUSE", turns = 2 },
+    mend = { name = "MEND", marshTech = "masonry" },
+}
 
 -- Units. A city trains four things: a settler, a builder, a band and a
 -- ship. What a band or a ship is comes from what it carries (D.GEAR): a

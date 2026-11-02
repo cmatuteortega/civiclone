@@ -200,6 +200,10 @@ function O.actions(u)
             out[#out + 1] = { label = "BOATS", cmd = "boats", off = not can.boats,
                 fn = function() g:improve(u, "boats") after(u) end }
         end
+        -- The other works (D.WORKS), shown only where they can be done.
+        for _, k in ipairs(g:worksFor(u)) do
+            out[#out + 1] = { label = D.WORKS[k].name, cmd = k, fn = function() g:work(u, k) after(u) end }
+        end
     end
     if not u.def.civilian then
         out[#out + 1] = { label = u.fortified and "WAKE" or "FORTIFY", cmd = "fortify", fn = function()

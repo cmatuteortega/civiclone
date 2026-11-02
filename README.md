@@ -337,6 +337,7 @@ drawn the same way: light, dark, or dashed.
 | Shift+Enter, END | End the turn even with units still idle |
 | B / F / Z / Space | Found city / fortify / sleep / skip |
 | R / M | Builder: farm / mine |
+| C / X / Q / Y | Builder: chop / firebreak / douse / mend |
 | T, H, G, Tab | Research, go to capital, hex grid, next unit |
 | V | Sound: loud, soft or off |
 | Esc | Close the open window or deselect; otherwise the menu |

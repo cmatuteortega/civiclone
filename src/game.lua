@@ -281,7 +281,9 @@ function Game:describe(cell)
     if cell.fault and next(cell.fault) then parts[#parts + 1] = "- FAULT" end
     if cell.fire then parts[#parts + 1] = "- BURNING"
     elseif cell.scorched then parts[#parts + 1] = "- SCORCHED"
-    elseif cell.burnt then parts[#parts + 1] = "- BURNT" end
+    elseif cell.burnt then parts[#parts + 1] = "- BURNT"
+    elseif cell.cleared then parts[#parts + 1] = "- FIREBREAK" end
+    if cell.felled and not cell.feature then parts[#parts + 1] = "- FELLED" end
     if cell.lair then parts[#parts + 1] = "- " .. cell.lair.def.name end
     -- A town the great flood sank (src/flood.lua).
     if cell.ruin then parts[#parts + 1] = "- THE SUNKEN RUINS OF " .. cell.ruin.name end
@@ -1640,9 +1642,110 @@ function Game:improve(u, what)
     if not ok then return false end
     local cell = self.cells[u.cell]
     cell.improvement = what
-    -- A fallow field (src/plague.lua) is worked again.
-    if what == "farm" and cell.fallow then
-        cell.fallow = nil
+    -- A fallow field (src/plague.lua) is worked again; a firebreak's ground
+    -- sown, and so it can burn again.
+    if what == "farm" and (cell.fallow or cell.cleared) then
+        cell.fallow, cell.cleared = nil, nil
+        self:emit({ kind = "terrain", cell = cell.id })
+    end
+    u.moves, u.acted = 0, true
+    u.charges = u.charges - 1
+    self:emit({ kind = "improve", cell = cell.id })
+    if u.charges <= 0 then self:removeUnit(u) end
+    return true
+end
+
+--- what else builders do to the land (D.WORKS) -----------------------------------------
+
+-- What hex `cell` would be mended of first, if a builder of player p's
+-- stood on it: "blight", "scorched", "basalt", "crater", "ash" or "marsh";
+-- nil if nothing. The rest wait for another builder's turn.
+function Game:mendable(cell, p)
+    if cell.city or self:isWater(cell) or cell.elev == "mountain" or cell.fire or cell.flood or cell.lava then
+        return nil
+    end
+    if cell.blight then
+        return Cat.KINDS.demons.free(self, cell) and "blight" or nil
+    end
+    if cell.scorched and (self:onRiver(cell) or Cat.cool(cell)) then return "scorched" end
+    if cell.basalt then return "basalt" end
+    -- A crater with star iron in it is left for the mine.
+    if cell.crater and not cell.glow and cell.resource ~= "iron" then return "crater" end
+    if cell.ashfall then return "ash" end
+    if cell.terrain == "marsh" and p.techs[D.WORKS.mend.marshTech] then return "marsh" end
+    return nil
+end
+
+-- The burning hexes a builder on `cell` could beat out: its own, and the
+-- land beside it.
+function Game:douseable(cell)
+    local out = {}
+    if cell.fire and not self:isWater(cell) then out[1] = cell end
+    for _, n in ipairs(self:neighbours(cell)) do
+        if n.fire and not self:isWater(n) then out[#out + 1] = n end
+    end
+    return out
+end
+
+-- The works (D.WORKS) builder u can do where it stands. Chopping, cutting a
+-- firebreak and mending are for its own land; a fire is fought anywhere.
+function Game:worksFor(u)
+    if u.kind ~= "builder" or u.moves <= 0 then return {} end
+    local cell = self.cells[u.cell]
+    local out = {}
+    if self:isWater(cell) or cell.city then return out end
+    local own = cell.owner == u.owner and cell.elev ~= "mountain"
+    if own and cell.feature == "forest" and not cell.fire and not cell.blight then out[#out + 1] = "chop" end
+    if own and cell.feature ~= "forest" and Cat.flammable(self, cell) then out[#out + 1] = "clear" end
+    if #self:douseable(cell) > 0 then out[#out + 1] = "douse" end
+    if own and self:mendable(cell, self.players[u.owner]) then out[#out + 1] = "mend" end
+    return out
+end
+
+-- Builder u does work `what` (D.WORKS) where it stands; false if it can't.
+function Game:work(u, what)
+    local ok = false
+    for _, k in ipairs(self:worksFor(u)) do if k == what then ok = true end end
+    if not ok then return false end
+    local cell = self.cells[u.cell]
+    if what == "chop" then
+        cell.feature, cell.felled = nil, true
+        local city = cell.ownerCity
+        if city and city.owner == u.owner then
+            city.prod = city.prod + D.WORKS.chop.prod
+            self:tell(u.owner, ("THE FOREST'S WOOD HAS GONE TO %s: %d PRODUCTION"):format(city.name, D.WORKS.chop.prod))
+        end
+        self:emit({ kind = "terrain", cell = cell.id })
+    elseif what == "clear" then
+        cell.cleared = true
+        if cell.improvement == "farm" then cell.improvement = nil end
+        if cell.resource == "wheat" then cell.resource = nil end
+        if cell.terrain == "grass" then cell.terrain = "plains" end
+        self:emit({ kind = "terrain", cell = cell.id })
+    elseif what == "douse" then
+        for _, c in ipairs(self:douseable(cell)) do
+            c.fire = c.fire - D.WORKS.douse.turns
+            if c.fire <= 0 or self:onRiver(c) or self:coastal(c) or Cat.cool(c) then Cat.burnOut(self, c) end
+        end
+        self:emit({ kind = "douse", cell = cell.id })
+    elseif what == "mend" then
+        local m = self:mendable(cell, self.players[u.owner])
+        if m == "blight" then
+            -- Burnt off: clean ground, black with the fire.
+            cell.blight, cell.burnt = nil, true
+        elseif m == "scorched" then
+            cell.scorched, cell.terrain = nil, "plains"
+        elseif m == "basalt" then
+            cell.basalt = nil
+            if cell.resource == "obsidian" then cell.resource = nil end
+        elseif m == "crater" then
+            -- Its pit filled; the ground stays as low as the stones left it.
+            cell.crater = nil
+        elseif m == "ash" then
+            cell.ashfall, cell.soil = nil, true
+        elseif m == "marsh" then
+            cell.terrain = "grass"
+        end
         self:emit({ kind = "terrain", cell = cell.id })
     end
     u.moves, u.acted = 0, true

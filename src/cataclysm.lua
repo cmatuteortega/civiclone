@@ -286,7 +286,8 @@ Cat.pick = pick
 function Cat.flammable(game, cell)
     if not land(game, cell) or cell.city or cell.fire or cell.burnt then return false end
     if cell.feature == "forest" then return true end
-    if cell.terrain == "desert" then return false end
+    -- A builder's firebreak (Game:work): cut and burnt back already.
+    if cell.terrain == "desert" or cell.cleared then return false end
     return cell.improvement == "farm" or cell.resource == "wheat" or cell.terrain == "grass"
 end
 
@@ -310,6 +311,7 @@ local function burnOut(game, cell)
     if cell.terrain == "grass" then cell.terrain = "plains" end
     game:emit({ kind = "terrain", cell = cell.id })
 end
+Cat.burnOut = burnOut
 
 -- Unit u hurt by the cataclysm: `how` says what killed it, if it does.
 local function hurt(game, u, amount, how)

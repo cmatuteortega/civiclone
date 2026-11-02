@@ -86,6 +86,10 @@ Settings.COMMANDS = {
     { id = "farm", name = "BUILD FARM", default = "r" },
     { id = "mine", name = "BUILD MINE", default = "m" },
     { id = "boats", name = "BUILD FISHING BOATS", default = "n" },
+    { id = "chop", name = "CHOP FOREST", default = "c" },
+    { id = "clear", name = "CUT FIREBREAK", default = "x" },
+    { id = "douse", name = "DOUSE FIRE", default = "q" },
+    { id = "mend", name = "MEND THE LAND", default = "y" },
     { id = "refit", name = "REFIT IN A CITY", default = "e" },
     { id = "fullscreen", name = "TOGGLE FULLSCREEN", default = "f11" },
 }

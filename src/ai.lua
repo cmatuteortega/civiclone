@@ -227,7 +227,63 @@ end
 
 --- builders ------------------------------------------------------------------------
 
+-- Is the fire on hex `cell` one of ours to fight: on our land, or beside a
+-- city of ours?
+local function ours(game, owner, cell)
+    if cell.owner == owner then return true end
+    for _, n in ipairs(game:neighbours(cell)) do
+        if n.city and n.city.owner == owner then return true end
+    end
+    return false
+end
+
+-- A builder's works (D.WORKS) before its improvements: beat out a fire of
+-- ours beside it, or go to one near; mend a hex its city works; fell a
+-- forest beside a city of ours with a fire near it, so the fire has less
+-- to come in by. True if it did something.
+local function tend(game, u)
+    local here = game.cells[u.cell]
+    local can = {}
+    for _, k in ipairs(game:worksFor(u)) do can[k] = true end
+    if can.douse then
+        for _, c in ipairs(game:douseable(here)) do
+            if ours(game, u.owner, c) then return game:work(u, "douse") end
+        end
+    end
+    if can.mend and here.workedBy then return game:work(u, "mend") end
+    local near = game:within(here, 4)
+    if can.chop then
+        local byCity = false
+        for _, n in ipairs(game:neighbours(here)) do
+            if n.city and n.city.owner == u.owner then byCity = true end
+        end
+        if byCity then
+            for _, c in ipairs(near) do
+                if c.fire and game:dist(here, c) <= 3 then return game:work(u, "chop") end
+            end
+        end
+    end
+    -- To the nearest hex beside a fire of ours, not burning itself.
+    local best, bd
+    for _, c in ipairs(near) do
+        if c.fire and not game:isWater(c) and ours(game, u.owner, c) then
+            for _, n in ipairs(game:neighbours(c)) do
+                if not n.fire and not n.city and game:passable(n) and not game:isWater(n) and not game.civ[n.id]
+                    and not game.mil[n.id] and not Cat.perilous(game, n, u) then
+                    local d = game:dist(here, n)
+                    if not bd or d < bd then best, bd = n, d end
+                end
+            end
+        end
+    end
+    if best and game:moveTo(u, best.id) and u.cell == best.id and u.moves > 0 then
+        return game:work(u, "douse")
+    end
+    return u.moves <= 0
+end
+
 local function improve(game, u)
+    if tend(game, u) or u.dead or u.moves <= 0 then return end
     local options = game:improvementsFor(u)
     local here = game.cells[u.cell]
     if #options > 0 and here.workedBy then
@@ -248,12 +304,25 @@ local function improve(game, u)
                 if not bd or d < bd then best, bd = cell, d end
             end
         end
+        -- Or a worked hex the cataclysm has hurt, that it could mend.
+        if cell.workedBy and cell.owner == u.owner and not game.mil[cell.id] and not game.civ[cell.id]
+            and not wild(game, cell, 2) and not Sky.marked(game, cell) and game:mendable(cell, game.players[u.owner]) then
+            local d = game:dist(here, cell)
+            if not bd or d < bd then best, bd = cell, d end
+        end
     end
     if best then
         game:moveTo(u, best.id)
         if u.cell == best.id and u.moves > 0 then
-            local o = game:improvementsFor(u)
-            if #o > 0 then game:improve(u, o[#o]) end
+            local w = game:worksFor(u)
+            local mend = false
+            for _, k in ipairs(w) do if k == "mend" then mend = true end end
+            if mend then
+                game:work(u, "mend")
+            else
+                local o = game:improvementsFor(u)
+                if #o > 0 then game:improve(u, o[#o]) end
+            end
         end
     else
         u.fortified = true

@@ -128,6 +128,7 @@ with your first idle unit (the settler) selected.
 | F | Military unit: fortify, or wake |
 | Z | Civilian: sleep, or wake |
 | R / M / N | Builder: farm / mine / fishing boats |
+| C / X / Q / Y | Builder: chop the forest / cut a firebreak / douse a fire / mend the land |
 | T | Open or close research |
 | H | Select your capital |
 | G | Show or hide the hex grid |
@@ -668,6 +669,24 @@ Building a new improvement replaces the old one. A farm shows as furrows and
 a barn with a haystack; a mine shows as a spoil heap with a timbered adit and
 an ore cart.
 
+### Working the land
+
+A builder can also work the land itself, without leaving an improvement on
+it. Each work, like an improvement, takes all its moves and one of its
+builds. The unit panel shows the button for a work only where it can be done
+(numbers in `D.WORKS` in `src/defs.lua`).
+
+| Work | Key | Where | What it does |
+| --- | --- | --- | --- |
+| Chop | C | A forest inside your borders, not burning or blighted | Fells it: **20 production** to the city whose land it is, stumps left (FELLED). The land can then be farmed. A fire takes a forest 40% of the time, other ground 8% |
+| Firebreak | X | Your grassland, grain or farm that could burn, not a forest | Cuts and burns it back: the farm and grain are gone, grassland goes to plains, and **it never catches fire**. Sowing a farm on it again makes it able to burn again |
+| Douse | Q | A fire on its hex or beside it, inside your borders or out | Every fire there burns **2 turns less**; a fire by a river, the coast or in a cistern's city's land **goes out at once**. A fire put out leaves what burning out would (stumps, no farm, plains) |
+| Mend | Y | Your hex hurt by a cataclysm (one hurt per work, in this order) | **Blight** burnt off (only out of every rift's and the citadel's reach); **baked earth** watered back to plains (by a river or in a cistern's city's land); **black rock** broken up (its obsidian lost); a **cold crater** filled (not one with star iron in it); the **ash** dug in (the volcanic soil at once); a **marsh** drained to grassland (needs Masonry) |
+
+Lava, chasms, the rift, drowned land, salt flats, snow and sea ice can't be
+mended. A builder that douses a fire it stands in still takes the fire's
+harm at the end of the turn, if the fire still burns.
+
 ## Science
 
 Each turn, your cities' science goes towards the technology being
@@ -770,10 +789,13 @@ by the yield of the land within 2 hexes, with +1 for coast and −1.6 per hex
 of distance, and must be at least 4 hexes from any city and not in foreign
 land.
 
-**Builders** improve the hexes their cities work: a farm on flat land, a
-mine on hills once they have Mining, or fishing boats on fish once they have
-Sailing. They fortify when there is nothing left
-to do.
+**Builders** first fight fire: they douse a fire of theirs (on their land,
+or beside one of their cities) beside them, or walk to one within 4 and douse
+it; a builder beside its city fells the forest it stands in when a fire is
+within 3. They mend a hex their city works where they stand, or walk to the
+nearest one hurt. Otherwise they improve the hexes their cities work: a farm
+on flat land, a mine on hills once they have Mining, or fishing boats on fish
+once they have Sailing. They fortify when there is nothing left to do.
 
 **Soldiers**, in order of priority:
 
@@ -923,7 +945,8 @@ nothing, a unit in it loses 25 HP each turn, and each city next to it 20 HP
 (never below 1). Each turn a fire may spread to the hexes around it: a
 forest 40% of the time, anything else that can burn 8% (half that onto a
 cistern's land). Burnt out, its trees are stumps and snags, its farm and
-grain are gone and its grassland is plains.
+grain are gone and its grassland is plains. A builder can
+[fell the forest, cut a firebreak or douse the fire](#working-the-land).
 
 **Baked earth** yields no food at all, and a land unit that ends a turn on
 it (off a river) loses 10 HP.
@@ -1802,7 +1825,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders, 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, the rivers running dry from their springs, the great ebb and the salt flats walked on, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, the great flood over the lowland and then the upland, towns sunk to ruins and a levee holding through the first, a civilization gone with its towns, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, the great storm's cyclones formed on the line, seen coming, running along it and striking, the gales, a whole game to its end), the shattering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders and their works (felling, firebreaks, dousing, mending, the AI fighting fire), 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, the rivers running dry from their springs, the great ebb and the salt flats walked on, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, the great flood over the lowland and then the upland, towns sunk to ruins and a levee holding through the first, a civilization gone with its towns, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, the great storm's cyclones formed on the line, seen coming, running along it and striking, the gales, a whole game to its end), the shattering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --seed N` | Play the map from seed N |
 | `love . --play` | Skip the title |

@@ -869,7 +869,8 @@ end
 -- The solids of one hex.
 function World:hexSolids(cell)
     local out = {}
-    local ashen = (cell.burnt or cell.fire or cell.ashfall) and true or nil
+    -- A builder's firebreak (Game:work) is burnt back, as a fire would.
+    local ashen = (cell.burnt or cell.fire or cell.ashfall or cell.cleared) and true or nil
     local silted = cell.silt and not cell.flood or nil
     -- A field abandoned in the plague, its furrows the way its farm's ran.
     local fallow = (cell.fallow and not cell.improvement and not cell.city) or nil
@@ -1219,6 +1220,24 @@ function World:hexSolids(cell)
                 add(Sh.seg(x - dx, g + 0.5, z - dz, x + dx, g + 0.6, z + dz, 0.55), MAT.char)
             else
                 add(Sh.seg(x, g - 0.5, z, x, g + 1.1 * tall, z, 0.85), MAT.char)
+            end
+        end
+    elseif cell.felled and not cell.city then
+        -- A forest a builder felled: stumps cut low and flat where the
+        -- trees stood, and the trimmed logs stacked by them.
+        local pts = scatter(cell, cell.elev == "hills" and 4 or 5, 3.5, 40)
+        for n, p in ipairs(pts) do
+            local x, z = p[1], p[2]
+            local g = top + (cell.elev == "hills" and 1 or 0)
+            if n == 1 then
+                local a = grain(x, z, 98) * math.pi
+                local dx, dz = math.cos(a) * 2.2, math.sin(a) * 2.2
+                for _, h in ipairs({ { 0, 0.5 }, { 1, 0.5 }, { 0.5, 1.3 } }) do
+                    local ox, oz = -dz * (h[1] - 0.5) * 0.9, dx * (h[1] - 0.5) * 0.9
+                    add(Sh.seg(x - dx + ox, g + h[2], z - dz + oz, x + dx + ox, g + h[2], z + dz + oz, 0.5), MAT.trunk)
+                end
+            else
+                add(Sh.seg(x, g - 0.5, z, x, g + 1.5, z, 1.1), MAT.trunk)
             end
         end
     end

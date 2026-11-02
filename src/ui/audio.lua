@@ -246,6 +246,9 @@ function Audio.hear(game, e)
         if seen(e.cell) then at("splash", e.cell, e.unit.owner == 1 and 1 or 0.6) end
     elseif k == "improve" then
         if seen(e.cell) then at("dig", e.cell) end
+    elseif k == "douse" then
+        -- A builder beating out a fire: water and earth thrown on it.
+        if seen(e.cell) then at("splash", e.cell, 0.7, 0, 0.8) end
     -- The news of the turn, one after another.
     elseif k == "built" then
         local city = game.cells[e.cell].city

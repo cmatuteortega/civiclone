@@ -109,7 +109,16 @@ local function unitPanel(u)
     local g = S.game
     local def = u.def
     local acts = O.actions(u)
-    local w, h = 168, Win.BAR + 1 + 28
+    local w = 168
+    -- The orders' buttons, in rows as many as they need: { a, x, row }.
+    local laid, bx, row = {}, 3, 0
+    for _, a in ipairs(acts) do
+        local bw = Font.width(a.label) + 8
+        if bx > 3 and bx + bw > w - 3 then bx, row = 3, row + 1 end
+        laid[#laid + 1] = { a = a, x = bx, w = bw, row = row }
+        bx = bx + bw + 2
+    end
+    local h = Win.BAR + 1 + 28 + row * 13
     local rank = D.rank(u.xp)
     local name = (rank and (rank.name .. " ") or "") .. def.name
     local who = (u.owner == 1 or u.owner == g.WILD) and name or (g.players[u.owner].name .. " " .. name)
@@ -132,12 +141,11 @@ local function unitPanel(u)
             text("c", table.concat(stats, "  "), x + 15, y + 4)
             local status = (u.sick and "CARRIES THE PLAGUE") or u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP")
                 or (u.dest and "ON THE MOVE") or (embarked and "EMBARKED") or nil
-            if status then text("s", status, x + w - Font.width(status) - 4, y + 18) end
-            local bx = x + 3
-            for _, a in ipairs(acts) do
-                local bw = Font.width(a.label) + 8
-                button(a.label, bx, y + 14, bw, 11, a.fn, { off = a.off or u.moves <= 0 and a.label ~= "WAKE" and a.label ~= "REFIT" })
-                bx = bx + bw + 2
+            if status then text("s", status, x + w - Font.width(status) - 4, y + 18 + row * 13) end
+            for _, l in ipairs(laid) do
+                local a = l.a
+                button(a.label, x + l.x, y + 14 + l.row * 13, l.w, 11, a.fn,
+                    { off = a.off or u.moves <= 0 and a.label ~= "WAKE" and a.label ~= "REFIT" })
             end
         end })
 end

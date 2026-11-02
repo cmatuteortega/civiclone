@@ -243,6 +243,7 @@ function F.drown(game, cell, quiet)
     if cell.feature == "forest" then cell.drownedForest = true end
     cell.feature, cell.improvement, cell.flood, cell.silt = nil, nil, nil, nil
     cell.fire, cell.burnt, cell.burntForest, cell.scorched = nil, nil, nil, nil
+    cell.felled, cell.cleared = nil, nil
     if cell.resource ~= "fish" then cell.resource = nil end
     if cell.workedBy then cell.workedBy = nil end
     if not quiet then

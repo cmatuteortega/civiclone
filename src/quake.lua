@@ -581,6 +581,7 @@ local function tear(game, cell)
         cell.feature, cell.improvement, cell.resource, cell.fault = nil, nil, nil, nil
         cell.silt, cell.burnt, cell.burntForest, cell.scorched, cell.basalt, cell.ashfall, cell.soil = nil, nil, nil, nil,
             nil, nil, nil
+        cell.felled, cell.cleared = nil, nil
         cell.workedBy = nil
         for k = 0, 5 do
             local n = game:cell(H.step(cell.c, cell.r, k))
@@ -792,6 +793,7 @@ local function flood(game, cell)
     local what = game:describe(cell)
     cell.lava = D.QUAKE.lavaTurns
     cell.basalt, cell.ashfall, cell.soil, cell.flood, cell.fire = nil, nil, nil, nil, nil
+    cell.felled, cell.cleared = nil, nil
     if cell.feature == "forest" then
         cell.feature = nil
         cell.burntForest = true
