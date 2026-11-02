@@ -31,30 +31,37 @@ local function wild(game, cell, n)
     end
 end
 
--- The best unit of a class this city can build now: the strongest melee, or
--- a ranged one.
+-- The gear for a soldier this city trains now: the strongest blade, or a
+-- shot; a blade on a horse, now and then, once it has horses.
 local function bestSoldier(game, city, ranged)
-    local best, bv
-    for _, it in ipairs(game:buildable(city)) do
-        local def = it.def
-        if it.kind == "unit" and not def.civilian and not def.sea and (def.ranged ~= nil) == ranged and it.id ~= "scout" then
-            local v = (def.ranged or def.str) + def.moves
-            if not bv or v > bv then best, bv = it.id, v end
-        end
-    end
-    return best
+    local p = game.players[city.owner]
+    local gear = game:bestGear(p, "band", ranged)
+    if not gear.weapon then gear = game:bestGear(p, "band") end
+    if not ranged and game:canMake(p, "horse") and game.rng:random() < 0.35 then gear.mount = "horse" end
+    return gear
 end
 
--- The best ship this city can build, if it can build one.
+-- The gear for a ship this city can build, if it can build one: a ram or
+-- a bolt thrower, by chance.
 local function bestShip(game, city)
+    if not game:canBuild(city, "unit", "ship") then return nil end
+    local p = game.players[city.owner]
     local best, bv
-    for _, it in ipairs(game:buildable(city)) do
-        if it.kind == "unit" and it.def.sea then
-            local v = (it.def.ranged or it.def.str) + game.rng:random() * 6
-            if not bv or v > bv then best, bv = it.id, v end
-        end
+    for _, id in ipairs(game:gearFor(p, "ship", "weapon")) do
+        local g = D.GEAR[id]
+        local v = (g.ranged or g.str) + game.rng:random() * 6
+        if not bv or v > bv then best, bv = id, v end
     end
-    return best
+    return best and { weapon = best }
+end
+
+-- A band in this city carrying a weapon its people have left behind: it is
+-- given the one that took its place.
+local function outdated(game, city)
+    local u = game.mil[city.cell]
+    if not u or u.owner ~= city.owner or u.unit ~= "band" or not u.gear.weapon then return nil end
+    local by = game:replacement(game.players[city.owner], u.gear.weapon)
+    if by then return u, { weapon = by, mount = u.gear.mount } end
 end
 
 -- How many ships a civilization wants: one for every two cities on the
@@ -88,7 +95,7 @@ local function chooseBuild(game, p, city)
     local guard = game.mil[city.cell]
     -- A city with no one in it, or a civilization with too few, trains a soldier.
     if (not guard and soldiers < cities * 2) or soldiers < cities then
-        return "unit", bestSoldier(game, city, game.rng:random() < 0.3) or game:replacement(p, "warrior") or "warrior"
+        return "unit", "band", bestSoldier(game, city, game.rng:random() < 0.3)
     end
     if cities + count(game, p, "settler") < 5 and city.pop >= 2 and game.turn > 4
         and count(game, p, "settler") == 0 then
@@ -102,10 +109,10 @@ local function chooseBuild(game, p, city)
             local ships = 0
             for _, u in ipairs(game:unitsOf(p.id)) do if u.def.sea then ships = ships + 1 end end
             for _, c in ipairs(game:citiesOf(p.id)) do
-                if c.build and c.build.kind == "unit" and game:canBuild(c, "unit", c.build.id)
+                if c.build and c.build.kind == "unit" and not c.build.refit and game:canBuild(c, "unit", c.build.id)
                     and D.UNITS[c.build.id].sea then ships = ships + 1 end
             end
-            if ships < shipsWanted(game, p) then return "unit", ship end
+            if ships < shipsWanted(game, p) then return "unit", "ship", ship end
         end
     end
     -- Under the still sun, a civilization with no city in the twilight
@@ -145,8 +152,11 @@ local function chooseBuild(game, p, city)
             if id ~= "walls" or game.turn > 30 then return "building", id end
         end
     end
+    -- The guard given what its people make now.
+    local old, gear = outdated(game, city)
+    if old then return "refit", old, gear end
     if soldiers < cities * 3 + math.floor(game.turn / 15) then
-        return "unit", bestSoldier(game, city, game.rng:random() < 0.35) or game:replacement(p, "warrior") or "warrior"
+        return "unit", "band", bestSoldier(game, city, game.rng:random() < 0.35)
     end
     return "unit", "builder"
 end
@@ -360,7 +370,7 @@ local function soldier(game, p, u, attacking)
         u.fortified = u.moves > 0
         return
     end
-    if u.kind == "scout" then
+    if u.def.scout then
         if not march(game, u, frontier(game, p, u)) then u.fortified = true end
         return
     end
@@ -541,17 +551,18 @@ function AI.play(game, p)
     end
     for _, city in ipairs(game:citiesOf(p.id)) do
         if not city.build then
-            local kind, id = chooseBuild(game, p, city)
-            if not game:setBuild(city, kind, id) then
-                game:setBuild(city, "unit", game:replacement(p, "warrior") or "warrior")
-            end
+            local kind, id, gear = chooseBuild(game, p, city)
+            local done
+            if kind == "refit" then done = game:refit(id, gear)
+            else done = game:setBuild(city, kind, id, gear) end
+            if not done then game:setBuild(city, "unit", "band") end
         end
         -- Buy a soldier when an enemy is at the gates.
         if city.hp < game:maxHp(city) and city.build and city.build.kind == "unit" then game:buy(city) end
     end
     gates(game, p)
     local soldiers = 0
-    for _, u in ipairs(game:unitsOf(p.id)) do if military(u) and u.kind ~= "scout" then soldiers = soldiers + 1 end end
+    for _, u in ipairs(game:unitsOf(p.id)) do if military(u) and not u.def.scout then soldiers = soldiers + 1 end end
     local attacking = game.turn >= 25 and soldiers >= 2 + #game:citiesOf(p.id)
     -- A copy: units die and found cities as the list is walked.
     local units = {}

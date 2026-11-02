@@ -253,11 +253,23 @@ local function give(game, who, prize, cell)
     return table.concat(bits, ", "), bits[1]
 end
 
--- Beast u was killed by player `by` (nil: by no one).
-function Beasts.slain(game, u, by)
+-- Beast u was killed by player `by` (nil: by no one), by `killer`, if a
+-- unit did it. A band that kills a beast with something to wear (a bear's
+-- hide) and has nothing on takes it.
+function Beasts.slain(game, u, by, killer)
     if not by or by == Beasts.WILD then return end
     local cell = game.cells[u.cell]
-    local words, first = give(game, by, u.def.loot or {}, cell)
+    local loot = u.def.loot or {}
+    if loot.gear and killer and not killer.dead and killer.unit == "band" and killer.owner == by then
+        local g = D.GEAR[loot.gear]
+        if not killer.gear[g.slot] then
+            local gear = { weapon = killer.gear.weapon, mount = killer.gear.mount, armour = killer.gear.armour }
+            gear[g.slot] = loot.gear
+            game:equip(killer, gear)
+            game:tell(by, "OUR " .. killer.def.name .. " TOOK THE " .. g.name)
+        end
+    end
+    local words, first = give(game, by, loot, cell)
     game:tell(by, u.def.name .. " SLAIN" .. (words ~= "" and (": " .. words) or ""))
     if first then game:emit({ kind = "loot", cell = cell.id, text = first }) end
 end
@@ -295,16 +307,25 @@ function Beasts.arrive(game, u, cell)
         for _, n in ipairs(game:within(cell, 1)) do
             local h = game.mil[n.id]
             if h and h.owner == Beasts.WILD and h.def.tame and game.players[u.owner].techs[h.def.tame] then
-                Beasts.tame(game, h, u.owner)
+                Beasts.tame(game, h, u.owner, u)
             end
         end
     end
 end
 
-function Beasts.tame(game, h, who)
+-- Wild horses tamed by `who`'s people: `by`, the band that came by, mounts
+-- them if it has no horse; otherwise they come in as a horseman.
+function Beasts.tame(game, h, who, by)
     local at = h.cell
     game:removeUnit(h)
-    local r = game:addUnit("horseman", who, at)
+    if by and not by.dead and by.unit == "band" and not by.gear.mount then
+        local was = by.def.name
+        game:equip(by, { weapon = by.gear.weapon, mount = h.def.mount or "horse", armour = by.gear.armour })
+        game:tell(who, "WILD HORSES TAMED: OUR " .. was .. " IS NOW A " .. by.def.name)
+        game:emit({ kind = "tame", cell = at, unit = h, rider = by })
+        return
+    end
+    local r = game:addUnit("band", who, at, { weapon = "club", mount = "horse" })
     r.moves = 0
     game:tell(who, "WILD HORSES TAMED: A HORSEMAN JOINS US")
     game:emit({ kind = "tame", cell = at, unit = h, rider = r })

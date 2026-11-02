@@ -190,15 +190,19 @@ return {
     { "an all-AI game runs through the deluge to its end", function()
         local g = Game.new({ seed = 7, allAI = true, cataclysm = "flood" })
         local desert = count(g, function(c) return c.terrain == "desert" end)
+        -- The marsh the lowlands go to, at its most: the sea takes it in
+        -- the end.
+        local marsh = 0
         while g.turn <= D.LAST_TURN do
             AI.play(g, g.players[1])
             g:endTurn(AI)
+            marsh = math.max(marsh, count(g, function(c) return c.terrain == "marsh" end))
         end
         local result, why = g:outcome()
         assert(result, "the game is over")
         if result == "lost" and g.players[1].alive then assert(why == "THE WORLD HAS DROWNED" or why:find("FALLEN")) end
         assert(count(g, function(c) return c.terrain == "desert" end) < desert, "the deserts have greened")
-        assert(count(g, function(c) return c.terrain == "marsh" end) > 0, "the lowlands are marsh")
+        assert(marsh > 0, "the lowlands went to marsh")
         assert(count(g, function(c) return c.drowned end) > 30, "the sea has risen")
         local levees = 0
         for _, c in ipairs(g.cities) do if c.buildings.levee then levees = levees + 1 end end

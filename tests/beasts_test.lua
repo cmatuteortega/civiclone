@@ -202,7 +202,20 @@ return {
         assert(h.dead, "tamed")
         local rider
         for _, u in ipairs(g:unitsOf(1)) do if u.kind == "horseman" then rider = u end end
-        assert(rider and rider.cell == h.cell)
+        assert(rider and rider.gear.mount == "horse" and rider.gear.weapon == "club", "the warrior that came by mounts them")
+    end },
+    { "wild horses come by a band already mounted join as a horseman", function()
+        local g = bare()
+        local a, b = pair(g)
+        g.players[1].techs.horses = true
+        local h = Beasts.spawn(g, "horse", a.id)
+        local r = g:addUnit("band", 1, b.id, { weapon = "spear", mount = "horse" })
+        g:relocate(r, b.id)
+        assert(h.dead, "tamed")
+        assert(r.kind == "lancer", "the rider is as it was")
+        local new
+        for _, u in ipairs(g:unitsOf(1)) do if u ~= r and u.kind == "horseman" then new = u end end
+        assert(new and new.cell == a.id, "they come in as a horseman")
     end },
     { "a hundred turns with the wild run clean, and the wild is hunted", function()
         local g = Game.new({ seed = 21, allAI = true })

@@ -166,34 +166,118 @@ return {
             assert(w.cell == spot.id, "the winner moves into the hex")
         end
     end },
+    { "a city trains four things, and what a band is comes from its gear", function()
+        local g = newGame()
+        local city = g:found(find(g, 1, "settler"))
+        local p = g.players[1]
+        local ids = {}
+        for _, it in ipairs(g:buildable(city)) do if it.kind == "unit" then ids[#ids + 1] = it.id end end
+        assert(table.concat(ids, " ") == "settler builder band", table.concat(ids, " "))
+        assert(D.unitDef("band", {}).name == "SCOUT" and D.unitDef("band", {}).moves == 3)
+        local archer = D.unitDef("band", { weapon = "bow" })
+        assert(archer.kind == "archer" and archer.cost == 60 and archer.ranged == 25)
+        local rider = D.unitDef("band", { weapon = "club", mount = "horse" })
+        assert(rider.kind == "horseman" and rider.cost == 80 and rider.str == 30 and rider.moves == 4)
+        assert(D.unitDef("ship", { weapon = "bolt" }).cost == 110)
+        assert(not g:canBuild(city, "unit", "band", { weapon = "bow" }), "the bow wants archery")
+        assert(not g:canBuild(city, "unit", "band", { weapon = "club", mount = "horse" }), "the horse wants riding")
+        p.techs.archery, p.techs.horses = true, true
+        assert(g:canBuild(city, "unit", "band", { weapon = "bow", mount = "horse" }), "a horse archer")
+        assert(g:setBuild(city, "unit", "band", { weapon = "bow", mount = "horse" }))
+        city.prod = 1000
+        assert(g:complete(city))
+        local u = find(g, 1, "horsearcher")
+        assert(u and u.def.name == "HORSE ARCHER" and u.def.moves == 4)
+    end },
     { "a city offers only the best of each line", function()
         local g = newGame()
         local city = g:found(find(g, 1, "settler"))
         local p = g.players[1]
-        local function offered(id)
-            for _, it in ipairs(g:buildable(city)) do if it.id == id then return true end end
-        end
-        assert(offered("slinger") and offered("warrior"), "the first soldiers are offered")
+        local function weapons() return table.concat(g:gearFor(p, "band", "weapon"), " ") end
+        assert(weapons() == "club sling", weapons())
         p.techs.archery = true
-        assert(not offered("slinger") and offered("archer"), "the archer takes the slinger's place")
+        assert(weapons() == "club bow", "the bow takes the sling's place")
+        assert(not g:canBuild(city, "unit", "band", { weapon = "sling" }))
         p.techs.bronze = true
-        assert(not offered("warrior") and offered("spearman"), "the spearman takes the warrior's place")
+        assert(weapons() == "bow spear", "the spear takes the club's place")
         p.techs.iron = true
-        assert(not offered("spearman") and offered("swordsman"), "and the swordsman the spearman's")
-        assert(g:replacement(p, "warrior") == "swordsman", "the newest of the line")
+        assert(weapons() == "bow sword", "and the sword the spear's")
+        assert(g:replacement(p, "club") == "sword", "the newest of the line")
+        assert(g:bestGear(p, "band").weapon == "sword" and g:bestGear(p, "band", true).weapon == "bow")
     end },
-    { "a soldier under way becomes what replaces it, keeping its production", function()
+    { "a weapon under way becomes what replaces it, keeping its production", function()
         local g = newGame()
         local city = g:found(find(g, 1, "settler"))
         local p = g.players[1]
-        g:setBuild(city, "unit", "slinger")
+        g:setBuild(city, "unit", "band", { weapon = "sling" })
         city.prod = 10
         p.researching = "archery"
         p.science = D.TECH.archery.cost
         g:endTurn(AI)
         assert(p.techs.archery, "archery was learned")
-        assert(city.build and city.build.id == "archer", "the slinger became an archer")
+        assert(city.build and city.build.gear.weapon == "bow", "the sling became a bow")
         assert(city.prod >= 10, "what was made is kept")
+    end },
+    { "a band in a city is refitted, paying the difference, and keeps its rank", function()
+        local g = newGame()
+        local city = g:found(find(g, 1, "settler"))
+        local p = g.players[1]
+        p.techs.bronze, p.techs.mining = true, true
+        local u = g.mil[city.cell] or g:addUnit("warrior", 1, city.cell)
+        assert(u.kind == "warrior")
+        u.xp = 9
+        assert(g:refit(u, { weapon = "spear" }))
+        assert(g:buildDef(city.build).cost == D.GEAR.spear.cost - D.GEAR.club.cost)
+        city.prod = 100
+        assert(g:complete(city))
+        assert(u.kind == "spearman" and u.def.str == 25 and u.xp == 9)
+        assert(g:defense(u) >= 25 + D.RANKS[2].str, "an elite stands harder")
+        -- One that walks off before it is done is not refitted.
+        assert(g:refit(u, { weapon = "spear", mount = nil }))
+        local away
+        for _, n in ipairs(g:neighbours(g.cells[city.cell])) do
+            if g:canStand(u, n) then away = n break end
+        end
+        g:relocate(u, away.id)
+        city.prod = 100
+        assert(not g:complete(city) and city.build == nil and city.prod == 100)
+    end },
+    { "a band that wins takes the better weapon and the horse of the one it beat", function()
+        local g = newGame()
+        local a, b
+        for _, cell in ipairs(g.cells) do
+            for _, n in ipairs(g:neighbours(cell)) do
+                if not a and g:passable(cell) and g:passable(n) and not cell.city and not n.city
+                    and not g.mil[cell.id] and not g.mil[n.id] and not g:riverBetween(cell, n) then
+                    a, b = cell, n
+                end
+            end
+        end
+        local w = g:addUnit("band", 1, a.id, { weapon = "club" })
+        local e = g:addUnit("band", 2, b.id, { weapon = "spear", mount = "horse" })
+        e.hp = 1
+        g:beginTurn(g.players[1])
+        w.moves = 2
+        assert(g:attack(w, b))
+        assert(e.dead and w.kind == "lancer", w.kind)
+        assert(w.xp == 2, "a kill is two points")
+        -- A slinger's sling is no prize to a blade.
+        local s = g:addUnit("band", 2, a.id, { weapon = "sling" })
+        s.hp = 1
+        w.moves, w.attacked = 2, false
+        assert(g:attack(w, a))
+        assert(w.gear.weapon == "spear")
+    end },
+    { "an old save's archer is read as a band with a bow", function()
+        local Save = require "src.save"
+        local g = newGame()
+        -- As one was written before: no `unit` nor `gear`, only the kind.
+        local text = Save.encode(g):gsub('\n[^\n]-%.unit="[a-z]+"', ''):gsub('\n[^\n]-%.gear={[^\n]*}', '')
+            :gsub('kind="scout"', 'kind="archer"', 1)
+        local back = assert(Save.decode(text))
+        local found
+        for _, v in ipairs(back.units) do if v.kind == "archer" then found = v end end
+        assert(found and found.unit == "band" and found.gear.weapon == "bow" and found.def.ranged == 25)
     end },
     { "a city grows, builds what it is told and learns", function()
         local g = newGame()
@@ -293,6 +377,7 @@ return {
         city.prod = 1000
         assert(g:complete(city))
         local ship = find(g, 1, "galley")
+        assert(ship and ship.unit == "ship" and ship.gear.weapon == "ram")
         assert(ship and g:isWater(g.cells[ship.cell]))
         -- A city inland cannot.
         for _, cell in ipairs(g.cells) do

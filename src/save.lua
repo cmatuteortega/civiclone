@@ -210,8 +210,21 @@ function Save.relink(g)
         if not p.civ then error("a game of a kind this one does not know") end
     end
     for _, u in ipairs(g.units or {}) do
-        u.def = D.UNITS[u.kind] or D.BEASTS[u.kind]
+        -- A game saved before bands and ships: its archer is a band with a bow.
+        local form = not u.unit and D.FORMS[u.kind]
+        if form then u.unit, u.gear = form.unit, form.gear end
+        if u.unit then
+            u.def = D.unitDef(u.unit, u.gear)
+            u.kind = u.def.kind
+        else
+            u.def = D.UNITS[u.kind] or D.BEASTS[u.kind]
+        end
         if not u.def then error("no such unit as " .. tostring(u.kind)) end
+    end
+    for _, c in ipairs(g.cities or {}) do
+        local b = c.build
+        local form = b and b.kind == "unit" and D.FORMS[b.id]
+        if form then c.build = { kind = "unit", id = form.unit, gear = form.gear } end
     end
     for _, l in ipairs(g.lairs or {}) do
         l.def = D.LAIRS[l.kind]

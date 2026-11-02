@@ -55,9 +55,9 @@ function Game.new(opts)
         self.players[k] = p
         local start = map.starts[k]
         self:addUnit("settler", k, start.id)
-        self:addUnit("warrior", k, start.id)
+        self:addUnit("band", k, start.id, { weapon = "club" })
         local near = self:freeNear(start.id, false)
-        if near then self:addUnit("scout", k, near) end
+        if near then self:addUnit("band", k, near) end
     end
     self.players[Game.WILD] = Beasts.player()
     if opts.wild ~= false then Beasts.populate(self) end
@@ -299,14 +299,34 @@ end
 
 --- units ---------------------------------------------------------------------------
 
-function Game:addUnit(kind, owner, cellId)
-    local def = assert(D.UNITS[kind] or D.BEASTS[kind], kind)
-    local u = { id = self.nextId, kind = kind, def = def, owner = owner, cell = cellId,
+-- A unit of `kind`: what a city trains ("band", "ship", "settler",
+-- "builder") carrying `gear` (a band with none is a scout, a ship has a ram),
+-- or a form by its name ("archer"), or a beast.
+function Game:addUnit(kind, owner, cellId, gear)
+    local form = D.FORMS[kind]
+    if form then kind, gear = form.unit, form.gear end
+    local def
+    if D.UNITS[kind] then
+        if D.UNITS[kind].armed and not (gear and gear.weapon) then gear = { weapon = "ram" } end
+        def = D.unitDef(kind, gear)
+    else
+        def = assert(D.BEASTS[kind], kind)
+    end
+    local u = { id = self.nextId, kind = def.kind or kind, def = def, owner = owner, cell = cellId,
         hp = 100, moves = def.moves, charges = def.charges, trail = { cellId } }
+    if def.gear then u.unit, u.gear = def.unit, D.copyGear(def.gear) end
     self.nextId = self.nextId + 1
     self.units[#self.units + 1] = u
     if def.civilian then self.civ[cellId] = u else self.mil[cellId] = u end
     return u
+end
+
+-- u carries `gear` now: its form, name and numbers are what it carries,
+-- and its moves no more than its new kind has.
+function Game:equip(u, gear)
+    local def = D.unitDef(u.unit, gear)
+    u.def, u.kind, u.gear = def, def.kind, D.copyGear(def.gear)
+    u.moves = min(u.moves, def.moves)
 end
 
 function Game:removeUnit(u)
@@ -620,11 +640,55 @@ end
 
 --- combat --------------------------------------------------------------------------
 
+-- What its rank adds to a unit's strength (D.RANKS).
+function Game:rankBonus(u)
+    local r = D.rank(u.xp)
+    return r and r.str or 0
+end
+
+-- u came through a fight: a point, or two for a kill (D.RANKS). Says so
+-- when it rises a rank.
+function Game:harden(u, n)
+    if u.dead or u.owner == Game.WILD or u.def.civilian then return end
+    local was = D.rank(u.xp)
+    u.xp = (u.xp or 0) + n
+    local now = D.rank(u.xp)
+    if now and now ~= was then self:tell(u.owner, "OUR " .. u.def.name .. " IS NOW " .. now.name) end
+end
+
+-- What a band that won a fight takes from the one it beat: a better weapon
+-- of the same sort (a blade for a blade, a bow for a sling), a horse if it
+-- has none, a hide if it has none. Taken from the fallen, gear needs no
+-- research.
+function Game:plunder(u, from)
+    if u.dead or u.unit ~= "band" or from.unit ~= "band" or u.owner == Game.WILD then return end
+    local gear, took = { weapon = u.gear.weapon, mount = u.gear.mount, armour = u.gear.armour }, {}
+    local mine, theirs = gear.weapon and D.GEAR[gear.weapon], from.gear.weapon and D.GEAR[from.gear.weapon]
+    if theirs and (not mine or ((mine.ranged ~= nil) == (theirs.ranged ~= nil) and theirs.cost > mine.cost)) then
+        gear.weapon = from.gear.weapon
+        took[#took + 1] = theirs.name
+    end
+    if from.gear.mount and not gear.mount then
+        gear.mount = from.gear.mount
+        took[#took + 1] = D.GEAR[from.gear.mount].name
+    end
+    if from.gear.armour and not gear.armour then
+        gear.armour = from.gear.armour
+        took[#took + 1] = D.GEAR[from.gear.armour].name
+    end
+    if #took == 0 then return end
+    local was = u.def.name
+    self:equip(u, gear)
+    self:tell(u.owner, "OUR " .. was .. " TOOK THE ENEMY'S " .. table.concat(took, " AND ")
+        .. (u.def.name ~= was and (": NOW A " .. u.def.name) or ""))
+    self:emit({ kind = "loot", cell = u.cell, text = table.concat(took, " ") })
+end
+
 -- How strong a unit stands defending its cell.
 function Game:defense(u)
     local cell = self.cells[u.cell]
     local base = self:embarked(u) and D.EMBARK.str or u.def.str
-    local s = base - floor((100 - u.hp) / 10)
+    local s = base - floor((100 - u.hp) / 10) + self:rankBonus(u)
     s = s + D.ELEV[cell.elev].defense + (cell.feature and D.FEATURE[cell.feature].defense or 0)
     if u.fortified then s = s + D.COMBAT.fortify end
     return s
@@ -634,7 +698,7 @@ end
 -- strikes, less again for a melee attack across a river.
 function Game:attackStrength(u, ranged, cell)
     local base = ranged and u.def.ranged or u.def.str
-    local s = base - floor((100 - u.hp) / 10) + Beasts.nightBonus(self, u)
+    local s = base - floor((100 - u.hp) / 10) + Beasts.nightBonus(self, u) + self:rankBonus(u)
     if cell and not ranged and self:riverBetween(self.cells[u.cell], cell) then s = s - D.RIVER.attack end
     return s
 end
@@ -791,9 +855,15 @@ function Game:attack(u, cell)
     if target.hp <= 0 then self:kill(target, u.owner, u) end
     if u.hp <= 0 then
         self:kill(u, target.owner, target)
-    elseif target.hp <= 0 and not ranged and u.owner ~= Game.WILD and target.def.lives ~= "shore" and self:canEnter(u, cell) then
-        -- Into the hex it won.
-        self:relocate(u, cell.id)
+        self:harden(target, 2)
+    else
+        self:harden(u, target.hp <= 0 and 2 or 1)
+        if target.hp > 0 then self:harden(target, 1) end
+        if target.hp <= 0 and not ranged then self:plunder(u, target) end
+        if target.hp <= 0 and not ranged and u.owner ~= Game.WILD and target.def.lives ~= "shore" and self:canEnter(u, cell) then
+            -- Into the hex it won.
+            self:relocate(u, cell.id)
+        end
     end
     return true
 end
@@ -803,7 +873,7 @@ function Game:kill(u, by, killer)
     self:removeUnit(u)
     self:emit({ kind = "death", cell = u.cell, unit = u })
     if u.owner == Game.WILD then
-        Beasts.slain(self, u, by)
+        Beasts.slain(self, u, by, killer)
         return
     end
     if by == Game.WILD then
@@ -935,13 +1005,15 @@ function Game:cityYield(city)
     return f, p, g, sci, cul
 end
 
--- Can this player build `kind` ("unit" or "building", id) in this city?
-function Game:canBuild(city, kind, id)
+-- Can this player build `kind` ("unit" or "building", id) in this city,
+-- a band or a ship carrying `gear` (any it could carry, if not given)?
+function Game:canBuild(city, kind, id, gear)
     local p = self.players[city.owner]
+    if kind == "unit" and D.FORMS[id] then id, gear = D.FORMS[id].unit, D.FORMS[id].gear end
     local def = kind == "unit" and D.UNITS[id] or D.BUILDINGS[id]
     if not def then return false end
     if def.tech and not p.techs[def.tech] then return false end
-    if kind == "unit" and self:replacement(p, id) then return false end
+    if gear and not self:canEquip(p, id, gear) then return false end
     if kind == "building" and city.buildings[id] then return false end
     -- What holds a cataclysm off, only against that one ("any": against
     -- whichever it is, but not when there is none).
@@ -958,17 +1030,106 @@ function Game:canBuild(city, kind, id)
     return true
 end
 
--- What this player builds now in place of a unit, if it has left it
--- behind: the newest of its line that research has opened (a warrior
--- gives way to the spearman, and he to the swordsman).
+--- gear --------------------------------------------------------------------------
+
+-- What this player gives out now in place of a piece of gear, if it has
+-- left it behind: the newest of its line that research has opened (the
+-- club gives way to the spear, and the spear to the sword).
 function Game:replacement(p, id)
-    local by, best = D.REPLACED_BY[id], nil
+    local by, best = D.GEAR_REPLACED_BY[id], nil
     while by do
-        local t = D.UNITS[by].tech
+        local t = D.GEAR[by].tech
         if t and not p.techs[t] then break end
-        best, by = by, D.REPLACED_BY[by]
+        best, by = by, D.GEAR_REPLACED_BY[by]
     end
     return best
+end
+
+-- Can this player give out this piece now: known, and not left behind?
+function Game:canMake(p, id)
+    local g = D.GEAR[id]
+    if not g or g.loot then return false end
+    if g.tech and not p.techs[g.tech] then return false end
+    return self:replacement(p, id) == nil
+end
+
+-- The pieces this player can give a `unit` ("band" or "ship") for a slot,
+-- in order.
+function Game:gearFor(p, unit, slot)
+    local out = {}
+    for id, g in pairs(D.GEAR) do
+        if g.unit == unit and g.slot == slot and self:canMake(p, id) then out[#out + 1] = id end
+    end
+    table.sort(out, function(a, b) return D.GEAR[a].order < D.GEAR[b].order end)
+    return out
+end
+
+-- Can this player make a `unit` carrying `gear`? (Armour is only ever taken.)
+function Game:canEquip(p, unit, gear)
+    local base = D.UNITS[unit]
+    if not base then return false end
+    if not base.geared then return next(gear) == nil end
+    if base.armed and not gear.weapon then return false end
+    if gear.armour then return false end
+    for _, slot in ipairs({ "weapon", "mount" }) do
+        local id = gear[slot]
+        if id then
+            local g = D.GEAR[id]
+            if not g or g.unit ~= unit or g.slot ~= slot or not self:canMake(p, id) then return false end
+        end
+    end
+    return true
+end
+
+-- What a `unit` is given unless the player says otherwise: the strongest
+-- weapon it can have (or the strongest shot, if `ranged`), on foot. A
+-- band is given a blade unless asked for a shot; a ship whichever is
+-- stronger.
+function Game:bestGear(p, unit, ranged)
+    if not D.UNITS[unit].geared then return {} end
+    if ranged == nil and unit == "band" then ranged = false end
+    local best, bv
+    for _, id in ipairs(self:gearFor(p, unit, "weapon")) do
+        local g = D.GEAR[id]
+        if ranged == nil or (g.ranged ~= nil) == ranged then
+            local v = g.ranged or g.str
+            if not bv or v > bv then best, bv = id, v end
+        end
+    end
+    return { weapon = best }
+end
+
+-- What a city's order is: its name and what it costs. A refit costs what
+-- the new gear costs over the old (at least 5).
+function Game:buildDef(b)
+    if b.kind ~= "unit" then return D.BUILDINGS[b.id] end
+    local def = D.unitDef(b.id, b.gear)
+    if not b.refit then return def end
+    local u = self:unitById(b.refit)
+    local was = u and u.gear and D.gearCost(u.gear) or 0
+    return { name = "REFIT " .. def.name, cost = max(5, D.gearCost(b.gear) - was), refit = true, unit = def }
+end
+
+function Game:unitById(id)
+    for _, u in ipairs(self.units) do if u.id == id then return u end end
+end
+
+-- Can u be given new gear by the city it stands in?
+function Game:canRefit(u)
+    if not u.gear or u.dead then return false end
+    local city = self.cells[u.cell].city
+    return city ~= nil and city.owner == u.owner and (u.unit ~= "ship" or self:coastal(self.cells[city.cell]))
+end
+
+-- An order to the city u stands in to give it `gear`; what is made goes
+-- into it as into anything, and it can be bought.
+function Game:refit(u, gear)
+    if not self:canRefit(u) or not self:canEquip(self.players[u.owner], u.unit, gear) then return false end
+    local city = self.cells[u.cell].city
+    -- Armour taken from the fallen is kept whatever else it is given.
+    gear = { weapon = gear.weapon, mount = gear.mount, armour = u.gear.armour }
+    city.build = { kind = "unit", id = u.unit, gear = gear, refit = u.id }
+    return true
 end
 
 -- Everything the city could build now, units then buildings, in order.
@@ -977,17 +1138,31 @@ function Game:buildable(city)
     for _, kind in ipairs({ "unit", "building" }) do
         local list = {}
         for id, def in pairs(kind == "unit" and D.UNITS or D.BUILDINGS) do
-            if self:canBuild(city, kind, id) then list[#list + 1] = { kind = kind, id = id, def = def } end
+            if self:canBuild(city, kind, id) then
+                local it = { kind = kind, id = id, def = def }
+                if def.geared then
+                    it.gear = self:bestGear(self.players[city.owner], id)
+                    it.def = D.unitDef(id, it.gear)
+                    it.order = def.order
+                end
+                list[#list + 1] = it
+            end
         end
-        table.sort(list, function(a, b) return a.def.order < b.def.order end)
+        table.sort(list, function(a, b) return (a.order or a.def.order) < (b.order or b.def.order) end)
         for _, it in ipairs(list) do out[#out + 1] = it end
     end
     return out
 end
 
-function Game:setBuild(city, kind, id)
-    if not self:canBuild(city, kind, id) then return false end
-    city.build = { kind = kind, id = id }
+-- What the city builds next: a band or a ship carrying `gear`, or the
+-- best it can if not said.
+function Game:setBuild(city, kind, id, gear)
+    if kind == "unit" and D.FORMS[id] then id, gear = D.FORMS[id].unit, D.FORMS[id].gear end
+    if kind == "unit" and D.UNITS[id] and D.UNITS[id].geared and not gear then
+        gear = self:bestGear(self.players[city.owner], id)
+    end
+    if not self:canBuild(city, kind, id, kind == "unit" and (gear or {}) or nil) then return false end
+    city.build = { kind = kind, id = id, gear = gear }
     return true
 end
 
@@ -1000,7 +1175,7 @@ end
 
 function Game:buyCost(city)
     if not city.build then return nil end
-    local def = city.build.kind == "unit" and D.UNITS[city.build.id] or D.BUILDINGS[city.build.id]
+    local def = self:buildDef(city.build)
     return ceil(max(0, def.cost - city.prod) * 2.5) + 5
 end
 
@@ -1008,8 +1183,9 @@ function Game:buy(city)
     local cost = self:buyCost(city)
     local p = self.players[city.owner]
     if not cost or p.gold < cost or city.bought then return false end
-    local def = city.build.kind == "unit" and D.UNITS[city.build.id] or D.BUILDINGS[city.build.id]
-    if city.build.kind == "unit" and not self:placeFor(city, def) then return false end
+    local def = self:buildDef(city.build)
+    if city.build.refit and not self:refitReady(city) then return false end
+    if city.build.kind == "unit" and not def.refit and not self:placeFor(city, def) then return false end
     if def.pop and city.pop <= def.pop then return false end
     p.gold = p.gold - cost
     city.prod = def.cost
@@ -1035,15 +1211,38 @@ function Game:placeFor(city, def)
     return self:freeNear(city.cell, def.civilian)
 end
 
+-- Is the unit a city is refitting there to be given its gear?
+function Game:refitReady(city)
+    local u = self:unitById(city.build.refit)
+    return u ~= nil and u.cell == city.cell and u.owner == city.owner
+end
+
 -- Finishes what the city is building, if it can: answers whether it did.
 function Game:complete(city)
     local b = city.build
+    if b.refit then
+        local u = self:unitById(b.refit)
+        if not u or u.owner ~= city.owner or u.cell ~= city.cell then
+            -- Gone, or gone off: what was made is kept for the next thing.
+            if u and u.owner == city.owner then self:tell(city.owner, "OUR " .. u.def.name .. " LEFT " .. city.name .. " BEFORE IT WAS REFITTED") end
+            city.build = nil
+            return false
+        end
+        local cost = self:buildDef(b).cost
+        local was = u.def.name
+        self:equip(u, b.gear)
+        self:tell(city.owner, city.name .. " REFITTED A " .. was .. ": NOW A " .. u.def.name)
+        self:emit({ kind = "built", cell = city.cell, unit = u })
+        city.prod = max(0, city.prod - cost)
+        city.build = nil
+        return true
+    end
     if b.kind == "unit" then
-        local def = D.UNITS[b.id]
+        local def = D.unitDef(b.id, b.gear)
         if def.pop and city.pop <= def.pop then return false end
         local at = self:placeFor(city, def)
         if not at then return false end
-        local u = self:addUnit(b.id, city.owner, at)
+        local u = self:addUnit(b.id, city.owner, at, b.gear)
         u.moves = 0
         if def.pop then
             city.pop = city.pop - def.pop
@@ -1058,7 +1257,7 @@ function Game:complete(city)
         self:tell(city.owner, city.name .. " BUILT A " .. D.BUILDINGS[b.id].name)
         self:emit({ kind = "built", cell = city.cell })
     end
-    local def = b.kind == "unit" and D.UNITS[b.id] or D.BUILDINGS[b.id]
+    local def = self:buildDef(b)
     city.prod = max(0, city.prod - def.cost)
     city.build = nil
     return true
@@ -1258,7 +1457,7 @@ function Game:finishTurn(p)
         end
         if city.build then
             city.prod = city.prod + pr
-            local def = city.build.kind == "unit" and D.UNITS[city.build.id] or D.BUILDINGS[city.build.id]
+            local def = self:buildDef(city.build)
             if city.prod >= def.cost then self:complete(city) end
         end
         city.culture = city.culture + cu
@@ -1282,12 +1481,12 @@ function Game:finishTurn(p)
             p.science = p.science - t.cost
             p.techs[t.id] = true
             p.researching = nil
-            -- A unit left behind under way becomes what took its place,
-            -- keeping what was made.
+            -- A weapon left behind, on a unit under way, becomes what took
+            -- its place, keeping what was made.
             for _, city in ipairs(self:citiesOf(p.id)) do
                 local b = city.build
-                local by = b and b.kind == "unit" and self:replacement(p, b.id)
-                if by and self:canBuild(city, "unit", by) then city.build = { kind = "unit", id = by } end
+                local by = b and b.gear and b.gear.weapon and self:replacement(p, b.gear.weapon)
+                if by then b.gear = { weapon = by, mount = b.gear.mount, armour = b.gear.armour } end
             end
             self:tell(p.id, "WE HAVE LEARNED " .. t.name)
             self:emit({ kind = "tech", player = p.id, tech = t.id })

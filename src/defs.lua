@@ -76,30 +76,150 @@ D.IMPROVEMENT = {
     boats = { name = "FISHING BOATS", food = 1, prod = 0, key = "N", tech = "sailing" },
 }
 
--- Units. `str` is melee strength (or how well it stands when it is attacked),
--- `ranged` and `range` a ranged unit's shot, `moves` its movement points.
--- `pop`: a settler takes a citizen with it. `sea`: a ship, that sails the
--- coast (and the ocean, after Cartography) and is built only by a city on
--- the water. `replaces`: once it can be built, the unit it names no longer
--- can -- a city offers only the best of each line.
+-- Units. A city trains four things: a settler, a builder, a band and a
+-- ship. What a band or a ship is comes from what it carries (D.GEAR): a
+-- band with a bow is an archer, with a bow on a horse a horse archer, and
+-- with nothing a scout. `str` is melee strength (or how well it stands when
+-- it is attacked), `ranged` and `range` a ranged unit's shot, `moves` its
+-- movement points. `pop`: a settler takes a citizen with it. `sea`: a ship,
+-- that sails the coast (and the ocean, after Cartography) and is built only
+-- by a city on the water. `bare`: what a band with no weapon is instead
+-- (lighter, and seeing further). `armed`: it always carries a weapon.
 D.UNITS = {
     settler = { name = "SETTLER", cost = 70, str = 0, moves = 2, sight = 2, civilian = true, pop = 1, order = 1 },
     builder = { name = "BUILDER", cost = 45, str = 0, moves = 2, sight = 2, civilian = true, charges = 3, order = 2 },
-    warrior = { name = "WARRIOR", cost = 40, str = 20, moves = 2, sight = 2, order = 3 },
-    scout = { name = "SCOUT", cost = 30, str = 10, moves = 3, sight = 3, order = 4 },
-    slinger = { name = "SLINGER", cost = 35, str = 5, ranged = 15, range = 2, moves = 2, sight = 2, order = 5 },
-    archer = { name = "ARCHER", cost = 60, str = 15, ranged = 25, range = 2, moves = 2, sight = 2, tech = "archery", replaces = "slinger", order = 6 },
-    spearman = { name = "SPEARMAN", cost = 65, str = 25, moves = 2, sight = 2, tech = "bronze", replaces = "warrior", order = 7 },
-    horseman = { name = "HORSEMAN", cost = 80, str = 36, moves = 4, sight = 2, tech = "horses", order = 8 },
-    swordsman = { name = "SWORDSMAN", cost = 90, str = 35, moves = 2, sight = 2, tech = "iron", replaces = "spearman", order = 9 },
-    galley = { name = "GALLEY", cost = 65, str = 25, moves = 3, sight = 2, sea = true, tech = "sailing", order = 10 },
-    quadrireme = { name = "QUADRIREME", cost = 110, str = 20, ranged = 25, range = 2, moves = 3, sight = 2, sea = true,
-        tech = "shipbuilding", order = 11 },
+    band = { name = "BAND", cost = 30, str = 10, moves = 2, sight = 2, order = 3, geared = true,
+        bare = { moves = 3, sight = 3 } },
+    ship = { name = "SHIP", cost = 45, str = 15, moves = 3, sight = 2, sea = true, tech = "sailing", order = 4,
+        geared = true, armed = true },
 }
--- What took each unit's place: D.REPLACED_BY.slinger == "archer".
-D.REPLACED_BY = {}
-for id, def in pairs(D.UNITS) do
-    if def.replaces then D.REPLACED_BY[def.replaces] = id end
+
+-- What a band or a ship carries, a piece in each `slot`. `cost`: production
+-- on top of the unit's own. A weapon sets `str` (and `ranged`/`range`); a
+-- mount or armour adds `plus` to it, and a mount sets `moves`. `tech`: what
+-- has to be known to give it out (taken from the fallen, it needs nothing).
+-- `replaces`: once it can be given out, the piece it names no longer is --
+-- the bow the sling, the spear the club and the sword the spear. `loot`:
+-- only ever taken, never made. `form`: what a unit carrying it is called,
+-- on foot and (`mounted`) on a horse.
+D.GEAR = {
+    club = { name = "CLUB", slot = "weapon", unit = "band", cost = 10, str = 20, order = 1,
+        form = "warrior", mounted = "horseman" },
+    sling = { name = "SLING", slot = "weapon", unit = "band", cost = 5, str = 5, ranged = 15, range = 2, order = 2,
+        form = "slinger", mounted = "mountedslinger" },
+    bow = { name = "BOW", slot = "weapon", unit = "band", cost = 30, str = 15, ranged = 25, range = 2, order = 3,
+        tech = "archery", replaces = "sling", form = "archer", mounted = "horsearcher" },
+    spear = { name = "SPEAR", slot = "weapon", unit = "band", cost = 35, str = 25, order = 4,
+        tech = "bronze", replaces = "club", form = "spearman", mounted = "lancer" },
+    sword = { name = "SWORD", slot = "weapon", unit = "band", cost = 60, str = 35, order = 5,
+        tech = "iron", replaces = "spear", form = "swordsman", mounted = "knight" },
+    horse = { name = "HORSE", slot = "mount", unit = "band", cost = 40, plus = 10, moves = 4, order = 6,
+        tech = "horses" },
+    hide = { name = "BEAR HIDE", slot = "armour", unit = "band", cost = 0, plus = 3, order = 7, loot = true },
+    ram = { name = "RAM", slot = "weapon", unit = "ship", cost = 20, str = 25, order = 8, form = "galley" },
+    bolt = { name = "BOLT THROWER", slot = "weapon", unit = "ship", cost = 65, str = 20, ranged = 25, range = 2,
+        order = 9, tech = "shipbuilding", form = "quadrireme" },
+}
+D.SLOTS = { "weapon", "mount", "armour" }
+-- What took each piece's place: D.GEAR_REPLACED_BY.sling == "bow".
+D.GEAR_REPLACED_BY = {}
+for id, g in pairs(D.GEAR) do
+    if g.replaces then D.GEAR_REPLACED_BY[g.replaces] = id end
+end
+-- What a band is called with no weapon, on foot and on a horse.
+D.BARE = { form = "scout", mounted = "rider" }
+-- Every form a unit can take, by its name, and what it is and carries:
+-- D.FORMS.archer == { unit = "band", gear = { weapon = "bow" } }. A unit's
+-- `kind` is its form (or "settler" or "builder"), so it can be looked up
+-- by what it is called.
+D.FORMS = { scout = { unit = "band", gear = {} }, rider = { unit = "band", gear = { mount = "horse" } } }
+for id, g in pairs(D.GEAR) do
+    if g.form then D.FORMS[g.form] = { unit = g.unit, gear = { weapon = id } } end
+    if g.mounted then D.FORMS[g.mounted] = { unit = g.unit, gear = { weapon = id, mount = "horse" } } end
+end
+-- Their names, as the news and the panels say them.
+D.FORM_NAMES = {
+    scout = "SCOUT", rider = "RIDER", warrior = "WARRIOR", horseman = "HORSEMAN", slinger = "SLINGER",
+    mountedslinger = "MOUNTED SLINGER", archer = "ARCHER", horsearcher = "HORSE ARCHER", spearman = "SPEARMAN",
+    lancer = "LANCER", swordsman = "SWORDSMAN", knight = "KNIGHT", galley = "GALLEY", quadrireme = "QUADRIREME",
+}
+
+-- The form of a unit of `unit` ("band", "ship", ...) carrying `gear`.
+function D.formOf(unit, gear)
+    local base = D.UNITS[unit]
+    if not base.geared then return unit end
+    gear = gear or {}
+    local w = gear.weapon and D.GEAR[gear.weapon]
+    local mounted = gear.mount ~= nil
+    if not w then return mounted and D.BARE.mounted or D.BARE.form end
+    return mounted and w.mounted or w.form
+end
+
+-- What a unit of `unit` carrying `gear` is: its numbers put together, kept
+-- once for each way of carrying. `kind` is its form, `unit` and `gear` what
+-- it was made from.
+local defs = {}
+function D.unitDef(unit, gear)
+    local base = assert(D.UNITS[unit], unit)
+    if not base.geared then return base end
+    gear = gear or {}
+    local key = unit .. ":" .. (gear.weapon or "") .. ":" .. (gear.mount or "") .. ":" .. (gear.armour or "")
+    local def = defs[key]
+    if def then return def end
+    def = {}
+    for k, v in pairs(base) do def[k] = v end
+    def.bare, def.geared, def.armed = nil, nil, nil
+    def.unit, def.gear = unit, { weapon = gear.weapon, mount = gear.mount, armour = gear.armour }
+    def.kind = D.formOf(unit, gear)
+    def.name = D.FORM_NAMES[def.kind] or def.kind:upper()
+    local w = gear.weapon and D.GEAR[gear.weapon]
+    if w then
+        def.str, def.ranged, def.range = w.str, w.ranged, w.range
+        def.cost = def.cost + w.cost
+    elseif base.bare then
+        for k, v in pairs(base.bare) do def[k] = v end
+        def.scout = true
+    end
+    for _, slot in ipairs({ "mount", "armour" }) do
+        local g = gear[slot] and D.GEAR[gear[slot]]
+        if g then
+            def.str = def.str + (g.plus or 0)
+            def.cost = def.cost + g.cost
+            if g.moves then def.moves = g.moves end
+        end
+    end
+    def.mounted = gear.mount ~= nil or nil
+    def.hide = gear.armour ~= nil or nil
+    defs[key] = def
+    return def
+end
+
+-- A unit's own copy of what it carries.
+function D.copyGear(g)
+    return { weapon = g and g.weapon, mount = g and g.mount, armour = g and g.armour }
+end
+
+-- The gear's cost alone, on top of the unit's own.
+function D.gearCost(gear)
+    local n = 0
+    for _, slot in ipairs(D.SLOTS) do
+        local g = gear and gear[slot] and D.GEAR[gear[slot]]
+        if g then n = n + g.cost end
+    end
+    return n
+end
+
+-- Rank, from the fights a unit has come through (`xp`): kept by the unit
+-- whatever it carries, so a band that has seen much stays worth keeping.
+-- An attack it lives through is a point, a kill two.
+D.RANKS = {
+    { xp = 3, name = "VETERAN", str = 2 },
+    { xp = 8, name = "ELITE", str = 4 },
+}
+function D.rank(xp)
+    local r
+    for _, k in ipairs(D.RANKS) do if (xp or 0) >= k.xp then r = k end end
+    return r
 end
 
 -- The wild: animals that are on the map for the rules, not only the screen
@@ -118,7 +238,7 @@ D.BEASTS = {
     wolf = { name = "WOLF", str = 16, moves = 2, sight = 2, temper = "hostile", lives = "land", leash = 3, sense = 2,
         night = 6, loot = { gold = 15 }, beast = true },
     bear = { name = "BEAR", str = 30, moves = 1, sight = 2, temper = "hostile", lives = "land", leash = 2, sense = 2,
-        loot = { gold = 25, culture = 5 }, beast = true },
+        loot = { gold = 25, culture = 5, gear = "hide" }, beast = true },
     croc = { name = "CROCODILE", str = 22, moves = 1, sight = 1, temper = "hostile", lives = "river", leash = 2, sense = 1,
         across = true, loot = { gold = 20 }, beast = true },
     serpent = { name = "SEA SERPENT", str = 38, moves = 3, sight = 2, temper = "hostile", lives = "ocean", leash = 5,
