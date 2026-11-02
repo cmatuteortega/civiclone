@@ -278,7 +278,8 @@ end
 -- for the shaders, which are sent it after.
 function Pest.draw()
     local g = S.game
-    S.overcast = Pest.pall(g)
+    -- And the clouds gathering before a spell of weather (src/weather.lua).
+    S.overcast = math.max(Pest.pall(g), g and require("src.weather").overcast(g) or 0)
     if not on(g) or not S.world or Sea.still() then return end
     local me = g.players[1]
     local t = Sea.air()

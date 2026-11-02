@@ -984,13 +984,24 @@ river, how to tame it). Over a lair it says how to clear it.
 
 The sky has its own moods (`src/weather.lua`, numbers in `D.WEATHER`).
 From turn 6, after at least five turns of fair weather, each turn has a
-12% chance of bringing a short spell over the whole map:
+12% chance of bringing a short spell over the whole map.
 
-- **Rain**, 3 to 5 turns: every farm yields **+1 food**.
+- **Clouds gather** the turn before a spell begins: the sky clouds over, the
+  top bar says `CLOUDS`, and the news says what is coming -- rain, or a
+  storm, with word to bring the ships into port.
+- **Rain**, 3 to 5 turns: every farm yields **+1 food**, and each fire
+  burning has an even chance a turn of **going out**, the land under it
+  saved -- whatever lit it: the heat's wildfires, the falling stones, the
+  volcanoes. In the heat death no new fires start while it rains.
 - **A storm**, about a third of the time: a turn of rain, 2 or 3 turns of
-  storm, a turn of rain. In the storm farms still yield +1 food, but
-  **mines yield 1 less production**, **fishing boats 1 less food** (they
-  stay in harbour), and **every unit sees 1 hex less far** (never under 1).
+  storm, a turn of rain. In the storm it still rains (farms +1 food, fires
+  doused), but **mines yield 1 less production**, **fishing boats 1 less
+  food** (they stay in harbour), **every unit sees 1 hex less far** (never
+  under 1), and the sea batters whoever is out on it: each **ship loses 25
+  health** a storm turn and each **unit in a boat 35**, and sinks if that is
+  all it had. A ship is **in port**, and safe, on or beside a city of its
+  own, or within **3 hexes of one with a harbour**. The rival
+  civilizations' ships make for port when they see a storm coming.
 
 The news tells as a spell begins and as the sky clears, and the top bar
 shows it beside the research, with the turns of it left (`RAIN 3`,
@@ -999,8 +1010,12 @@ heavy enough for lightning and thunder.
 
 The weather has its own dice, from the map's seed and the turn, so it is
 the same for the same seed and does not change the rest of the game's luck.
-Once a cataclysm's omen comes, the sky is the cataclysm's and the weather
-stays fair.
+
+Once a cataclysm begins, the sky is the cataclysm's. But in the stages that
+burn -- the heat death up to the wildfires (not the scorch), the sky's
+falling until the long night, and the whole of the shattering -- spells of
+rain still come, half as often and never a storm. The deluge, the still
+sun, the abyss and the plague keep the sky to themselves from the omen on.
 
 ## The heat death
 

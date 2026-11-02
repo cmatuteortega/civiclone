@@ -392,6 +392,8 @@ local function fires(game, stage)
     -- New fires, where it is hot: forests most (none but the heat's own
     -- stages start them).
     local n = H.ignite[stage] or 0
+    -- Not in the rain (src/weather.lua).
+    if not require("src.weather").kindling(game) then n = 0 end
     if n > 0 then
         local scorch = stage == "scorch"
         local starts = pick(game, function(cell)

@@ -476,19 +476,35 @@ D.BUILDINGS = {
 D.SHELTER = { harm = 0.5, stores = 1, skyStores = 2 }
 
 -- The weather (src/weather.lua): short spells of rain and storm that come
--- and go over the whole map, until a cataclysm's omen, when the sky is the
--- cataclysm's. After `calm` turns of fair weather, each turn a spell begins
--- with chance `chance` (from turn `from`). A spell is `storm` likely to be
--- a storm: `lead` turns of rain, `storm` turns of storm (a range), then
--- `tail` of rain; otherwise `rain` turns of rain (a range).
---   rain   farms yield `farmFood` more food.
---   storm  farms still do; mines yield `mineProd` less production, fishing
---          boats `boatsFood` less food (they stay in harbour), and every
---          unit sees `blind` hexes less (never under 1).
+-- and go over the whole map. After `calm` turns of fair weather, each turn
+-- the clouds gather with chance `chance` (from turn `from`), and the spell
+-- begins the turn after. A spell is `stormChance` likely to be a storm:
+-- `lead` turns of rain, `storm` turns of storm (a range), then `tail` of
+-- rain; otherwise `rain` turns of rain (a range).
+--   clouds the sky `overcast` (the shaders' cloud), and word of what comes.
+--   rain   farms yield `farmFood` more food; each fire burning goes out
+--          with chance `douse` a turn, and the heat's own fires don't start.
+--   storm  as rain, and mines yield `mineProd` less production, fishing
+--          boats `boatsFood` less food (they stay in harbour), every unit
+--          sees `blind` hexes less (never under 1), and each ship out at sea
+--          loses `shipHit` health a turn, each unit in a boat `boatHit`,
+--          unless in port: within `haven` hexes of a city of its own, or
+--          `harbour` hexes of one with a harbour.
+-- Once a cataclysm begins the sky is its own, but in the stages in `open`
+-- (those that burn) the weather goes on: rain only, `cataclysmChance` as
+-- often.
 D.WEATHER = {
     from = 6, calm = 5, chance = 0.12, stormChance = 0.35,
     rain = { 3, 5 }, lead = 1, storm = { 2, 3 }, tail = 1,
     farmFood = 1, mineProd = 1, boatsFood = 1, blind = 1,
+    overcast = 0.6, douse = 0.5,
+    shipHit = 25, boatHit = 35, haven = 1, harbour = 3,
+    cataclysmChance = 0.5,
+    open = {
+        heat = { omen = true, drought = true, fires = true },
+        sky = { omen = true, starfall = true, bombard = true },
+        quake = { omen = true, tremors = true, rift = true, fire = true },
+    },
 }
 
 -- The heat death: the cataclysm that ends the game (src/cataclysm.lua).

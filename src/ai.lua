@@ -9,6 +9,7 @@
 local Mapgen = require "src.mapgen"
 local D = require "src.defs"
 local Cat = require "src.cataclysm"
+local Weather = require "src.weather"
 local Sky = require "src.skyfall"
 local Quake = require "src.quake"
 local Demons = require "src.demons"
@@ -406,6 +407,20 @@ end
 -- when the army marches, and otherwise chart the coast.
 local function ship(game, p, u, attacking)
     if strike(game, u) then return end
+    -- A storm coming (src/weather.lua): into port, the nearest of its
+    -- cities it can sail into.
+    local here = game.cells[u.cell]
+    if Weather.stormAhead(game) and Weather.exposed(game, u, here) then
+        local best, bd
+        for _, c in ipairs(game:citiesOf(p.id)) do
+            local cell = game.cells[c.cell]
+            if game:canEnter(u, cell) and not game.mil[c.cell] then
+                local d = game:dist(here, cell)
+                if not bd or d < bd then best, bd = cell, d end
+            end
+        end
+        if best and march(game, u, best) then return end
+    end
     if u.hp < 50 then
         for _, c in ipairs(game:citiesOf(p.id)) do
             if game:canEnter(u, game.cells[c.cell]) and not game.mil[c.cell] then
