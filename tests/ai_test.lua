@@ -21,9 +21,7 @@ end
 return {
     { "once the cataclysm is foretold, research makes for its ward", function()
         local g, p = foretold("heat", 2)
-        assert(AI.research(g, p) == "mining", "irrigation's first step, for the cistern")
-        p.techs.mining = true
-        assert(AI.research(g, p) == "masonry", "then masonry")
+        assert(AI.research(g, p) == "masonry", "foundations, the first step to channeling, for the cistern")
         p.techs.masonry = true
         assert(AI.research(g, p) == "irrigation", "then the cistern's own")
         p.techs.irrigation = true

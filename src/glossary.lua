@@ -159,8 +159,8 @@ page("yield.culture", "yield", "CULTURE", function() return {
 --- the land ---------------------------------------------------------------------
 
 local LAND_SAYS = {
-    ocean = "DEEP WATER: ONLY SHIPS SAIL IT, AND ONLY AFTER CARTOGRAPHY.",
-    coast = "SHALLOW WATER BY THE LAND. SHIPS SAIL IT; AFTER SAILING, LAND UNITS EMBARK ONTO IT.",
+    ocean = "DEEP WATER: ONLY SHIPS SAIL IT, AND ONLY AFTER WAYFINDING.",
+    coast = "SHALLOW WATER BY THE LAND. SHIPS SAIL IT; AFTER CROSSING, LAND UNITS EMBARK ONTO IT.",
     grass = "THE BEST LAND FOR FOOD.",
     plains = "FOOD AND PRODUCTION BOTH.",
     desert = "BARREN, BUT GOOD ON A RIVER.",
@@ -250,7 +250,7 @@ for _, id in ipairs(FORM_ORDER) do
             local def = D.unitDef(f.unit, f.gear)
             local weapon, mount = D.GEAR[f.gear.weapon], D.GEAR[f.gear.mount]
             local out = {}
-            if def.sea then out[#out + 1] = "A SHIP. A CITY ON THE WATER BUILDS IT, AFTER SAILING."
+            if def.sea then out[#out + 1] = "A SHIP. A CITY ON THE WATER BUILDS IT, AFTER CROSSING."
             elseif not weapon then out[#out + 1] = "A BAND WITH NO WEAPON: LIGHT AND FAR-SEEING, FOR EXPLORING."
             else out[#out + 1] = L("A BAND CARRYING A {1}", weapon.name) end
             if mount then out[#out + 1] = "ON A HORSE" end

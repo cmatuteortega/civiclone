@@ -591,13 +591,20 @@ local function nodeWidth()
     return w
 end
 
+-- The column of path names (D.PATHS) on the tree's left.
+local function pathWidth()
+    local w = 0
+    for _, path in ipairs(D.PATHS) do w = max(w, Font.width(L(path.name))) end
+    return w + 6
+end
+
 local TIERS, ROWS = 0, 0
 for _, t in ipairs(D.TECHS) do TIERS, ROWS = max(TIERS, t.tier), max(ROWS, t.row + 1) end
 
 -- The tree's size, and whether the screen has room for it.
 local function treeSize()
     local nw = nodeWidth()
-    local w = PAD * 2 + TIERS * nw + (TIERS - 1) * GAP
+    local w = PAD * 2 + pathWidth() + TIERS * nw + (TIERS - 1) * GAP
     local h = Win.BAR + 4 + floor((ROWS - 1) * PITCH) + NODE_H + 4 + 12
     return w, h, nw
 end
@@ -630,7 +637,7 @@ end
 
 -- Where each technology sits in the tree, its left and top.
 local function treeAt(t, x, y, nw)
-    return x + PAD + (t.tier - 1) * (nw + GAP), y + 4 + floor(t.row * PITCH)
+    return x + PAD + pathWidth() + (t.tier - 1) * (nw + GAP), y + 4 + floor(t.row * PITCH)
 end
 
 local function treeBody(x, y, w, nw)
@@ -672,6 +679,9 @@ local function treeBody(x, y, w, nw)
     for _, t in ipairs(D.TECHS) do
         local nx, ny = treeAt(t, x, y, nw)
         treeNode(g, p, sci, t, nx, ny, nw)
+    end
+    for _, path in ipairs(D.PATHS) do
+        text("c", L(path.name), x + PAD, y + 4 + floor(path.row * PITCH) + 3)
     end
     -- At the foot, where research is making for.
     local fy = y + 4 + floor((ROWS - 1) * PITCH) + NODE_H + 4
@@ -783,7 +793,7 @@ local function tooltip()
                 if d.across then lines[#lines + 1] = L"STRIKES WHAT CROSSES ITS RIVER" end
                 if d.tame then
                     lines[#lines + 1] = me().techs[d.tame] and L"COME NEXT TO THEM WITH A SOLDIER TO TAME THEM"
-                        or L"HORSEBACK RIDING TAMES THEM"
+                        or L"TAMING LETS YOU TAME THEM"
                 end
             elseif u and u.owner ~= 1 then
                 lines[#lines + 1] = L("civ|{1} {2}", g.players[u.owner].name, u.def.name) .. " " .. L("{1}HP", u.hp)

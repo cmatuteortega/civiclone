@@ -335,7 +335,7 @@ Help.HINTS = {
         says = function() return L("{1} GOES TO THE NEXT UNIT THAT NEEDS ORDERS, AND ENDS THE TURN WHEN NONE DO. SO DOES THE BUTTON AT THE BOTTOM RIGHT.", k("main")) end },
     { id = "builder",
         when = function(g, p) return owns(g, p, function(u) return u.kind == "builder" end) end,
-        says = function() return L("A BUILDER IMPROVES YOUR LAND: ON A HEX OF YOURS, {1} BUILDS A FARM, AND {2} A MINE ON HILLS ONCE YOU KNOW MINING.", k("farm"), k("mine")) end },
+        says = function() return L("A BUILDER IMPROVES YOUR LAND: ON A HEX OF YOURS, {1} BUILDS A FARM, AND {2} A MINE ON HILLS ONCE YOU KNOW DELVING.", k("farm"), k("mine")) end },
     { id = "enemy",
         when = function(g, p)
             for _, u in ipairs(g.units) do

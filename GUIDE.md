@@ -226,7 +226,7 @@ a line from each to what it leads to. Each shows its cost and a little
 picture for everything it unlocks; hover over one for the names, what it
 needs and what it leads to. Click an available one to research it, or one
 further on to queue the whole way to it: each is researched in turn, and the
-top bar shows where research is heading (`POTTERY 21/25 (1) > CARTOGRAPHY`).
+top bar shows where research is heading (`KEEPING 21/25 (1) > WAYFINDING`).
 Once the cataclysm is foretold, a star marks the technologies with a ward
 against it. On a screen too narrow for the tree it is a list, a branch at a
 time, each indented under the one it needs.
@@ -309,7 +309,7 @@ the mountains, and the still sun's endless day thaws it.
 | Plains | 1 | 1 | 0 | 1 | 0 |
 | Desert | 0 | 0 | 0 | 1 | 0 |
 | Coast | 1 | 0 | 1 | 1 by sea (see [The sea](#the-sea)) | — |
-| Ocean | 1 | 0 | 0 | 1 by sea, after Cartography | — |
+| Ocean | 1 | 0 | 0 | 1 by sea, after Wayfinding | — |
 | **+ Hills** | +0 | +1 | +0 | +1 | +3 |
 | **+ Forest** | +0 | +1 | +0 | +1 | +3 |
 | Mountains | 0 | 0 | 0 | impassable | — |
@@ -424,7 +424,7 @@ archer, and with nothing a scout. Research opens new gear, not new units.
 | Settler | 70 | — | 2 | 2 | A city of 2+ citizens; costs 1 citizen |
 | Builder | 45 | — | 2 | 2 | — (3 builds) |
 | Band | 30 + its gear | 10 (with no weapon) | 2 (3 with no weapon) | 2 (3 with no weapon) | — |
-| Ship | 45 + its weapon | 15 | 3 | 2 | Sailing; a city on the water |
+| Ship | 45 + its weapon | 15 | 3 | 2 | Crossing; a city on the water |
 
 **Gear.** One weapon, and for a band a mount; armour is only ever taken.
 
@@ -432,13 +432,13 @@ archer, and with nothing a scout. Research opens new gear, not new units.
 | --- | --- | --- | --- | --- | --- |
 | Club | Band | 10 | Strength 20 | — | — |
 | Sling | Band | 5 | Strength 5, ranged 15 / 2 | — | — |
-| Bow | Band | 30 | Strength 15, ranged 25 / 2 | Archery | Sling |
-| Spear | Band | 35 | Strength 25 | Bronze Working | Club |
-| Sword | Band | 60 | Strength 35 | Iron Working | Spear |
-| Horse | Band | 40 | +10 strength, 4 moves | Horseback Riding | — |
+| Bow | Band | 30 | Strength 15, ranged 25 / 2 | Aiming | Sling |
+| Spear | Band | 35 | Strength 25 | Smelting | Club |
+| Sword | Band | 60 | Strength 35 | Tempering | Spear |
+| Horse | Band | 40 | +10 strength, 4 moves | Taming | — |
 | Bear hide | Band | — | +3 strength | Only taken from a bear | — |
 | Ram | Ship | 20 | Strength 25 | — | — |
-| Bolt thrower | Ship | 65 | Strength 20, ranged 25 / 2 | Shipbuilding | — |
+| Bolt thrower | Ship | 65 | Strength 20, ranged 25 / 2 | Anchorage | — |
 
 **What a band is called**, by its weapon, on foot and on a horse:
 
@@ -459,7 +459,7 @@ A ship with a ram is a **galley** (65); with a bolt thrower a
   buttons under what the city is building changes it: NONE, each weapon you
   can make, and HORSE on or off. The cost and the turns follow.
 - **Lines:** a piece gives way to the one that takes its place. Once you know
-  Archery no city offers the sling; the spear takes the club's place, and the
+  Aiming no city offers the sling; the spear takes the club's place, and the
   sword the spear's. What a city had under way is given the new piece,
   keeping the production put into it. Units already on the map keep theirs.
 - **Refitting:** a band (or a ship, in a city on the water) standing in a
@@ -493,7 +493,7 @@ A ship with a ram is a **galley** (65); with a bolt thrower a
   | Inside your borders | 15 |
   | In one of your cities | 20 |
 
-  Twice as much once you know Medicine.
+  Twice as much once you know Mending.
 
 - **Upkeep:** you get 2 free units, plus 1 per city. Each unit beyond that
   costs 1 gold a turn.
@@ -501,7 +501,7 @@ A ship with a ram is a **galley** (65); with a bolt thrower a
 ## Movement
 
 - **Cost:** entering a hex costs 1, plus 1 for hills, plus 1 for forest.
-  Mountains cannot be entered, nor water until Sailing (see [The sea](#the-sea)).
+  Mountains cannot be entered, nor water until Crossing (see [The sea](#the-sea)).
 - **Rivers:** a step across a river takes all the unit's remaining moves, as
   embarking does, unless the hex on either side is a city, whose bridge
   carries it over. The pointer's tooltip says FORDING THE RIVER on such a step.
@@ -558,7 +558,7 @@ formula reversed. Ranged attackers take nothing back.
 | --- | --- |
 | Strength | 12 + 2 per citizen, or the garrisoned unit's strength + 2 if higher; +10 with walls |
 | HP | 200 (+100 with walls) |
-| Healing | 20 HP a turn (40 once you know Medicine) |
+| Healing | 20 HP a turn (40 once you know Mending) |
 
 - **Attacking a city:** an attack on a city hits the city itself, not the
   units inside.
@@ -650,21 +650,21 @@ more, **3** at most:
 | Building | Cost | Effect | Needs |
 | --- | --- | --- | --- |
 | Monument | 50 | +2 culture | — |
-| Granary | 65 | +2 food | Pottery |
-| Library | 90 | +2 science | Writing |
-| Market | 100 | +4 gold | Currency |
-| Walls | 80 | +10 strength, +100 HP, the city shoots | Masonry |
-| Harbour | 90 | +1 food on each worked water hex | Shipbuilding; a city on the water |
-| Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
-| Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less. The same against the day of [the still sun](#the-still-sun) | Irrigation; only in the heat death or under the still sun |
-| Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less, and the city holds through the first rising of the great flood (not the second). Against the waves of [the shattering](#the-shattering): a wave does the city no harm | Irrigation; only in the deluge or the shattering |
-| Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge; a quarter once you know Engineering, and half that again with walls once you know Fortification), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Mining; only when there is a cataclysm |
-| Sanctum | 70 | Against [the demons](#the-abyss): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Mysticism; only against the demons |
-| Hearth | 70 | Against the night of [the still sun](#the-still-sun): its land freezes a quarter as fast, its farms keep their food through the night, its people go 2 less cold. The same against the long night of [the sky's falling](#the-sky-falls) | Pottery; only under the still sun or the falling sky |
-| Lazaret | 70 | Against [the plague](#the-plague): half as many of its sick die, it mends sooner (+12% a turn), and its people go hungry 1 less, sick or well | Writing; only in the plague |
-| Buttress | 70 | Against [the shattering](#the-shattering): a quake does it half the harm, brings none of its buildings down and kills half as many, the great quake none; no fault opens on its land, and its people fear 2 less | Masonry; only in the shattering |
-| Storehouse | 80 | +1 food; spares 2 food a turn of whatever hunger the cataclysm brings (thirst, fever, cold, dread, sickness, fear). Not a ward: built at any time | Preserving |
-| Observatory | 110 | +3 science | Astronomy |
+| Granary | 65 | +2 food | Keeping |
+| Library | 90 | +2 science | Remembering |
+| Market | 100 | +4 gold | Barter |
+| Walls | 80 | +10 strength, +100 HP, the city shoots | Foundations |
+| Harbour | 90 | +1 food on each worked water hex | Anchorage; a city on the water |
+| Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Wayfinding; a city on the water |
+| Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less. The same against the day of [the still sun](#the-still-sun) | Channeling; only in the heat death or under the still sun |
+| Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less, and the city holds through the first rising of the great flood (not the second). Against the waves of [the shattering](#the-shattering): a wave does the city no harm | Channeling; only in the deluge or the shattering |
+| Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge; a quarter once you know Bracing, and half that again with walls once you know Holding Fast), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Delving; only when there is a cataclysm |
+| Sanctum | 70 | Against [the demons](#the-abyss): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Omens; only against the demons |
+| Hearth | 70 | Against the night of [the still sun](#the-still-sun): its land freezes a quarter as fast, its farms keep their food through the night, its people go 2 less cold. The same against the long night of [the sky's falling](#the-sky-falls) | Keeping; only under the still sun or the falling sky |
+| Lazaret | 70 | Against [the plague](#the-plague): half as many of its sick die, it mends sooner (+12% a turn), and its people go hungry 1 less, sick or well | Remembering; only in the plague |
+| Buttress | 70 | Against [the shattering](#the-shattering): a quake does it half the harm, brings none of its buildings down and kills half as many, the great quake none; no fault opens on its land, and its people fear 2 less | Foundations; only in the shattering |
+| Storehouse | 80 | +1 food; spares 2 food a turn of whatever hunger the cataclysm brings (thirst, fever, cold, dread, sickness, fear). Not a ward: built at any time | Provisioning |
+| Observatory | 110 | +3 science | Skyreading |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
@@ -754,8 +754,8 @@ out, the builder is gone.
 | Improvement | Where | Bonus | Needs |
 | --- | --- | --- | --- |
 | Farm | Flat grassland or plains without forest | +1 food (+2 beside a river) | — |
-| Mine | Hills, or a hex with stone, gems or star iron (not while its crater is hot) | +2 production | Mining |
-| Fishing boats | Fish, the builder rowed out onto it | +1 food | Sailing |
+| Mine | Hills, or a hex with stone, gems or star iron (not while its crater is hot) | +2 production | Delving |
+| Fishing boats | Fish, the builder rowed out onto it | +1 food | Crossing |
 
 Building a new improvement replaces the old one. A farm shows as furrows and
 a barn with a haystack. A mine is put together from what the mines round it
@@ -799,7 +799,7 @@ builds. The unit panel shows the button for a work only where it can be done
 | Chop | C | A forest inside your borders, not burning or blighted | Fells it: **20 production** to the city whose land it is, stumps left (FELLED). The land can then be farmed. A fire takes a forest 40% of the time, other ground 8% |
 | Firebreak | X | Your grassland, grain or farm that could burn, not a forest | Cuts and burns it back: the farm and grain are gone, grassland goes to plains, and **it never catches fire**. Sowing a farm on it again makes it able to burn again |
 | Douse | Q | A fire on its hex or beside it, inside your borders or out | Every fire there burns **2 turns less**; a fire by a river, the coast or in a cistern's city's land **goes out at once**. A fire put out leaves what burning out would (stumps, no farm, plains) |
-| Mend | Y | Your hex hurt by a cataclysm (one hurt per work, in this order) | **Blight** burnt off (only out of every rift's and the citadel's reach); **baked earth** watered back to plains (by a river or in a cistern's city's land); **black rock** broken up (its obsidian lost); a **cold crater** filled (not one with star iron in it); the **ash** dug in (the volcanic soil at once); a **marsh** drained to grassland (needs Irrigation) |
+| Mend | Y | Your hex hurt by a cataclysm (one hurt per work, in this order) | **Blight** burnt off (only out of every rift's and the citadel's reach); **baked earth** watered back to plains (by a river or in a cistern's city's land); **black rock** broken up (its obsidian lost); a **cold crater** filled (not one with star iron in it); the **ash** dug in (the volcanic soil at once); a **marsh** drained to grassland (needs Channeling) |
 
 Lava, chasms, the rift, drowned land, salt flats, snow and sea ice can't be
 mended. A builder that douses a fire it stands in still takes the fire's
@@ -812,24 +812,37 @@ researched. When it reaches the cost, the technology is learned and the
 rest carries over. Science made while nothing is chosen is not lost: it
 waits for the next choice.
 
-The technologies grow from three roots: Pottery, Mining and Archery.
-Currency joins two branches, needing both Writing and Bronze Working.
+The technologies are named for ways of getting through, not for trades,
+and grow along five **paths**, named on the left of the research tree
+(`D.PATHS`):
+
+| Path | What it is | Technologies |
+| --- | --- | --- |
+| **Reach** | The water and what lies past it | Keeping → Crossing → Anchorage → Wayfinding |
+| **Memory** | What is known and handed down | Keeping → Remembering → Omens → Skyreading, Mending; Barter |
+| **Shelter** | Digging in and hardening | Delving → Smelting → Tempering → Bracing → Holding Fast |
+| **Larder** | Keeping and sharing out the land's food | Foundations → Channeling → Provisioning → Frugality |
+| **Instinct** | The body and the beasts | Aiming → Taming |
+
+There are four roots: Keeping (the root of both reach and memory), Delving,
+Foundations and Aiming. Barter joins two paths, needing both Remembering and
+Smelting.
 
 A technology costs more the wider the civilization: the cost below, and 8%
 more of it for every city past the first (`D.RESEARCH`, `Game:techCost`), so
 5 cities pay 132% and 10 cities 172%. The research tree and the top bar
 show what it costs you now.
 
-The fourth and fifth columns are the **late crafts**, the handiwork of the
+The last two technologies on three of the paths are the **late crafts**, the handiwork of the
 early tree grown into ways of keeping alive through the end, whatever end it
-is. They come in three ways, two deep:
+is. They lie along three of the paths, two deep:
 
-- **The larder**: Preserving (the storehouse), then Rationing (the
+- **The larder**: Provisioning (the storehouse), then Frugality (the
   cataclysm's hunger only ever eats what a city has to spare: it never
   starves).
-- **The shelter**: Engineering (a shelter takes a quarter of the blows, not
-  half), then Fortification (walls halve the blows again).
-- **Lore**: Astronomy (the observatory) and Medicine (units and cities heal
+- **The shelter**: Bracing (a shelter takes a quarter of the blows, not
+  half), then Holding Fast (walls halve the blows again).
+- **Memory**: Skyreading (the observatory) and Mending (units and cities heal
   twice as fast).
 
 They are dear on purpose. Measured over all-AI games, a strong civilization
@@ -841,36 +854,36 @@ length stays as it is.
 
 | Technology | Cost | Needs | Unlocks |
 | --- | --- | --- | --- |
-| Pottery | 25 | — | Granary, Hearth |
-| Sailing | 40 | Pottery | Ships, fishing boats, embarking |
-| Shipbuilding | 70 | Sailing | Bolt thrower, Harbour |
-| Cartography | 90 | Shipbuilding | Lighthouse, the open ocean |
-| Writing | 50 | Pottery | Library, Lazaret |
-| Mysticism | 45 | Writing | Sanctum |
-| Currency | 80 | Writing, Bronze Working | Market |
-| Mining | 25 | — | Mines, Shelter |
-| Bronze Working | 55 | Mining | Spear |
-| Iron Working | 100 | Bronze Working | Sword |
-| Masonry | 40 | Mining | Walls, Buttress |
-| Irrigation | 50 | Masonry | Cistern, Levee, draining marshes |
-| Archery | 35 | — | Bow |
-| Horseback Riding | 60 | Archery | Horse |
-| Astronomy | 150 | Mysticism | Observatory |
-| Medicine | 170 | Mysticism | Units and cities heal twice as fast |
-| Engineering | 180 | Iron Working | A shelter takes a quarter of the harm, not half |
-| Preserving | 160 | Irrigation | Storehouse |
-| Fortification | 240 | Engineering | Walls halve the cataclysm's blows on their city |
-| Rationing | 240 | Preserving | The cataclysm's hunger never starves a city |
+| Keeping | 25 | — | Granary, Hearth |
+| Crossing | 40 | Keeping | Ships, fishing boats, embarking |
+| Anchorage | 70 | Crossing | Bolt thrower, Harbour |
+| Wayfinding | 90 | Anchorage | Lighthouse, the open ocean |
+| Remembering | 50 | Keeping | Library, Lazaret |
+| Omens | 45 | Remembering | Sanctum |
+| Barter | 80 | Remembering, Smelting | Market |
+| Delving | 25 | — | Mines, Shelter |
+| Smelting | 55 | Delving | Spear |
+| Tempering | 100 | Smelting | Sword |
+| Foundations | 40 | — | Walls, Buttress |
+| Channeling | 50 | Foundations | Cistern, Levee, draining marshes |
+| Aiming | 35 | — | Bow |
+| Taming | 60 | Aiming | Horse |
+| Skyreading | 150 | Omens | Observatory |
+| Mending | 170 | Omens | Units and cities heal twice as fast |
+| Bracing | 180 | Tempering | A shelter takes a quarter of the harm, not half |
+| Provisioning | 160 | Channeling | Storehouse |
+| Holding Fast | 240 | Bracing | Walls halve the cataclysm's blows on their city |
+| Frugality | 240 | Provisioning | The cataclysm's hunger never starves a city |
 
 ## The sea
 
 **Ships** (galley, quadrireme) are built only by a city beside water, and come
 out on the coast next to it. They sail the coast, and the ocean once their
-civilization knows Cartography. Out of the water they can only lie in one of
+civilization knows Wayfinding. Out of the water they can only lie in one of
 their own cities on it.
 
-**Embarking:** once a civilization knows Sailing, its land units can step
-onto the coast (and the ocean, after Cartography) and row across it in a boat.
+**Embarking:** once a civilization knows Crossing, its land units can step
+onto the coast (and the ocean, after Wayfinding) and row across it in a boat.
 
 - Stepping from the land onto the water, or back, can be done with any moves
   left, and takes them all.
@@ -914,14 +927,13 @@ each rival does the following.
 
 **Research:** if nothing is being researched, it picks an available
 technology by chance, each rival leaning its own way: Queen Nocta is four
-times as likely to pick Archery, Bronze Working, Horseback Riding or Iron
-Working as anything else; King Tess the same for Pottery, Masonry and
-Writing, and three times for Mining, Currency and Sailing. From the omen on,
+times as likely to pick Aiming, Smelting, Taming or Tempering as anything else; King Tess the same for Keeping, Foundations and
+Remembering, and three times for Delving, Barter and Crossing. From the omen on,
 it makes for the buildings that hold off the cataclysm instead: the next
-technology on the way to its own wards (Masonry for the cistern, the levee
-and the buttress; Writing for the sanctum and the lazaret; Pottery for the
-hearth), then Mining for the shelter, then the late crafts (Engineering,
-Preserving, Rationing, Fortification, Medicine), and only then by chance
+technology on the way to its own wards (Foundations for the cistern, the levee
+and the buttress; Remembering for the sanctum and the lazaret; Keeping for the
+hearth), then Delving for the shelter, then the late crafts (Bracing,
+Provisioning, Frugality, Holding Fast, Mending), and only then by chance
 again.
 
 **Production:** a city with nothing to build chooses, in order:
@@ -979,8 +991,8 @@ or beside one of their cities) beside them, or walk to one within 4 and douse
 it; a builder beside its city fells the forest it stands in when a fire is
 within 3. They mend a hex their city works where they stand, or walk to the
 nearest one hurt. Otherwise they improve the hexes their cities work: a farm
-on flat land, a mine on hills once they have Mining, or fishing boats on fish
-once they have Sailing. They fortify when there is nothing left to do.
+on flat land, a mine on hills once they have Delving, or fishing boats on fish
+once they have Crossing. They fortify when there is nothing left to do.
 
 **Soldiers**, in order of priority:
 
@@ -1069,7 +1081,7 @@ city's walls), gives its loot to the killer. Gold goes to the treasury. Food and
 culture go to the killer's city nearest the place it died. The amount
 rises off the hex, and the news says what it was ("WOLF SLAIN: +15 GOLD").
 
-**Taming:** once you know Horseback Riding, a soldier of yours (not a
+**Taming:** once you know Taming, a soldier of yours (not a
 civilian) that comes onto a hex next to wild horses tames them. A band with
 no horse mounts them (a warrior becomes a horseman, an archer a horse
 archer); otherwise the horses become a horseman of yours, with no moves left
@@ -1238,7 +1250,7 @@ never flood.
 n-th lowest is 0.85^n as likely as the lowest; marsh twice that). What it
 takes is coast for good: its forest left as dead trunks in the water,
 everything else on it gone but fish. A land unit there rows, if its people
-know Sailing; otherwise it goes to the nearest dry land, and if there is
+know Crossing; otherwise it goes to the nearest dry land, and if there is
 none it is lost. Hills stand out of it as islands. Ships sail where the
 fields were. A city's own hex and a levee's land are never taken.
 
@@ -1256,7 +1268,7 @@ takes is drowned land for good, and everything on it is lost:
   its name. A civilization whose towns have all sunk, with no settler
   left, is destroyed. A town with a **levee** holds through the first
   rising, standing on its banks in the sea, but not through the second.
-- **Whoever stands there** rows, if their people know Sailing; else goes to
+- **Whoever stands there** rows, if their people know Crossing; else goes to
   the nearest dry land within 3 hexes that is free; else is lost.
 - The lairs on it are gone with it.
 
@@ -1319,11 +1331,11 @@ middle sinks 4, the ring 2. A city in the middle loses half its people and
 is left with 1 HP; one in the ring takes 80 HP and loses a citizen. The
 forests up to 3 hexes away may catch fire.
 
-**Shelters** are the way to hold on (Mining): the AI builds them from the
+**Shelters** are the way to hold on (Delving): the AI builds them from the
 omen on, and gets its units out from under the stones. A shelter is not
 only the sky's: against the heat or the deluge, the AI builds one once its
 cistern or levee is up. Against the long night's cold a **hearth**
-(Pottery) helps too: its city goes 2 food a turn less cold, its land
+(Keeping) helps too: its city goes 2 food a turn less cold, its land
 freezes a quarter as fast, and its farms keep their food in the dark. The
 AI builds one once its shelter is up.
 
@@ -1656,7 +1668,7 @@ takes 40 HP, ships and boats beside it 20; flat land is flooded 2 turns and
 then left silted, its farm or mine washed away; a city takes 30 unless it
 has a **levee**.
 
-**The buttress** (Masonry, 70, only in the shattering) shores a city up with
+**The buttress** (Foundations, 70, only in the shattering) shores a city up with
 sloping stone buttresses and timbers braced in an X: a quake does it half
 the harm, brings none of its buildings down and kills half as many of its
 people, the great quake kills none, no fault opens on its land, and its

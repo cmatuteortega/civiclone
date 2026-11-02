@@ -466,8 +466,7 @@ D.BUILDINGS = {
             "HALF THE HARM FROM A QUAKE, NO BUILDING FALLS,",
             "HALF AS MANY DIE, NO FAULT OPENS ON ITS LAND",
         } },
-    -- The late crafts of keeping alive (D.TECHS, the fourth and fifth
-    -- columns): not wards against one cataclysm, built at any time, but
+    -- The late crafts of keeping alive (D.TECHS, the last of three paths): not wards against one cataclysm, built at any time, but
     -- good against whichever comes.
     -- Smoked meat, salted fish, grain sealed in jars: a little more food
     -- every turn, and `stores` food a turn spared of the cataclysm's hunger
@@ -895,38 +894,51 @@ D.QUAKE = {
 -- draws it in its column. What each unlocks is found from the defs above
 -- (D.unlocks); `also` is what it does that no def says.
 D.TECHS = {
-    { id = "pottery", name = "POTTERY", cost = 25, needs = {}, row = 0.75 },
-    { id = "sailing", name = "SAILING", cost = 40, needs = { "pottery" }, row = 0, also = { "EMBARKING" } },
-    { id = "shipbuilding", name = "SHIPBUILDING", cost = 70, needs = { "sailing" }, row = 0 },
-    { id = "cartography", name = "CARTOGRAPHY", cost = 90, needs = { "shipbuilding" }, row = 0,
+    { id = "pottery", name = "KEEPING", cost = 25, needs = {}, row = 0.75 },
+    { id = "sailing", name = "CROSSING", cost = 40, needs = { "pottery" }, row = 0, also = { "EMBARKING" } },
+    { id = "shipbuilding", name = "ANCHORAGE", cost = 70, needs = { "sailing" }, row = 0 },
+    { id = "cartography", name = "WAYFINDING", cost = 90, needs = { "shipbuilding" }, row = 0,
         also = { "THE OPEN OCEAN" } },
-    { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, row = 1.5 },
-    { id = "mysticism", name = "MYSTICISM", cost = 45, needs = { "writing" }, row = 1 },
-    { id = "currency", name = "CURRENCY", cost = 80, needs = { "writing", "bronze" }, row = 2 },
-    { id = "mining", name = "MINING", cost = 25, needs = {}, row = 3.25 },
-    { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, row = 2.5 },
-    { id = "iron", name = "IRON WORKING", cost = 100, needs = { "bronze" }, row = 3 },
-    { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, row = 4 },
-    { id = "irrigation", name = "IRRIGATION", cost = 50, needs = { "masonry" }, row = 4 },
-    { id = "archery", name = "ARCHERY", cost = 35, needs = {}, row = 5 },
-    { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, row = 5 },
+    { id = "writing", name = "REMEMBERING", cost = 50, needs = { "pottery" }, row = 1.5 },
+    { id = "mysticism", name = "OMENS", cost = 45, needs = { "writing" }, row = 1 },
+    { id = "currency", name = "BARTER", cost = 80, needs = { "writing", "bronze" }, row = 2 },
+    { id = "mining", name = "DELVING", cost = 25, needs = {}, row = 3 },
+    { id = "bronze", name = "SMELTING", cost = 55, needs = { "mining" }, row = 2.5 },
+    { id = "iron", name = "TEMPERING", cost = 100, needs = { "bronze" }, row = 3 },
+    { id = "masonry", name = "FOUNDATIONS", cost = 40, needs = {}, row = 4 },
+    { id = "irrigation", name = "CHANNELING", cost = 50, needs = { "masonry" }, row = 4 },
+    { id = "archery", name = "AIMING", cost = 35, needs = {}, row = 5 },
+    { id = "horses", name = "TAMING", cost = 60, needs = { "archery" }, row = 5 },
     -- The late crafts: what began as handiwork become the ways of keeping
-    -- alive through the end. Three ways, each two deep: the larder
-    -- (preserving, rationing), the shelter (engineering, fortification) and
-    -- lore (astronomy, medicine). Dear enough that a game seldom learns
+    -- alive through the end, along three of the paths (D.PATHS): the larder
+    -- (provisioning, frugality), the shelter (bracing, holding fast) and
+    -- memory (skyreading, mending). Dear enough that a game seldom learns
     -- them all; what they do is told in `also` and found in the rules
     -- by their ids (Game:knows).
-    { id = "astronomy", name = "ASTRONOMY", cost = 150, needs = { "mysticism" }, row = 1 },
-    { id = "medicine", name = "MEDICINE", cost = 170, needs = { "mysticism" }, row = 2,
+    { id = "astronomy", name = "SKYREADING", cost = 150, needs = { "mysticism" }, row = 1 },
+    { id = "medicine", name = "MENDING", cost = 170, needs = { "mysticism" }, row = 2,
         also = { "UNITS AND CITIES HEAL TWICE AS FAST" }, alsoIcon = "shield" },
-    { id = "engineering", name = "ENGINEERING", cost = 180, needs = { "iron" }, row = 3,
+    { id = "engineering", name = "BRACING", cost = 180, needs = { "iron" }, row = 3,
         also = { "A SHELTER TAKES A QUARTER OF THE HARM, NOT HALF" }, alsoIcon = "star" },
-    { id = "preserving", name = "PRESERVING", cost = 160, needs = { "irrigation" }, row = 4 },
-    { id = "fortification", name = "FORTIFICATION", cost = 240, needs = { "engineering" }, row = 3,
+    { id = "preserving", name = "PROVISIONING", cost = 160, needs = { "irrigation" }, row = 4 },
+    { id = "fortification", name = "HOLDING FAST", cost = 240, needs = { "engineering" }, row = 3,
         also = { "WALLS HALVE THE CATACLYSM'S BLOWS ON THEIR CITY" }, alsoIcon = "shield" },
-    { id = "rationing", name = "RATIONING", cost = 240, needs = { "preserving" }, row = 4,
+    { id = "rationing", name = "FRUGALITY", cost = 240, needs = { "preserving" }, row = 4,
         also = { "THE CATACLYSM'S HUNGER NEVER STARVES A CITY" }, alsoIcon = "food" },
 }
+-- The five ways the tree grows along, each named on the left of its row:
+-- reach (the water and what lies past it), memory (what is known and
+-- handed down), shelter (digging in and hardening), the larder (keeping
+-- and sharing out the land's food) and instinct (the body and the beasts).
+-- Keeping is the root of both reach and memory.
+D.PATHS = {
+    { name = "REACH", row = 0 },
+    { name = "MEMORY", row = 1.5 },
+    { name = "SHELTER", row = 3 },
+    { name = "LARDER", row = 4 },
+    { name = "INSTINCT", row = 5 },
+}
+
 -- What a technology costs a civilization: its `cost`, and `perCity` more
 -- of it for every city past the first, so a wide empire can't learn the
 -- whole tree for the asking (Game:techCost).

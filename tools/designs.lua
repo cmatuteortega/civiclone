@@ -169,13 +169,13 @@ local function row(name, head, items, picOf, ground_, lift)
     write(name)
 end
 
-row("galley", "GALLEY - MELEE SHIP, SAILING", {
+row("galley", "GALLEY - MELEE SHIP, CROSSING", {
     { label = "AURELIA", look = "light", face = 1 }, { label = "UMBRA", look = "dark", face = 0 },
     { label = "VARRO", look = "stripe", face = 2 }, { label = "STROKE", look = "light", face = 3, pose = 1 },
     { label = "RAM", look = "dark", face = 1, pose = 3 }, { label = "HEELED", look = "stripe", face = 0, roll = 1 },
 }, function(it) return M.unit("galley", it.look, it.face, it.pose or 0, it.roll or 0) end)
 
-row("quadrireme", "QUADRIREME - RANGED SHIP, SHIPBUILDING", {
+row("quadrireme", "QUADRIREME - RANGED SHIP, ANCHORAGE", {
     { label = "AURELIA", look = "light", face = 1 }, { label = "UMBRA", look = "dark", face = 0 },
     { label = "VARRO", look = "stripe", face = 2 }, { label = "LOOSING", look = "light", face = 0, pose = 3 },
     { label = "STROKE", look = "dark", face = 3, pose = 2 },
@@ -212,7 +212,7 @@ row("riders", "BANDS ON HORSES", {
     { label = "IN A BOAT", kind = "horsearcher", look = "dark", face = 1, boat = true },
 }, function(it) return M.unit(it.kind, it.look, it.face, it.pose or 0, 0, it.boat) end, { { 0, 0, "land" } }, 4)
 
-row("fishing", "FISHING BOATS - ON FISH, SAILING. THE HAUL, STEP BY STEP", {
+row("fishing", "FISHING BOATS - ON FISH, CROSSING. THE HAUL, STEP BY STEP", {
     { label = "REACH", look = "light", phase = 0 }, { label = "LIFT", look = "light", phase = 1 },
     { label = "PULL", look = "light", phase = 2 }, { label = "UMBRA", look = "dark", phase = 1, roll = -1 },
     { label = "VARRO", look = "stripe", roll = 1 },

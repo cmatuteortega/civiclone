@@ -1,4 +1,4 @@
--- The late crafts (D.TECHS, the fourth and fifth columns), what research
+-- The late crafts (D.TECHS, the last of three paths), what research
 -- costs a wide civilization (D.RESEARCH), and the rivals turning on one
 -- that runs away with the game (D.AI_LEADER).
 
@@ -20,13 +20,13 @@ local function town(g, id, pop)
 end
 
 return {
-    { "the late crafts sit in the fourth and fifth columns, each unlocking something", function()
-        for _, id in ipairs({ "astronomy", "medicine", "engineering", "preserving" }) do
-            assert(D.TECH[id].tier == 4, id .. " in the fourth column")
+    { "the late crafts end their paths, dear, each unlocking something", function()
+        for _, id in ipairs({ "astronomy", "medicine", "engineering", "preserving", "fortification", "rationing" }) do
+            assert(D.TECH[id].cost >= 150, id .. " is dear")
+            assert(#D.TECH[id].leads == 0 or id == "engineering" or id == "preserving", id .. " ends a path")
         end
-        for _, id in ipairs({ "fortification", "rationing" }) do
-            assert(D.TECH[id].tier == 5, id .. " in the fifth column")
-        end
+        assert(#D.TECH.masonry.needs == 0, "foundations is a root")
+        assert(D.TECH.fortification.tier == 5 and D.TECH.rationing.tier == 4)
         for _, id in ipairs(AI.SURVIVAL) do assert(D.TECH[id], id) end
         assert(D.unlocks("preserving")[1].name == "STOREHOUSE")
         assert(D.unlocks("rationing")[1].icon == "food", "its own icon, not a boat")
