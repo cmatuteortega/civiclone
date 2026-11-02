@@ -125,6 +125,25 @@ The hard race, for players who know the endings.
 - **Ashborn:** fire does not harm their units or their land; ash and baked
   earth give them a food where they give anyone else nothing.
 
+### The icons
+
+![The eight race icons](../shots/66-race-icons.png)
+
+One for each race, 32 by 32, in `assets/races/`. They are made of the game's
+own models, traced afresh at the icon's size by the board's tracer, each on a
+little hex of its land: `luajit tools/race_icons.lua dir` draws them.
+
+| Race | What stands in it | From |
+| --- | --- | --- |
+| Hearthfolk | A farmhouse under its thatch and a haystack, on grass | `M.farm`, its walls left off |
+| Moundfolk | A mine's adit: a mound with a dark door propped in timber, on hills | `M.mine` (workings), the ore left off |
+| Fenfolk | A heron in the shallows | `M.heron` |
+| Nightborn | A wolf howling, by night, under the moon | `M.beast("wolf")`, howling, a step darker as the board's night is |
+| Wildwardens | A bear | `M.beast("bear")` |
+| Wayfarers | The settler's covered wagon and its ox | `M.unit("settler")`, side on |
+| Stargazers | Someone on a hill, and a star falling | `M.unit("scout")`; the star drawn as `src/ui/sky.lua` draws a stone coming |
+| Ashborn | Burnt ground, charred snags, a fire | the burnt forest's snags (`src/world.lua`); the flame drawn as `src/ui/fire.lua` draws one |
+
 ## 3. Race against ending, on one page
 
 | | Heat | Deluge | Skyfall | Abyss | Still sun | Plague | Shattering |
