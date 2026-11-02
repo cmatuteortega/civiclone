@@ -653,11 +653,18 @@ local function hash(a, b)
     return n - floor(n)
 end
 
+local function edgesKey(set)
+    if not set then return "*" end
+    local n = 0
+    for e = 0, 5 do if set[e] then n = n + 2 ^ e end end
+    return n
+end
+
 local function siteKey(site)
     local rv = {}
     for k = 0, 5 do rv[#rv + 1] = site.river and site.river[k] and floor(site.river[k] * 2 + 0.5) / 2 or "-" end
     return table.concat({ site.biome or "grass", site.hills and "h" or "f", site.seed or 0, table.concat(rv, ","),
-        site.snow and "s" or "-" }, ";")
+        site.snow and "s" or "-", edgesKey(site.joins), edgesKey(site.towers), site.gate or "-" }, ";")
 end
 
 -- The site of a city on map cell `cell`: its land, whether on hills, how far
@@ -692,7 +699,7 @@ local layouts, chimneys = {}, {}
 local layOut, chimneysOf
 local function layoutKey(pop, b, site)
     local seed = site.seed or 0
-    if pop % 1 ~= 0 or pop < 0 or pop >= 2 ^ 20 or seed % 1 ~= 0 or seed < 0 or seed >= 1024 then return nil end
+    if pop % 1 ~= 0 or pop < 0 or pop >= 2 ^ 14 or seed % 1 ~= 0 or seed < 0 or seed >= 1024 then return nil end
     local flags, bit = 0, 1
     for _, name in ipairs(BUILT_NAMES) do
         if b[name] then flags = flags + bit end
@@ -704,7 +711,11 @@ local function layoutKey(pop, b, site)
     end
     local plains = site.biome == "plains" and 1 or 0
     local hills = site.hills and 1 or 0
-    return seed + 1024 * (river + 64 * (hills + 2 * (plains + 2 * (flags + 512 * pop))))
+    local joins = 0
+    if site.joins then
+        for e = 0, 5 do if site.joins[e] then joins = joins + 2 ^ e end end
+    end
+    return seed + 1024 * (river + 64 * (hills + 2 * (plains + 2 * (joins + 64 * (flags + 512 * pop)))))
 end
 
 function M.cityLayout(pop, built, site)
@@ -741,6 +752,8 @@ layOut = function(pop, b, site)
         local z = p.z + (hash(seed + k, 2) - 0.5) * 0.7
         -- On hills the ground is terraced, stepping up to the back.
         local y = site.hills and math.max(0, math.min(3.6, floor((1.5 - z) / 2.6) * 1.2)) or 0
+        -- A street out to a quarter runs over the plot on that edge.
+        if site.joins and p.ring == "in" and site.joins[p.edges[1]] then wet = true end
         if wet or taken[k] then
             if not wet then empty[#empty + 1] = { x = x, z = z, y = y, plot = k, what = taken[k] } end
         elseif #houses < want then
@@ -1217,6 +1230,107 @@ local function windmill(parts, x, y, z, L)
     end
 end
 
+--- what rings a city: walls, levee, streets --------------------------------------
+
+-- A hex's corner k (at 60k - 30 degrees), `r` out; where one of the edges
+-- meeting there is shared with another of the city's hexes, out at the
+-- hex's very corner, so its walls and the next hex's meet.
+local CORNER = 8.36 / math.cos(math.pi / 6) - 0.1
+local function corner(k, r, joins)
+    k = k % 6
+    if joins and (joins[(k + 5) % 6] or joins[k]) then r = CORNER end
+    local a = math.rad(60 * k - 30)
+    return r * cos(a), r * sin(a)
+end
+
+-- A run of wall from (x0, z0) to (x1, z1), its top crenellated.
+local function curtain(parts, x0, z0, x1, z1, id)
+    local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
+    if len < 0.2 then return end
+    parts[#parts + 1] = part(Sh.box((x0 + x1) / 2, 0, (z0 + z1) / 2, len, 1.6, 3.2, -math.atan2(z1 - z0, x1 - x0)),
+        R.stone, id, function(ux, uy) if uy > 0.8 and floor((ux + 1) * len / 1.4) % 2 == 0 then return IDX.k end end)
+end
+
+-- The walls round a city's hexes: along each edge of this one not `open`
+-- (on the water, a river's moat, or shared with another of the city's
+-- hexes), a tower on each of its corners the city's outline gives this hex
+-- (`site.towers`; every corner when not told), and on `site.gate` a
+-- gatehouse where its street goes out: two square towers and a passage
+-- between under a crenellated lintel.
+local function ramparts(parts, L, site, open)
+    local joins, towers, gate = site.joins, site.towers, site.gate
+    for k = 0, 5 do
+        local x0, z0 = corner(k, 8.3, joins)
+        local x1, z1 = corner(k + 1, 8.3, joins)
+        if not open(k) then
+            if k == gate then
+                local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
+                local ux, uz = (x1 - x0) / len, (z1 - z0) / len
+                local mx, mz = (x0 + x1) / 2, (z0 + z1) / 2
+                local turn = -math.atan2(uz, ux)
+                local g = 2.6
+                curtain(parts, x0, z0, mx - ux * (g / 2 + 1.2), mz - uz * (g / 2 + 1.2), 40)
+                curtain(parts, mx + ux * (g / 2 + 1.2), mz + uz * (g / 2 + 1.2), x1, z1, 40)
+                for side = -1, 1, 2 do
+                    local tx, tz = mx + ux * side * (g / 2 + 1.1), mz + uz * side * (g / 2 + 1.1)
+                    parts[#parts + 1] = part(Sh.box(tx, 0, tz, 2.3, 2.5, 5.4, turn), R.stone, 47, function(ux2, uy, uz2)
+                        if uy > 0.6 and uy < 0.72 and abs(ux2) < 0.25 then return IDX.o end
+                    end)
+                    parts[#parts + 1] = part(Sh.pyramid(4, tx, 5.4, tz, 1.95, 2.4, 0, math.pi / 4 + turn), L.roof, 48)
+                end
+                -- The passage, dark, and the lintel over it.
+                parts[#parts + 1] = part(Sh.box(mx, 0, mz, g, 1.2, 3, turn), WATER, 49)
+                parts[#parts + 1] = part(Sh.box(mx, 3, mz, g + 0.4, 2.2, 1.5, turn), R.stone, 47, function(ux2, uy)
+                    if uy > 0.7 and floor((ux2 + 1) * 3) % 2 == 0 then return IDX.k end
+                end)
+            else
+                curtain(parts, x0, z0, x1, z1, 40)
+            end
+        end
+        if not towers or towers[k] then
+            parts[#parts + 1] = part(Sh.prism(6, x0, 0, z0, 1.9, 4.8), R.stone, 41 + k)
+            parts[#parts + 1] = part(Sh.pyramid(6, x0, 4.8, z0, 2.3, 2.2), L.roof, 41 + k)
+        end
+    end
+end
+
+-- The levee: banks of earth round the city's hexes, low and broad, faced
+-- with stone on top: the city's stand against the water. Gaps where the
+-- pier goes out and the bridges cross; none along an edge shared with
+-- another of its hexes, so it rings them all.
+local function levee(parts, site, open, shore)
+    local joins = site.joins
+    for k = 0, 5 do
+        if not (joins and joins[k]) then
+            local x0, z0 = corner(k, 9.5, joins)
+            local x1, z1 = corner(k + 1, 9.5, joins)
+            local turn = -math.atan2(z1 - z0, x1 - x0)
+            local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
+            local runs = open(k) and { { 0.18, 0.36 }, { 0.82, 0.36 } } or { { 0.5, 1.04 } }
+            for n, run in ipairs(runs) do
+                local mx, mz = x0 + (x1 - x0) * run[1], z0 + (z1 - z0) * run[1]
+                local l = len * run[2]
+                -- The bank, its earth in courses, and a coping of stone.
+                parts[#parts + 1] = part(Sh.box(mx, 0, mz, l, 2.4, 1.3, turn), R2.soil, 60 + k * 2 + n,
+                    function(ux, uy) if uy < 0.5 and floor((ux + 1) * 9) % 3 == 0 then return IDX.n end end)
+                parts[#parts + 1] = part(Sh.box(mx, 1.3, mz, l - 0.4, 1.4, 0.55, turn), R.stone, 60 + k * 2 + n,
+                    function(ux) if floor((ux + 1) * 6) % 2 == 0 then return IDX.t end end)
+            end
+        end
+    end
+end
+
+-- A street of cobbles out along way k, from r0 to r1 from the hex's middle.
+local function street(parts, y, k, r0, r1)
+    local a = math.rad(60 * k)
+    local r = (r0 + r1) / 2
+    local len = r1 - r0
+    parts[#parts + 1] = part(Sh.box(r * cos(a), y, r * sin(a), len, 2.6, 0.22, -a), R.stone, 8,
+        function(ux, uy, uz, lev)
+            if lev ~= 1 and floor((ux + 1) * len * 0.9) % 2 == floor((uz + 1) * 1.6) % 2 then return IDX.t end
+        end)
+end
+
 -- The picture of a city: its houses (one more for each citizen, till every
 -- plot is built on, then taller), its hall or palace, its landmark, and
 -- whatever it has built, all in the way of its `site` ({ biome = "grass" |
@@ -1424,52 +1538,307 @@ function M.city(look, pop, capital, built, shore, drop, site, pest)
                 parts[#parts + 1] = part(Sh.box(x + 0.6 * r, 0, z + 2.8, 1.4, 0.7, 0.4, 0.5), R2.hedge, 101)
             end
         end
-        if b.levee then
-            -- Banks of earth all round the hex, low and broad, faced with
-            -- stone on top: the city's stand against the water. Gaps where
-            -- the pier goes out and the bridges cross.
-            local r = 9.5
-            for k = 0, 5 do
-                local a0, a1 = math.rad(60 * k - 30), math.rad(60 * k + 30)
-                local x0, z0, x1, z1 = r * cos(a0), r * sin(a0), r * cos(a1), r * sin(a1)
-                local turn = -math.atan2(z1 - z0, x1 - x0)
-                local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
-                local open = k == shore or (site.river and site.river[k])
-                local runs = open and { { 0.18, 0.36 }, { 0.82, 0.36 } } or { { 0.5, 1.04 } }
-                for n, run in ipairs(runs) do
-                    local mx, mz = x0 + (x1 - x0) * run[1], z0 + (z1 - z0) * run[1]
-                    local l = len * run[2]
-                    -- The bank, its earth in courses, and a coping of stone.
-                    parts[#parts + 1] = part(Sh.box(mx, 0, mz, l, 2.4, 1.3, turn), R2.soil, 60 + k * 2 + n,
-                        function(ux, uy) if uy < 0.5 and floor((ux + 1) * 9) % 3 == 0 then return IDX.n end end)
-                    parts[#parts + 1] = part(Sh.box(mx, 1.3, mz, l - 0.4, 1.4, 0.55, turn), R.stone, 60 + k * 2 + n,
-                        function(ux) if floor((ux + 1) * 6) % 2 == 0 then return IDX.t end end)
-                end
-            end
-        end
+        local open = function(k) return k == shore or (site.river and site.river[k]) or (site.joins and site.joins[k]) end
+        if b.levee then levee(parts, site, open, shore) end
         if b.monument then
             local x, z = at("monument")
             parts[#parts + 1] = part(Sh.box(x, 0, z, 2.4, 2.4, 1), R.stone, 37)
             parts[#parts + 1] = part(Sh.frustum(4, 0.45, x, 1, z, 0.9, 7, 0, math.pi / 4), R.stone, 38)
         end
-        if b.walls then
-            -- Walls round the hex just inside its edge, towers at the corners.
-            local r = 8.3
+        if b.walls then ramparts(parts, L, site, open) end
+        if site.joins then
+            -- A street out to each of its quarters, from the hall's door
+            -- across the edge, where the plot on that edge was.
             for k = 0, 5 do
-                local a0, a1 = math.rad(60 * k - 30), math.rad(60 * k + 30)
-                local x0, z0, x1, z1 = r * cos(a0), r * sin(a0), r * cos(a1), r * sin(a1)
-                local mx, mz = (x0 + x1) / 2, (z0 + z1) / 2
-                local len = math.sqrt((x1 - x0) ^ 2 + (z1 - z0) ^ 2)
-                -- Not along the water's edge, nor a river's: the pier goes
-                -- out there, and the river is its moat.
-                if k ~= shore and not (site.river and site.river[k]) then
-                    parts[#parts + 1] = part(Sh.box(mx, 0, mz, len, 1.6, 3.2, -math.atan2(z1 - z0, x1 - x0)), R.stone, 40,
-                        function(ux, uy) if uy > 0.8 and floor((ux + 1) * 6) % 2 == 0 then return IDX.k end end)
-                end
-                parts[#parts + 1] = part(Sh.prism(6, x0, 0, z0, 1.9, 4.8), R.stone, 41 + k)
-                parts[#parts + 1] = part(Sh.pyramid(6, x0, 4.8, z0, 2.3, 2.2), L.roof, 41 + k)
+                if site.joins[k] then street(parts, site.hills and 1.2 or 0, k, 3.6, 9.2) end
             end
         end
+        return parts
+    end, M.CITY_SCALE)
+end
+
+--- quarters -----------------------------------------------------------------------
+
+-- A quarter (src/quarters.lua): a hex a city has spilled over into. Its
+-- street comes in from the hex it grew out of (`q.toward`) to a little
+-- square in its middle and goes on out its far side (`q.gate`); houses fill
+-- its plots from the near edge out as it fills (`q.stage`, 1..3), turned to
+-- face in round the square, so its roofs run in rows round it, lower than
+-- the city's heart. What stands in it is told by its land, as the city's
+-- own picture is:
+--   grass: timber and gabled, a well, then a guildhall with a belfry;
+--   plains: round thatched huts, a barn, then a windmill;
+--   desert: mud brick, a fountain under palms, a bazaar of awnings;
+--   hills: stone houses on terraces, a round shrine of columns;
+--   on the water (`q.docks`, the first of its quarters there): a docks
+--   quarter, warehouses on its bank, the quay and its
+--   crane out over the water (and the lighthouse, if the city has one);
+--   by a river: a mill on the bank, its wheel turning.
+-- It takes the city's walls, levee and buttress (`q.built`), its colours
+-- (`look`), and the plague's marks (`q.marked`).
+
+local function well(parts, x, y, z, L)
+    parts[#parts + 1] = part(Sh.prism(8, x, y, z, 1.1, 1.1, 0, math.pi / 8), R.stone, 150, function(ux, uy, uz, lev, nx, ny)
+        if ny > 0.9 and ux * ux + uz * uz < 0.45 then return IDX.o end
+    end)
+    for side = -1, 1, 2 do
+        parts[#parts + 1] = part(Sh.seg(x + side * 0.9, y, z, x + side * 0.9, y + 2.6, z, 0.18), R.wood, 151)
+    end
+    parts[#parts + 1] = part(Sh.roof(x, y + 2.6, z, 2.6, 2, 0.9), L.roof, 152)
+end
+
+local function guildhall(parts, x, y, z, h, L)
+    local q = {}
+    q[#q + 1] = part(Sh.box(0, 0, 0, 6, 4.2, 2.8), R.stone, 153, windows(1, true))
+    q[#q + 1] = part(Sh.box(0, 2.8, 0, 6.4, 4.6, 2.6), R.wall, 154, function(ux, uy, uz, lev)
+        local k, lit = windows(1, false)(ux, uy, uz, lev)
+        if k then return k, lit end
+        if uy > 0.9 or uy < 0.08 or abs(ux) > 0.92 or abs(abs(ux) - 0.5) < 0.05 then return IDX.n end
+    end)
+    q[#q + 1] = part(Sh.roof(0, 5.4, 0, 7.2, 5.6, 3.6), L.roof, 155, banded(L))
+    -- A belfry on the ridge, open, its bell dark in it.
+    q[#q + 1] = part(Sh.box(1.2, 7.6, 0, 1.4, 1.4, 1.6), R.wood, 156, function(ux, uy, uz)
+        if uy > 0.25 and uy < 0.85 and abs(ux) < 0.6 and abs(uz) < 0.6 then return IDX.o end
+    end)
+    q[#q + 1] = part(Sh.pyramid(4, 1.2, 9.2, 0, 1.3, 1.8, 0, math.pi / 4), L.roof, 157)
+    place(q, h, x, y, z)
+    for _, p in ipairs(q) do parts[#parts + 1] = p end
+end
+
+local function barn(parts, x, y, z, h, L)
+    local q = {}
+    q[#q + 1] = part(Sh.box(0, 0, 0, 6.4, 4, 3), R.wood, 158, function(ux, uy, uz)
+        if abs(ux) > 0.98 and abs(uz) < 0.35 and uy < 0.8 then return IDX.o end
+        if floor((uz + 1) * 6) % 2 == 0 and abs(ux) > 0.98 then return IDX.n end
+        if floor((ux + 1) * 9) % 2 == 0 and abs(uz) > 0.98 then return IDX.n end
+    end)
+    q[#q + 1] = part(Sh.roof(0, 3, 0, 7.2, 5, 3.4), L.roof, 159, thatched(L, 6))
+    place(q, h, x, y, z)
+    for _, p in ipairs(q) do parts[#parts + 1] = p end
+end
+
+local function warehouse(parts, x, y, z, h, L)
+    local q = {}
+    q[#q + 1] = part(Sh.box(0, 0, 0, 6.6, 3.6, 3.4), R.stone, 160, function(ux, uy, uz)
+        if abs(uz) > 0.98 and uy < 0.75 and abs((ux + 1) * 1.5 % 1 - 0.5) < 0.18 then return IDX.o end
+        if uy > 0.92 then return IDX.k end
+    end)
+    q[#q + 1] = part(Sh.roof(0, 3.4, 0, 7, 4.2, 1.8), R.wood, 161, function(ux)
+        if floor((ux + 1) * 7) % 2 == 0 then return IDX.n end
+    end)
+    -- A hoist beam out over its door, a bale hung on it.
+    q[#q + 1] = part(Sh.seg(0, 3.2, 1.8, 0, 3.2, 3.2, 0.2), R.wood, 162)
+    q[#q + 1] = part(Sh.box(0, 1.6, 3.1, 0.9, 0.9, 0.9), R.straw, 163)
+    place(q, h, x, y, z)
+    for _, p in ipairs(q) do parts[#parts + 1] = p end
+end
+
+local function bazaar(parts, y, L, stage)
+    for n = 0, (stage >= 3 and 5 or 3) do
+        local a = math.pi / 6 + n * math.pi / 3
+        local x, z = cos(a) * 3.6, sin(a) * 3.6
+        parts[#parts + 1] = part(Sh.box(x, y, z, 1.8, 1.4, 1, -a), R.wood, 164)
+        for c = -1, 1, 2 do
+            parts[#parts + 1] = part(Sh.seg(x + c * 0.8 * sin(a), y, z - c * 0.8 * cos(a),
+                x + c * 0.8 * sin(a), y + 2.6, z - c * 0.8 * cos(a), 0.12), R.wood, 165)
+        end
+        parts[#parts + 1] = part(Sh.roof(x, y + 2.4, z, 2.6, 2.4, 0.8, -a + math.pi / 2), L.roof, 166, banded(L))
+    end
+end
+
+local function fountain(parts, y, L)
+    parts[#parts + 1] = part(Sh.prism(8, 0, y, 0, 2, 0.8, 0, math.pi / 8), R2.slab, 167)
+    parts[#parts + 1] = part(Sh.prism(8, 0, y, 0, 1.6, 0.9, 0, math.pi / 8), WATER, 168, function(ux, uy, uz)
+        if uy > 0.98 and ux < -0.2 and uz < -0.1 then return IDX.t end
+    end)
+    parts[#parts + 1] = part(Sh.prism(6, 0, y, 0, 0.35, 2.2), R2.slab, 169)
+    parts[#parts + 1] = part(Sh.ell(0, y + 2.3, 0, 0.7, 0.35, 0.7), R2.slab, 169)
+end
+
+local function tholos(parts, y, L)
+    parts[#parts + 1] = part(Sh.prism(12, 0, y, 0, 2.8, 0.7), R.stone, 170)
+    for n = 0, 7 do
+        local a = n * math.pi / 4
+        parts[#parts + 1] = part(Sh.prism(6, cos(a) * 2.2, y + 0.7, sin(a) * 2.2, 0.28, 3.2), R.wall, 171)
+    end
+    parts[#parts + 1] = part(Sh.prism(12, 0, y + 3.9, 0, 2.7, 0.5), R.wall, 172)
+    parts[#parts + 1] = part(Sh.pyramid(12, 0, y + 4.4, 0, 2.9, 2, 0, 0), L.roof, 173, banded(L))
+end
+
+-- How many of its plots a quarter has built on, at each stage.
+local QUARTER_HOUSES = { 4, 7, 11 }
+
+-- Where a quarter's houses go: in rows along its street, gable ends to it,
+-- a row each side and one behind each of those, the square left open at the
+-- crossing in the middle; within the hex, off the water and a river's bank.
+-- Built from the end the street comes in at, out to the far one.
+local SLOTS = {}
+for _, v in ipairs({ -3.5, 3.5 }) do
+    for _, u in ipairs({ 7.0, 3.5, -3.5, -7.0 }) do SLOTS[#SLOTS + 1] = { u, v, "in" } end
+end
+for _, v in ipairs({ -7.0, 7.0 }) do
+    for _, u in ipairs({ 3.6, 0, -3.6 }) do SLOTS[#SLOTS + 1] = { u, v, "out" } end
+end
+
+local function quarterLayout(q)
+    local seed = q.seed or 0
+    local houses, empty = {}, {}
+    local want = QUARTER_HOUSES[math.max(1, math.min(3, q.stage or 3))]
+    local a = math.rad(60 * (q.toward or 0))
+    local eu, ev = { cos(a), sin(a) }, { -sin(a), cos(a) }
+    local here = {}
+    for k, s in ipairs(SLOTS) do
+        local u = s[1] + (hash(seed + k, 1) - 0.5) * 0.5
+        local v = s[2] + (hash(seed + k, 2) - 0.5) * 0.4
+        local x, z = eu[1] * u + ev[1] * v, eu[2] * u + ev[2] * v
+        local ok = true
+        for e = 0, 5 do
+            local b = math.rad(60 * e)
+            local d = x * cos(b) + z * sin(b)
+            local wet = (q.river and q.river[e]) or q.shore == e
+            if d > (wet and 4.6 or 6.2) then ok = false end
+        end
+        if ok then
+            local y = q.hills and math.max(0, math.min(3.6, floor((1.5 - z) / 2.6) * 1.2)) or 0
+            here[#here + 1] = { x = x, y = y, z = z, plot = k, ring = s[3], size = 0.86, d = -u + hash(seed + k, 5) * 0.8,
+                -- Squared to the nearest right angle, as the middle's houses
+                -- stand, so a street on the slant steps rather than leans.
+                face = floor((a + math.pi / 2) / (math.pi / 2) + 0.5) * math.pi / 2 }
+        end
+    end
+    table.sort(here, function(p, r) return p.d < r.d end)
+    for n, h in ipairs(here) do
+        if n <= want then
+            local storeys = 1
+            if q.stage >= 2 and h.ring == "in" then storeys = 2 end
+            if q.stage >= 3 and hash(seed + h.plot, 3) < 0.35 then storeys = 2 end
+            if storeys == 2 and hash(seed + h.plot, 6) < 0.25 then storeys = 1 end
+            h.storeys = storeys
+            h.size = 0.8 + hash(seed + h.plot, 4) * 0.14
+            houses[#houses + 1] = h
+        else
+            empty[#empty + 1] = h
+        end
+    end
+    return houses, empty
+end
+
+function M.quarter(look, q)
+    local b = q.built or {}
+    local stage = math.max(1, math.min(3, q.stage or 3))
+    local biome = q.biome or "grass"
+    local drop = q.drop and floor(q.drop * 2 + 0.5) / 2 or 0
+    local key = table.concat({ "q", look, stage, biome, q.hills and 1 or 0, q.snow and 1 or 0, q.seed or 0,
+        q.toward or "-", q.gate or "-", q.shore or "-", drop, edgesKey(q.joins), edgesKey(q.towers),
+        siteKey({ biome = biome, river = q.river }), b.walls and 1 or 0, b.levee and 1 or 0, b.buttress and 1 or 0,
+        b.lighthouse and 1 or 0, q.marked and 1 or 0, q.docks and 1 or 0 }, ":")
+    return kept(key, function()
+        local L = LOOK[look]
+        local parts = {}
+        local houses, empty = quarterLayout({ seed = q.seed, stage = stage, toward = q.toward, gate = q.gate,
+            river = q.river, shore = q.shore, hills = q.hills })
+        local style = q.hills and "hills" or biome
+        local gy = q.hills and 1.2 or 0
+        -- The street in from the hex it grew from, to the square, and out.
+        if q.toward then
+            street(parts, 0, q.toward, 2.4, 9.2)
+            -- Out the far side once it has filled that far, to the gate.
+            local out = (q.toward + 3) % 6
+            if stage >= 2 and not (q.joins and q.joins[out]) and out ~= q.shore and not (q.river and q.river[out]) then
+                street(parts, 0, out, 2.4, (b.walls and q.gate) and 9.2 or 7.4)
+            end
+        end
+        parts[#parts + 1] = part(Sh.prism(8, 0, 0, 0, 3, gy + 0.22, 0, math.pi / 8), R.stone, 8, function(ux, uy, uz, lev)
+            if lev ~= 1 and floor((ux + 2) * 4) % 2 == floor((uz + 2) * 4) % 2 then return IDX.t end
+        end)
+        -- What its land puts in the square.
+        if biome == "desert" and not q.hills then
+            fountain(parts, gy + 0.22, L)
+            if stage >= 2 then bazaar(parts, gy + 0.22, L, stage) end
+        elseif q.hills and stage >= 3 then
+            tholos(parts, gy + 0.22, L)
+        else
+            well(parts, 0.6, gy + 0.22, -0.4, L)
+        end
+        -- The docks: the plots nearest the water hold warehouses, and the
+        -- quay goes out over it.
+        local docks = {}
+        if q.shore then
+            local front = {}
+            waterfront(front, L, -drop / M.CITY_SCALE, q.docks and { harbour = true, lighthouse = b.lighthouse } or {})
+            place(front, math.rad(60 * q.shore))
+            for _, p in ipairs(front) do parts[#parts + 1] = p end
+            local a = math.rad(60 * q.shore)
+            table.sort(houses, function(u, v)
+                return u.x * cos(a) + u.z * sin(a) > v.x * cos(a) + v.z * sin(a)
+            end)
+            if q.docks then
+                for n = 1, math.min(stage, 2) do if houses[n] then docks[houses[n]] = true end end
+            end
+        end
+        if q.river then
+            -- The mill on a bank of its own, not one shared with the city.
+            local at
+            for k = 0, 5 do
+                if q.river[k] and k ~= q.shore and not (q.joins and q.joins[k]) then at = at or k end
+            end
+            for k = 0, 5 do
+                local down = q.river[k]
+                if down and k == at then
+                    place(mill(parts, down / M.CITY_SCALE, 90, biome), math.rad(60 * k))
+                    break
+                end
+            end
+        end
+        -- The landmarks of its land, on the plots farthest out.
+        local mark = {}
+        local last, before = houses[#houses], houses[#houses - 1]
+        if not q.hills and not q.shore then
+            if biome == "grass" and stage >= 3 then mark[last] = "guild"
+            elseif biome == "plains" and stage >= 2 then
+                mark[last] = "barn"
+                if stage >= 3 and before then mark[before] = "windmill" end
+            end
+        end
+        for k, h in ipairs(houses) do
+            if docks[h] then
+                warehouse(parts, h.x, h.y, h.z, h.face, L)
+            elseif mark[h] == "guild" then
+                guildhall(parts, h.x * 0.92, h.y, h.z * 0.92, h.face, L)
+            elseif mark[h] == "barn" then
+                barn(parts, h.x, h.y, h.z, h.face, L)
+            elseif mark[h] == "windmill" then
+                windmill(parts, h.x, h.y, h.z, L)
+            else
+                if q.hills and h.y > 0 then
+                    parts[#parts + 1] = part(Sh.box(h.x, 0, h.z, 4.6 * h.size, 4 * h.size, h.y), R.stone, 9,
+                        function(ux, uy)
+                            if floor((ux + 1) * 5 + (uy > 0.5 and 0.5 or 0)) % 2 == 0 then return IDX.k end
+                        end)
+                end
+                local one = {}
+                house(one, 0, 0, 0, L, 10 + k * 4, h.size, h.storeys, false, style, q.snow,
+                    q.marked and hash((q.seed or 0) + k, 7) < 0.67)
+                if b.buttress then
+                    local w, d = 4 * h.size, 3.4 * h.size
+                    local tall = STOREY * h.size * h.storeys
+                    for side = -1, 1, 2 do
+                        one[#one + 1] = part(Sh.frustum(4, 0.2, side * (w / 2 - 0.2), 0, d / 2 + 0.2, 0.95, tall * 0.9, 0,
+                            math.pi / 4), R.stone, 105)
+                    end
+                end
+                place(one, h.face, h.x, h.y, h.z)
+                for _, p in ipairs(one) do parts[#parts + 1] = p end
+            end
+        end
+        -- Gardens on the plots it has not reached yet.
+        for k, e in ipairs(empty) do
+            if k <= 3 then garden(parts, e, L, 120 + k * 4, style, e.plot + (q.seed or 0)) end
+        end
+        local function open(k) return k == q.shore or (q.river and q.river[k]) or (q.joins and q.joins[k]) end
+        local site = { joins = q.joins, towers = q.towers, gate = q.gate }
+        if b.levee then levee(parts, site, open, q.shore) end
+        if b.walls then ramparts(parts, L, site, open) end
         return parts
     end, M.CITY_SCALE)
 end

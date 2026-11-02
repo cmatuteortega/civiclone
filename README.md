@@ -95,6 +95,26 @@ stretches of map traced by the game's own `World`.
 ![Cities growing, by land](shots/18-cities-growth.png)
 ![Cities in different places](shots/19-cities-sites.png)
 
+And they grow out of their hex (designs for now, `src/quarters.lua` and
+`M.quarter`; the rules to come). Past what its middle can house, a city
+spills over into the hexes beside it, its quarters. A street runs in
+across the edge from the hex it grew out of to a little square, and its
+houses go up in rows along it, gable ends to the street, from the near end
+out, lower than the city's heart. The land makes the quarter: a well and
+then a guildhall with a belfry on grassland, round huts, a barn and a
+windmill on the plains, a fountain under palms and a bazaar of awnings in
+the desert, terraces and a round shrine on hills, warehouses and the quay
+with its crane and lighthouse on the water, a mill on a river. The walls go
+round all of the city's hexes, a tower on each corner of its outline and a
+gatehouse where each quarter's street goes out; the levee rings them all
+the same; a river between two of them is crossed by a bridge of stone, and
+round the outside it is the moat. `luajit tools/quarters.lua dir` draws the
+sheets below.
+
+![A city growing out over one, two and three quarters, by land](shots/61-quarters-growth.png)
+![The quarter each land, the water and a river make](shots/62-quarters-kinds.png)
+![Round a city of several hexes: walls and gates, a river, the coast, the levee, the buttress, the plague](shots/63-quarters-rings.png)
+
 And the wild is in it (`src/beasts.lua`), and not just on the screen. Wolves come out of
 their dens in pairs and go for anyone near, stronger at night, when they
 throw their heads back and howl. Bears guard their caves under the

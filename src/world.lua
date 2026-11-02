@@ -721,6 +721,10 @@ MAT.plot = { id = 9, ramp = MAT.wheat.ramp, print = function(s, x, y, z, nx, ny,
     end
 end }
 MAT.stone = { id = 10, ramp = ramp("w", "c", "k", "n") }
+-- Dressed stone in courses, for the bridges between a city's quarters.
+MAT.bridgestone = { id = 56, ramp = ramp("c", "s", "t", "k"), print = function(s, x, y, z, nx, ny, nz, lev)
+    if ny < 0.5 and lev ~= 1 and floor(y * 1.6) % 2 == 0 and floor((x + z) * 0.8) % 2 == 0 then return IDX.k end
+end }
 MAT.gem = { id = 11, ramp = ramp("w", "w", "s", "k") }
 -- A river's water: ripples drawn along the way it runs, a glint now and
 -- then, white where the river above falls into it; its cut banks are the
@@ -873,9 +877,9 @@ function World:hexSolids(cell)
     local ashen = (cell.burnt or cell.fire or cell.ashfall or cell.cleared) and true or nil
     local silted = cell.silt and not cell.flood or nil
     -- A field abandoned in the plague, its furrows the way its farm's ran.
-    local fallow = (cell.fallow and not cell.improvement and not cell.city) or nil
+    local fallow = (cell.fallow and not cell.improvement and not (cell.city or cell.quarter)) or nil
     -- A crater's pit: wider the deeper it went.
-    local pit = cell.crater and not cell.city and min(5.5, 1.6 + (cell.sunk or 0) * 0.6) or nil
+    local pit = cell.crater and not (cell.city or cell.quarter) and min(5.5, 1.6 + (cell.sunk or 0) * 0.6) or nil
     local function add(s, mat)
         s.mat, s.cell, s.cellRef, s.world = mat, cell.id, cell, self
         s.ash, s.silt, s.crater, s.blight = ashen, silted, pit, cell.blight
@@ -1059,7 +1063,7 @@ function World:hexSolids(cell)
         end
     end
 
-    if cell.elev == "hills" and not cell.city then
+    if cell.elev == "hills" and not (cell.city or cell.quarter) then
         -- One broad mound in the middle, a unit stands on it, and a smaller
         -- one off to a side. A city levels them.
         local mound = river and 0.74 or 1
@@ -1139,7 +1143,7 @@ function World:hexSolids(cell)
         end
     end
 
-    if cell.terrain == "marsh" and not cell.city then
+    if cell.terrain == "marsh" and not (cell.city or cell.quarter) then
         -- Pools standing in the marsh, and clumps of reeds among them.
         for n, p in ipairs(scatter(cell, 7, 3, 66)) do
             local x, z = p[1], p[2]
@@ -1164,7 +1168,7 @@ function World:hexSolids(cell)
         add(slab, MAT.flood)
     end
 
-    if cell.feature == "forest" and not cell.city then
+    if cell.feature == "forest" and not (cell.city or cell.quarter) then
         -- Burning, the crowns go to charcoal.
         local crown, trunk = cell.fire and MAT.charTree or MAT.tree, cell.fire and MAT.char or MAT.trunk
         -- Snow on the boughs, or a rime on them (src/frost.lua).
@@ -1183,7 +1187,7 @@ function World:hexSolids(cell)
                 add(Sh.ell(x, g + 5.5 * tall, z, 3.8 * tall, 3.6 * tall, 3.8 * tall), crown)
             end
         end
-    elseif cell.slid and not cell.city then
+    elseif cell.slid and not (cell.city or cell.quarter) then
         -- A forest the quake brought down off the hill: trunks lying every
         -- way, their roots torn up, and rocks come down with them.
         local pts = scatter(cell, 5, 3.5, 40)
@@ -1199,7 +1203,7 @@ function World:hexSolids(cell)
                 add(Sh.ell(x, g + 0.6, z, 1.6, 1.2, 1.4), MAT.stone)
             end
         end
-    elseif cell.burntForest and not cell.city then
+    elseif cell.burntForest and not (cell.city or cell.quarter) then
         -- What the fire left of a forest: stumps where the trees stood, a
         -- bare snag or two still standing, a trunk fallen.
         local pts = scatter(cell, cell.elev == "hills" and 4 or 5, 3.5, 40)
@@ -1222,7 +1226,7 @@ function World:hexSolids(cell)
                 add(Sh.seg(x, g - 0.5, z, x, g + 1.1 * tall, z, 0.85), MAT.char)
             end
         end
-    elseif cell.felled and not cell.city then
+    elseif cell.felled and not (cell.city or cell.quarter) then
         -- A forest a builder felled: stumps cut low and flat where the
         -- trees stood, and the trimmed logs stacked by them.
         local pts = scatter(cell, cell.elev == "hills" and 4 or 5, 3.5, 40)
@@ -1242,13 +1246,40 @@ function World:hexSolids(cell)
         end
     end
 
-    if river and cell.city then
+    if river and (cell.city or cell.quarter) then
         -- A city bridges the rivers by it: a deck of planks across, railed,
         -- on a trestle in the water.
         for k = 0, 5 do
             local e = river[k]
-            if e then
-                local n = self:cellAt(H.step(cell.c, cell.r, k))
+            local n = e and self:cellAt(H.step(cell.c, cell.r, k))
+            if n and (n.city or n.quarter) then
+                -- Between two of a city's own hexes (its quarters,
+                -- src/quarters.lua) the bridge is of stone, a street over
+                -- the water: a broad deck on a pier with a cutwater, low
+                -- parapets coursed in the stone. Laid once, from the hex
+                -- of the lower id.
+                if cell.id < n.id then
+                    local deck = max(top, n.top) + 0.5
+                    local bank = bankOf(e)
+                    local a = math.rad(60 * k)
+                    local cx, cz = alongEdge(cell, k, 0, 0)
+                    local span = bank * 2 + 4.2
+                    local across = { math.cos(a), math.sin(a) }
+                    local function stone(s) s.across, s.join = across, "bridge" .. k return s end
+                    stone(add(Sh.box(cx, deck - 1.1, cz, span, 5.2, 1.1, -a), MAT.bridgestone))
+                    local tx, tz = -across[2], across[1]
+                    for side = -1, 1, 2 do
+                        stone(add(Sh.box(cx + tx * side * 2.3, deck, cz + tz * side * 2.3, span, 0.6, 0.9, -a),
+                            MAT.bridgestone))
+                    end
+                    -- The pier mid-stream, pointed upstream and down.
+                    stone(add(Sh.box(cx, e.level - 0.8, cz, 1.6, 4.4, deck - 1.1 - e.level + 0.8, -a), MAT.bridgestone))
+                    for side = -1, 1, 2 do
+                        stone(add(Sh.frustum(4, 0, cx + tx * side * 2.5, e.level - 0.8, cz + tz * side * 2.5, 1.1,
+                            deck - 1.6 - e.level + 0.8, 0, -a + math.pi / 4), MAT.bridgestone))
+                    end
+                end
+            elseif e then
                 local deck = max(top, n and n.top or top) + 0.4
                 local bank = bankOf(e)
                 local a = math.rad(60 * k)
@@ -1273,7 +1304,7 @@ function World:hexSolids(cell)
             end
         end
     end
-    if river and not cell.city and cell.elev ~= "mountain" and cell.feature ~= "forest" then
+    if river and not (cell.city or cell.quarter) and cell.elev ~= "mountain" and cell.feature ~= "forest" then
         -- Reeds in clumps along some of the banks, their heads dark.
         for k = 0, 5 do
             local e = river[k]
@@ -1296,7 +1327,7 @@ function World:hexSolids(cell)
         end
     end
 
-    if cell.city then return out end
+    if cell.city or cell.quarter then return out end
     if pit then
         -- The rim the stone threw up round where it fell: a ring of low
         -- mounds of the ground's own earth, kept off a river's bank; and

@@ -42,7 +42,7 @@ love = { graphics = { rectangle = function(_, x, y) put(ink, floor(x), floor(y))
 local function text(s, x, y, centre)
     if centre then x = floor(x - Font.width(s) / 2) end
     ink = IDX.o
-    Font.print(s, x, y)
+    Font.print(s, x + 0.25, y + 0.25) -- plotted a pixel at a time, as the stand-in for LÖVE draws
 end
 local function write(name)
     local out = assert(io.open((arg[1] or ".") .. "/" .. name .. ".ppm", "wb"))
