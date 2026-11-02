@@ -129,6 +129,11 @@ local function toward(game, p, id)
     end
 end
 
+-- What a civilization learns once the end is foretold, its wards known:
+-- the late crafts that keep alive through any cataclysm, likeliest to tell
+-- first.
+AI.SURVIVAL = { "engineering", "preserving", "rationing", "fortification", "medicine" }
+
 -- What a civilization researches next. Once the cataclysm is foretold, the
 -- way to the buildings that hold it off, its own wards before the shelter;
 -- otherwise by chance, leaning to what it favours (D.CIVS).
@@ -144,6 +149,11 @@ local function research(game, p)
         end)
         for _, w in ipairs(wants) do
             local step = toward(game, p, D.BUILDINGS[w.id].tech)
+            if step then return step end
+        end
+        -- Then the crafts of keeping alive, whatever the end is.
+        for _, id in ipairs(AI.SURVIVAL) do
+            local step = toward(game, p, id)
             if step then return step end
         end
     end
@@ -219,12 +229,15 @@ local function chooseBuild(game, p, city)
     -- And whatever else it needs against this one.
     local also = Cat.stage(game) and Cat.also(game, city)
     if also and game:canBuild(city, "building", also) then return "building", also end
+    -- And stores against the hunger.
+    if Cat.stage(game) and game:canBuild(city, "building", "storehouse") then return "building", "storehouse" end
     -- A quarter when it is running out of room (src/quarters.lua).
     if Q.due(game, city) and city.pop >= Q.housing(game, city) then
         local site = Q.best(game, city)
         if site then return "quarter", site.id end
     end
-    for _, id in ipairs({ "monument", "granary", "walls", "library", "harbour", "market", "lighthouse" }) do
+    for _, id in ipairs({ "monument", "granary", "walls", "library", "harbour", "market", "lighthouse", "storehouse",
+        "observatory" }) do
         if game:canBuild(city, "building", id) then
             if id ~= "walls" or game.turn > 30 then return "building", id end
         end
@@ -232,7 +245,9 @@ local function chooseBuild(game, p, city)
     -- The guard given what its people make now.
     local old, gear = outdated(game, city)
     if old then return "refit", old, gear end
-    if soldiers < cities * 3 + math.floor(game.turn / 15) then
+    -- More of them while a rival runs away with the game (AI.leader).
+    local more = AI.leader(game, p) and cities * D.AI_LEADER.army or 0
+    if soldiers < cities * 3 + more + math.floor(game.turn / 15) then
         return "unit", "band", bestSoldier(game, city, game.rng:random() < 0.35)
     end
     return "unit", "builder"
@@ -431,13 +446,42 @@ local function strike(game, u)
     if best then return game:attack(u, best) end
 end
 
--- The nearest thing of an enemy's this player has seen: a city first.
+-- The civilization running away with the game, as `p` sees it: the one
+-- whose score is past `D.AI_LEADER.ahead` times p's own and every other
+-- rival's, or nil. Worked out once a turn.
+local LEAD = setmetatable({}, { __mode = "k" })
+function AI.leader(game, p)
+    local memo = LEAD[game]
+    if not memo or memo.turn ~= game.turn then
+        memo = { turn = game.turn, score = {} }
+        LEAD[game] = memo
+        for _, q in ipairs(game.players) do
+            if q.alive and not q.wild then memo.score[q.id] = game:score(q) end
+        end
+    end
+    local best, bs, second = nil, -1, 0
+    for id, s in pairs(memo.score) do
+        if id ~= p.id then
+            if s > bs then best, bs, second = id, s, max(second, bs) else second = max(second, s) end
+        end
+    end
+    local mine = memo.score[p.id] or 0
+    local ahead = D.AI_LEADER.ahead
+    if best and bs >= D.AI_LEADER.least and bs >= mine * ahead and bs >= second * ahead then return best end
+end
+
+-- The nearest thing of an enemy's this player has seen: a city first. When
+-- one rival runs away with the game the others make common cause: its
+-- cities count `D.AI_LEADER.near` times as near, the rest's `far` times as
+-- far.
 local function targetFor(game, p, u)
     local here = game.cells[u.cell]
     local best, bd
+    local leader = AI.leader(game, p)
     for _, c in ipairs(game.cities) do
         if c.owner ~= p.id and p.explored[c.cell] then
             local d = game:dist(here, game.cells[c.cell])
+            if leader then d = d * (c.owner == leader and D.AI_LEADER.near or D.AI_LEADER.far) end
             if not bd or d < bd then best, bd = game.cells[c.cell], d end
         end
     end
@@ -743,7 +787,10 @@ function AI.play(game, p)
     gates(game, p)
     local soldiers = 0
     for _, u in ipairs(game:unitsOf(p.id)) do if military(u) and not u.def.scout then soldiers = soldiers + 1 end end
-    local attacking = game.turn >= 25 and soldiers >= 2 + #game:citiesOf(p.id)
+    -- Against a rival running away with the game it marches sooner.
+    local need = 2 + #game:citiesOf(p.id)
+    if AI.leader(game, p) then need = 2 + math.ceil(#game:citiesOf(p.id) / 2) end
+    local attacking = game.turn >= 25 and soldiers >= need
     -- A copy: units die and found cities as the list is walked.
     local units = {}
     for k, u in ipairs(game:unitsOf(p.id)) do units[k] = u end

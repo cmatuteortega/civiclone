@@ -493,6 +493,8 @@ A ship with a ram is a **galley** (65); with a bolt thrower a
   | Inside your borders | 15 |
   | In one of your cities | 20 |
 
+  Twice as much once you know Medicine.
+
 - **Upkeep:** you get 2 free units, plus 1 per city. Each unit beyond that
   costs 1 gold a turn.
 
@@ -556,7 +558,7 @@ formula reversed. Ranged attackers take nothing back.
 | --- | --- |
 | Strength | 12 + 2 per citizen, or the garrisoned unit's strength + 2 if higher; +10 with walls |
 | HP | 200 (+100 with walls) |
-| Healing | 20 HP a turn |
+| Healing | 20 HP a turn (40 once you know Medicine) |
 
 - **Attacking a city:** an attack on a city hits the city itself, not the
   units inside.
@@ -656,11 +658,13 @@ more, **3** at most:
 | Lighthouse | 80 | +1 gold on each worked water hex; the city sees 4 hexes, not 2 | Cartography; a city on the water |
 | Cistern | 70 | Against the [heat death](#the-heat-death): its land dries a quarter as fast, its farms keep their food, fire spreads onto its land half as often, its people thirst 2 less. The same against the day of [the still sun](#the-still-sun) | Irrigation; only in the heat death or under the still sun |
 | Levee | 70 | Against the [deluge](#the-deluge): its land goes to marsh and floods a quarter as often, the sea can't take it, the water beside the city does it no harm, its people sicken 2 less, and the city holds through the first rising of the great flood (not the second). Against the waves of [the shattering](#the-shattering): a wave does the city no harm | Irrigation; only in the deluge or the shattering |
-| Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Mining; only when there is a cataclysm |
+| Shelter | 60 | Against any cataclysm: the city takes half the harm the cataclysm does it (a stone from the sky, a fire or a flood beside it, the surge; a quarter once you know Engineering, and half that again with walls once you know Fortification), a stone that falls on it kills none of its people, and its stores spare it 1 food a turn of the thirst or the fever, 2 of [the sky's](#the-sky-falls) cold | Mining; only when there is a cataclysm |
 | Sanctum | 70 | Against [the demons](#the-abyss): no rift opens on its land and the blight never takes it, the city shoots the weakest demon within 2 each turn even without walls, and its people dread 2 less | Mysticism; only against the demons |
 | Hearth | 70 | Against the night of [the still sun](#the-still-sun): its land freezes a quarter as fast, its farms keep their food through the night, its people go 2 less cold. The same against the long night of [the sky's falling](#the-sky-falls) | Pottery; only under the still sun or the falling sky |
 | Lazaret | 70 | Against [the plague](#the-plague): half as many of its sick die, it mends sooner (+12% a turn), and its people go hungry 1 less, sick or well | Writing; only in the plague |
 | Buttress | 70 | Against [the shattering](#the-shattering): a quake does it half the harm, brings none of its buildings down and kills half as many, the great quake none; no fault opens on its land, and its people fear 2 less | Masonry; only in the shattering |
+| Storehouse | 80 | +1 food; spares 2 food a turn of whatever hunger the cataclysm brings (thirst, fever, cold, dread, sickness, fear). Not a ward: built at any time | Preserving |
+| Observatory | 110 | +3 science | Astronomy |
 
 Each can be built once per city. Built buildings appear on the city's model:
 an obelisk, a silo, a stone hall, market tents, a ring of walls with towers,
@@ -811,6 +815,30 @@ waits for the next choice.
 The technologies grow from three roots: Pottery, Mining and Archery.
 Currency joins two branches, needing both Writing and Bronze Working.
 
+A technology costs more the wider the civilization: the cost below, and 8%
+more of it for every city past the first (`D.RESEARCH`, `Game:techCost`), so
+5 cities pay 132% and 10 cities 172%. The research tree and the top bar
+show what it costs you now.
+
+The fourth and fifth columns are the **late crafts**, the handiwork of the
+early tree grown into ways of keeping alive through the end, whatever end it
+is. They come in three ways, two deep:
+
+- **The larder**: Preserving (the storehouse), then Rationing (the
+  cataclysm's hunger only ever eats what a city has to spare: it never
+  starves).
+- **The shelter**: Engineering (a shelter takes a quarter of the blows, not
+  half), then Fortification (walls halve the blows again).
+- **Lore**: Astronomy (the observatory) and Medicine (units and cities heal
+  twice as fast).
+
+They are dear on purpose. Measured over all-AI games, a strong civilization
+that keeps researching learns all twenty around the last turn; most learn
+12–15. A player who sets out to can learn them all, but most will have to
+choose, and the ways that see a city through the cataclysm are the ones to
+choose first. New technologies are meant to fit these ways, so the game's
+length stays as it is.
+
 | Technology | Cost | Needs | Unlocks |
 | --- | --- | --- | --- |
 | Pottery | 25 | — | Granary, Hearth |
@@ -827,6 +855,12 @@ Currency joins two branches, needing both Writing and Bronze Working.
 | Irrigation | 50 | Masonry | Cistern, Levee, draining marshes |
 | Archery | 35 | — | Bow |
 | Horseback Riding | 60 | Archery | Horse |
+| Astronomy | 150 | Mysticism | Observatory |
+| Medicine | 170 | Mysticism | Units and cities heal twice as fast |
+| Engineering | 180 | Iron Working | A shelter takes a quarter of the harm, not half |
+| Preserving | 160 | Irrigation | Storehouse |
+| Fortification | 240 | Engineering | Walls halve the cataclysm's blows on their city |
+| Rationing | 240 | Preserving | The cataclysm's hunger never starves a city |
 
 ## The sea
 
@@ -886,7 +920,9 @@ Writing, and three times for Mining, Currency and Sailing. From the omen on,
 it makes for the buildings that hold off the cataclysm instead: the next
 technology on the way to its own wards (Masonry for the cistern, the levee
 and the buttress; Writing for the sanctum and the lazaret; Pottery for the
-hearth), then Mining for the shelter, and only then by chance again.
+hearth), then Mining for the shelter, then the late crafts (Engineering,
+Preserving, Rationing, Fortification, Medicine), and only then by chance
+again.
 
 **Production:** a city with nothing to build chooses, in order:
 
@@ -901,16 +937,24 @@ hearth), then Mining for the shelter, and only then by chance again.
    for every two such cities (one more once it knows a rival's city on the
    water, 3 at most), with a ram or a bolt thrower by chance
 5. a building: monument, granary, walls (only after turn 30), library,
-   harbour, market, then lighthouse
+   harbour, market, lighthouse, storehouse, then observatory
 6. a refit of the band guarding it, if its weapon has been left behind (a
    club once it has spears)
-7. more soldiers, up to 3 per city plus 1 per 15 turns
+7. more soldiers, up to 3 per city plus 1 per 15 turns (4 per city while a
+   rival runs away with the game, below)
 8. otherwise a builder
 
 **Buying:** a damaged city building a unit buys it at once if it can afford it.
 
+**Against the leader:** when one civilization (you, as often as not) runs
+away with the game, its score at least 40 and 1.3 times the rival's own and
+every other's (`D.AI_LEADER`), the others make common cause against it. Its
+cities count as about a third as far when a rival's army picks where to
+march, the others' as two and a half times as far; the rival keeps a soldier
+more per city and marches with half the army it otherwise waits for.
+
 **Against the cataclysm, from the omen on:** a city's ward is the one it
-needs where it stands, or a shelter once that is up. A city making any other
+needs where it stands, or a shelter once that is up, then a storehouse. A city making any other
 building puts it by for its ward, and what it had made goes into the ward. A
 city making a builder, a ship or a quarter does the same if the ward could
 be bought outright now; one making a soldier or a settler finishes it. A
@@ -1646,10 +1690,10 @@ through the end of the world (numbers in `D.SCORE`):
 | Part | Points |
 | --- | --- |
 | Cities | 5 each |
-| Citizens | 2 each |
-| **People kept** | Up to 20: the share of its people at their most that it still has (all of them: 20; half: 10) |
+| Citizens | 1 each |
+| **People kept** | Up to 40: the share of its people at their most that it still has, squared (all of them: 40; nine in ten: 32; half: 10) |
 | **Good land** | 0.25 for each hex of its land that still gives food |
-| **Wards held** | 3 for each of its cities standing at the end with a building against the cataclysm in it (cistern, levee, sanctum, hearth, lazaret, buttress or shelter; once a city) |
+| **Wards held** | 8 for each of its cities standing at the end with a building against the cataclysm in it (cistern, levee, sanctum, hearth, lazaret, buttress or shelter; once a city) |
 | Technology | 2 each |
 | Explored | 0.05 per hex |
 | Glory | 1 each: won against [the demons](#the-abyss) |

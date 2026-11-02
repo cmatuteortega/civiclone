@@ -89,7 +89,7 @@ return {
         assert(part(g, p, "PEOPLE KEPT") == D.SCORE.kept, "none lost yet")
         city.pop = math.floor(p.peak / 2)
         local kept = part(g, p, "PEOPLE KEPT")
-        assert(kept == math.floor(D.SCORE.kept * city.pop / p.peak) and kept < D.SCORE.kept, "half lost: " .. kept)
+        assert(kept == math.floor(D.SCORE.kept * (city.pop / p.peak) ^ 2) and kept < D.SCORE.kept, "half lost: " .. kept)
     end },
     { "good land: land gone to desert gives no food and counts for nothing", function()
         local g = newGame(5)

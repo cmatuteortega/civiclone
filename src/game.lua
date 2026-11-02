@@ -1028,7 +1028,11 @@ function Game:cityYield(city)
         f, p, g = f + (def.food or 0), p + (def.prod or 0), g + (def.gold or 0)
         sci, cul = sci + (def.science or 0), cul + (def.culture or 0)
     end
-    f = f - Cat.thirst(self, city)
+    -- Rationing: the cataclysm's hunger eats what is spare, never into
+    -- what feeds the city.
+    local hunger = Cat.thirst(self, city)
+    if hunger > 0 and self:knows(city, "rationing") then hunger = min(hunger, max(0, f - 2 * city.pop)) end
+    f = f - hunger
     local K = Cat.kindOf(self)
     if K and K.gold then g = K.gold(self, city, g) end
     return f, p, g, sci, cul
@@ -1454,6 +1458,19 @@ function Game:researchGoal(p)
     return p.researching
 end
 
+-- What technology `id` costs `p` now: its cost, and more for every city
+-- past the first (D.RESEARCH).
+function Game:techCost(p, id)
+    local cities = p and #self:citiesOf(p.id) or 1
+    return floor(D.TECH[id].cost * (1 + D.RESEARCH.perCity * max(0, cities - 1)) + 0.5)
+end
+
+-- Does the owner of player id or city `who` know technology `id`?
+function Game:knows(who, id)
+    local p = type(who) == "table" and (who.techs and who or self.players[who.owner]) or self.players[who]
+    return p ~= nil and p.techs ~= nil and p.techs[id] == true
+end
+
 function Game:researchable(p)
     local out = {}
     for _, t in ipairs(D.TECHS) do
@@ -1508,6 +1525,7 @@ function Game:beginTurn(p)
             local heal = D.COMBAT.healField
             if cell.owner == p.id then heal = D.COMBAT.healHome end
             if cell.city and cell.city.owner == p.id then heal = D.COMBAT.healCity end
+            if p.techs.medicine then heal = heal * 2 end
             u.hp = min(100, u.hp + heal)
         end
         u.moves, u.acted, u.attacked, u.skipped = self:maxMoves(u), false, false, false
@@ -1571,7 +1589,7 @@ function Game:finishTurn(p)
             city.culture = city.culture - self:borderNeed(city)
             self:growBorder(city)
         end
-        city.hp = min(self:maxHp(city), city.hp + D.CITY.heal)
+        city.hp = min(self:maxHp(city), city.hp + D.CITY.heal * (p.techs.medicine and 2 or 1))
         self:cityStrike(city)
     end
     -- Upkeep: a unit beyond the free ones costs one gold.
@@ -1584,9 +1602,9 @@ function Game:finishTurn(p)
     p.peak = max(p.peak or 0, self:people(p))
     if p.researching then
         p.science = p.science + sci
-        local t = D.TECH[p.researching]
-        if p.science >= t.cost then
-            p.science = p.science - t.cost
+        local t, cost = D.TECH[p.researching], self:techCost(p, p.researching)
+        if p.science >= cost then
+            p.science = p.science - cost
             p.techs[t.id] = true
             p.researching = nil
             -- The next on the way to what it is making for.
@@ -1654,7 +1672,7 @@ function Game:scoreParts(p)
     return {
         { "CITIES", #cities * S.city },
         { "CITIZENS", people * S.citizen },
-        { "PEOPLE KEPT", peak > 0 and floor(S.kept * people / peak) or 0 },
+        { "PEOPLE KEPT", peak > 0 and floor(S.kept * (people / peak) ^ 2) or 0 },
         { "GOOD LAND", floor(land * S.land) },
         { "WARDS HELD", wards * S.ward },
         { "TECHNOLOGY", techs * S.tech },

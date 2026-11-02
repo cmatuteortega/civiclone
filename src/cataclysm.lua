@@ -174,9 +174,18 @@ function Cat.sheltered(city)
 end
 
 -- A blow of `amount` HP from the cataclysm on city `city`: halved, if it
--- has a shelter, and never below 1 HP. Answers what it took.
+-- has a shelter (to a quarter once its people know engineering), halved
+-- again by its walls once they know fortification, and never below 1 HP.
+-- Answers what it took.
 function Cat.harm(game, city, amount)
-    if Cat.sheltered(city) then amount = math.floor(amount * D.SHELTER.harm + 0.5) end
+    local p = game.players and game.players[city.owner]
+    local knows = function(id) return p and p.techs and p.techs[id] end
+    if Cat.sheltered(city) then
+        amount = math.floor(amount * (knows("engineering") and D.SHELTER.deep or D.SHELTER.harm) + 0.5)
+    end
+    if city.buildings and city.buildings.walls and knows("fortification") then
+        amount = math.floor(amount * D.SHELTER.walls + 0.5)
+    end
     city.hp = max(1, city.hp - amount)
     game:emit({ kind = "hit", cell = city.cell, amount = amount })
     return amount
@@ -198,6 +207,7 @@ function Cat.thirst(game, city)
         if t > 0 and city.buildings.cistern then t = max(0, t - D.HEAT.cisternThirst) end
     end
     if t > 0 and Cat.sheltered(city) and not (K and K.ward == "shelter") then t = max(0, t - D.SHELTER.stores) end
+    if t > 0 and city.buildings and city.buildings.storehouse then t = max(0, t - D.BUILDINGS.storehouse.stores) end
     return t
 end
 

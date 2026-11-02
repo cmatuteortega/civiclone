@@ -284,7 +284,8 @@ end
 
 for _, t in ipairs(D.TECHS) do
     page("tech." .. t.id, "tech", t.name, function()
-        local out = { L("COSTS {1} SCIENCE", t.cost) }
+        local out = { L("COSTS {1} SCIENCE", t.cost),
+            L("{1}% MORE FOR EACH CITY PAST THE FIRST", math.floor(D.RESEARCH.perCity * 100 + 0.5)) }
         if #t.needs > 0 then
             local n = {}
             for _, id in ipairs(t.needs) do n[#n + 1] = techName(id) end

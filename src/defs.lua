@@ -466,6 +466,21 @@ D.BUILDINGS = {
             "HALF THE HARM FROM A QUAKE, NO BUILDING FALLS,",
             "HALF AS MANY DIE, NO FAULT OPENS ON ITS LAND",
         } },
+    -- The late crafts of keeping alive (D.TECHS, the fourth and fifth
+    -- columns): not wards against one cataclysm, built at any time, but
+    -- good against whichever comes.
+    -- Smoked meat, salted fish, grain sealed in jars: a little more food
+    -- every turn, and `stores` food a turn spared of the cataclysm's hunger
+    -- (Cat.thirst), whatever that hunger is.
+    storehouse = { name = "STOREHOUSE", short = "STORE.", cost = 80, food = 1, stores = 2, tech = "preserving",
+        order = 15, icon = "food",
+        says = {
+            "+1 FOOD",
+            "SPARES 2 FOOD OF THE CATACLYSM'S HUNGER",
+        } },
+    -- A tower to watch the sky from, and the tables kept there.
+    observatory = { name = "OBSERVATORY", short = "OBSV.", cost = 110, science = 3, tech = "astronomy", order = 16,
+        icon = "science", says = { "+3 SCIENCE" } },
 }
 
 -- The shelter, against whatever ends the world: a city with one takes only
@@ -473,7 +488,9 @@ D.BUILDINGS = {
 -- beside it, the surge), and its stores spare it `stores` food a turn of
 -- the thirst, the fever or the cold (`skyStores` of the cold, the sky's
 -- own ward). A stone that falls on it kills none of its people.
-D.SHELTER = { harm = 0.5, stores = 1, skyStores = 2 }
+-- Once its people know engineering a shelter takes only `deep` of the
+-- blows; once they know fortification, walls halve them again (`walls`).
+D.SHELTER = { harm = 0.5, stores = 1, skyStores = 2, deep = 0.25, walls = 0.5 }
 
 -- The weather (src/weather.lua): short spells of rain and storm that come
 -- and go over the whole map. After `calm` turns of fair weather, each turn
@@ -893,7 +910,27 @@ D.TECHS = {
     { id = "irrigation", name = "IRRIGATION", cost = 50, needs = { "masonry" }, row = 4 },
     { id = "archery", name = "ARCHERY", cost = 35, needs = {}, row = 5 },
     { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, row = 5 },
+    -- The late crafts: what began as handiwork become the ways of keeping
+    -- alive through the end. Three ways, each two deep: the larder
+    -- (preserving, rationing), the shelter (engineering, fortification) and
+    -- lore (astronomy, medicine). Dear enough that a game seldom learns
+    -- them all; what they do is told in `also` and found in the rules
+    -- by their ids (Game:knows).
+    { id = "astronomy", name = "ASTRONOMY", cost = 150, needs = { "mysticism" }, row = 1 },
+    { id = "medicine", name = "MEDICINE", cost = 170, needs = { "mysticism" }, row = 2,
+        also = { "UNITS AND CITIES HEAL TWICE AS FAST" }, alsoIcon = "shield" },
+    { id = "engineering", name = "ENGINEERING", cost = 180, needs = { "iron" }, row = 3,
+        also = { "A SHELTER TAKES A QUARTER OF THE HARM, NOT HALF" }, alsoIcon = "star" },
+    { id = "preserving", name = "PRESERVING", cost = 160, needs = { "irrigation" }, row = 4 },
+    { id = "fortification", name = "FORTIFICATION", cost = 240, needs = { "engineering" }, row = 3,
+        also = { "WALLS HALVE THE CATACLYSM'S BLOWS ON THEIR CITY" }, alsoIcon = "shield" },
+    { id = "rationing", name = "RATIONING", cost = 240, needs = { "preserving" }, row = 4,
+        also = { "THE CATACLYSM'S HUNGER NEVER STARVES A CITY" }, alsoIcon = "food" },
 }
+-- What a technology costs a civilization: its `cost`, and `perCity` more
+-- of it for every city past the first, so a wide empire can't learn the
+-- whole tree for the asking (Game:techCost).
+D.RESEARCH = { perCity = 0.08 }
 D.TECH = {}
 for _, t in ipairs(D.TECHS) do D.TECH[t.id] = t end
 -- Its tier: one past the deepest of what it needs, the roots 1.
@@ -938,7 +975,8 @@ function D.unlocks(id)
     if D.WORKS.mend.marshTech == id then land[#land + 1] = { name = "DRAINING MARSHES", order = 50 } end
     add(land, "land", function(i) return i.prod and i.prod > 0 and "prod" or "food" end)
     add(where(D.BUILDINGS), "building", function(b) return b.icon end)
-    for _, name in ipairs(D.TECH[id].also or {}) do out[#out + 1] = { name = name, kind = "also", icon = "boat" } end
+    local icon = D.TECH[id].alsoIcon or "boat"
+    for _, name in ipairs(D.TECH[id].also or {}) do out[#out + 1] = { name = name, kind = "also", icon = icon } end
     UNLOCKS[id] = out
     return out
 end
@@ -954,11 +992,13 @@ D.FOCUS_ORDER = { "balanced", "food", "prod" }
 
 -- The score at the end: what a civilization has, and what of it lasted.
 -- `kept`: up to this many for the share of its people at their most it still
--- has. `land`: each hex of its land that still gives food. `ward`: each city
--- standing at the end with a ward against the cataclysm in it.
+-- has, squared, so every one lost to the end tells. `land`: each hex of its
+-- land that still gives food. `ward`: each city standing at the end with a
+-- ward against the cataclysm in it. Lasting the end is worth as much as
+-- growing big before it.
 D.SCORE = {
-    city = 5, citizen = 2, tech = 2, explored = 0.05,
-    kept = 20, land = 0.25, ward = 3,
+    city = 5, citizen = 1, tech = 2, explored = 0.05,
+    kept = 40, land = 0.25, ward = 8,
 }
 
 -- Cities.
@@ -1014,6 +1054,13 @@ D.CIVS = {
         leaning = { pottery = 4, mining = 3, masonry = 4, writing = 4, currency = 3, sailing = 3, irrigation = 3 },
         cities = { "TESSERA", "BANDHOLM", "STRIATA", "LATTICE", "GRATEFORD", "CHEVRON", "ZIGRATH" } },
 }
+
+-- When one civilization runs away with the game the computer's others turn
+-- on it (src/ai.lua): a rival whose score is `ahead` times theirs and every
+-- other rival's, and at least `least`. Its cities are sought as if `near`
+-- times as far, the others' `far` times; the rest keep `army` soldiers
+-- more a city, and march with half the army they otherwise would.
+D.AI_LEADER = { ahead = 1.3, least = 40, near = 0.35, far = 2.5, army = 1 }
 
 -- The calendar: a year for each turn, faster early.
 function D.year(turn)

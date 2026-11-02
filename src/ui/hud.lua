@@ -132,9 +132,9 @@ local function topBar()
     -- Research: what, how far, how long. A click opens the list.
     local label
     if p.researching then
-        local t = D.TECH[p.researching]
-        local turns = sci > 0 and math.ceil(max(0, t.cost - p.science) / sci) or "-"
-        label = L(t.name) .. " " .. floor(p.science) .. "/" .. t.cost .. " (" .. turns .. ")"
+        local t, cost = D.TECH[p.researching], g:techCost(p, p.researching)
+        local turns = sci > 0 and math.ceil(max(0, cost - p.science) / sci) or "-"
+        label = L(t.name) .. " " .. floor(p.science) .. "/" .. cost .. " (" .. turns .. ")"
         local goal = g:researchGoal(p)
         if goal ~= p.researching then label = label .. " > " .. L(D.TECH[goal].name) end
     elseif #g:researchable(p) > 0 then
@@ -511,7 +511,7 @@ end
 -- put by counted against the first.
 local function wayTo(g, p, sci, id)
     local path, cost = g:researchPath(p, id), 0
-    for _, t in ipairs(path) do cost = cost + D.TECH[t].cost end
+    for _, t in ipairs(path) do cost = cost + g:techCost(p, t) end
     return #path, cost, turnsFor(p, sci, cost - p.science)
 end
 
@@ -578,11 +578,11 @@ end
 
 -- The short note on a technology's right: its cost, its place in the
 -- queue, or that it is known or under way.
-local function noteOf(t, st, k)
+local function noteOf(g, p, t, st, k)
     if st == "known" then return "" end
     if st == "now" then return L"NOW" end
     if st == "queued" then return tostring(k + 1) end
-    return tostring(t.cost)
+    return tostring(g:techCost(p, t.id))
 end
 
 local function nodeWidth()
@@ -614,7 +614,7 @@ local function treeNode(g, p, sci, t, x, y, nw)
         { on = st == "known", strong = st == "now" or st == "queued" })
     local ink = st == "locked" and "u" or "o"
     text(ink, L(t.name), x + 3, y + 3)
-    local note = noteOf(t, st, k)
+    local note = noteOf(g, p, t, st, k)
     text(ink, note, x + nw - 3 - Font.width(note), y + 3)
     local ix = x + 3
     for _, u in ipairs(D.unlocks(t.id)) do
@@ -693,9 +693,10 @@ local function listRow(g, p, sci, t)
     local st, k = standing(g, p, t.id)
     local note
     if st == "known" then note = L"KNOWN"
-    elseif st == "now" then note = L("{1}  {2}T", t.cost, turnsFor(p, sci, t.cost - p.science))
+    elseif st == "now" or st == "can" then
+        local cost = g:techCost(p, t.id)
+        note = L("{1}  {2}T", cost, turnsFor(p, sci, cost - p.science))
     elseif st == "queued" then note = L("NEXT {1}", k + 1)
-    elseif st == "can" then note = L("{1}  {2}T", t.cost, turnsFor(p, sci, t.cost - p.science))
     else note = L("NEEDS {1}", namesOf(t.needs)) end
     return st, note
 end
