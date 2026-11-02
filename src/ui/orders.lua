@@ -216,6 +216,18 @@ function O.actions(u)
             if u.sleep and Settings.get("autoCycle") then O.nextUnit(u) end
         end }
     end
+    -- In a city of its own, a band or a ship can be given new gear: the
+    -- city takes the order, and its panel says what.
+    if g:canRefit(u) then
+        out[#out + 1] = { label = "REFIT", cmd = "refit", off = false, fn = function()
+            local city = g.cells[u.cell].city
+            local gear = g:bestGear(me(), u.unit, u.def.ranged ~= nil)
+            if not gear.weapon then gear = g:bestGear(me(), u.unit) end
+            gear.mount = u.gear.mount
+            g:refit(u, gear)
+            O.select(city)
+        end }
+    end
     out[#out + 1] = { label = "SKIP", cmd = "skip", fn = function()
         u.skipped = true
         u.dest = nil

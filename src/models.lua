@@ -256,8 +256,9 @@ function UNIT.settler(look, pose)
     return parts
 end
 
-function UNIT.horseman(look, pose)
-    local parts = {}
+-- A horse, facing +x, and its rider on it; answers where the rider's right
+-- hand is, for what it carries.
+local function mount(parts, look, pose, hat)
     local s = pose == 1 and 1.2 or (pose == 2 and -1.2 or 0)
     parts[#parts + 1] = part(Sh.ell(0, 5.4, 0, 4.3, 2.1, 1.8), R.horse, 1)
     parts[#parts + 1] = part(Sh.seg(3.0, 6.2, 0, 4.8, 9.2, 0, 1.2), R.horse, 1)
@@ -271,15 +272,89 @@ function UNIT.horseman(look, pose)
     local print = banded(look)
     parts[#parts + 1] = part(Sh.ell(-0.4, 8.8, 0, 1.4, 2.1, 1.7), look.cloth, 4, print)
     parts[#parts + 1] = part(Sh.ell(-0.2, 11.8, 0, 1.3, 1.35, 1.3), R.skin, 5)
-    parts[#parts + 1] = part(Sh.ell(-0.3, 12.5, 0, 1.45, 0.9, 1.45), R.metal, 6)
+    if hat == "helmet" then
+        parts[#parts + 1] = part(Sh.ell(-0.3, 12.5, 0, 1.45, 0.9, 1.45), R.metal, 6)
+    elseif hat == "hood" then
+        parts[#parts + 1] = part(Sh.ell(-0.4, 12.3, 0, 1.5, 1.1, 1.5), look.trim, 6)
+    elseif hat == "wide" then
+        parts[#parts + 1] = part(Sh.ell(-0.2, 12.9, 0, 2.4, 0.4, 2.4), R.straw, 6)
+    end
     for _, lz in ipairs({ -1.6, 1.6 }) do
         parts[#parts + 1] = part(Sh.seg(-0.4, 7.6, lz * 0.6, 0.6, 4.6, lz, 0.55), look.trim, 4)
     end
+    return 0.4, 9.2, 1.9
+end
+
+-- A horseman: a warrior's lance of wood, couched on a blow.
+function UNIT.horseman(look, pose)
+    local parts = {}
+    mount(parts, look, pose, "helmet")
     local tx, ty = 6, 13
     if pose == 3 then tx, ty = 8, 8 end
     parts[#parts + 1] = part(Sh.seg(-3, 7, 2, tx, ty, 2, 0.4), R.wood, 7)
     return parts
 end
+
+-- A rider with nothing but a staff, seeing far from the saddle.
+function UNIT.rider(look, pose)
+    local parts = {}
+    local rx, ry, rz = mount(parts, look, pose, "wide")
+    parts[#parts + 1] = part(Sh.seg(rx, ry - 2, rz + 0.4, rx + 0.8, ry + 5, rz + 0.4, 0.35), R.wood, 7)
+    return parts
+end
+
+-- A lancer: the spear's iron head on a long ash shaft.
+function UNIT.lancer(look, pose)
+    local parts = {}
+    mount(parts, look, pose, "helmet")
+    local bx, by, tx, ty = -3, 7, 7, 14
+    if pose == 3 then tx, ty = 9.5, 8 end
+    parts[#parts + 1] = part(Sh.seg(bx, by, 2, tx, ty, 2, 0.35), R.wood, 7)
+    parts[#parts + 1] = part(Sh.seg(tx - (tx - bx) * 0.1, ty - (ty - by) * 0.1, 2, tx, ty, 2, 0.6), R.metal, 9)
+    shield(parts, -0.2, 8.6, -2.2, 2.0, R.metal)
+    return parts
+end
+
+-- A knight: a sword raised, and cut down on a blow; a tall shield.
+function UNIT.knight(look, pose)
+    local parts = {}
+    local rx, ry, rz = mount(parts, look, pose, "helmet")
+    local tx, ty = rx + 1.5, ry + 5
+    if pose == 3 then tx, ty = rx + 4.5, ry - 0.5 end
+    parts[#parts + 1] = part(Sh.seg(rx, ry, rz, tx, ty, rz, 0.5), R.metal, 7)
+    parts[#parts + 1] = part(Sh.box(0.2, 8.6, -2.1, 1, 0.9, 4.4), look.trim, 8)
+    parts[#parts + 1] = part(Sh.box(0.4, 8.9, -2.1, 0.6, 1, 3.8), R.metal, 9)
+    return parts
+end
+
+-- A horse archer: the bow held out to the side, drawn on a blow.
+function UNIT.horsearcher(look, pose)
+    local parts = {}
+    mount(parts, look, pose, "hood")
+    local bx, by, bz = 1.6, 10, -2.4
+    if pose == 3 then bx, by, bz = 2.6, 10.4, -1.2 end
+    parts[#parts + 1] = part(Sh.seg(bx, by - 3, bz, bx + 0.8, by - 1, bz, 0.35), R.wood, 7)
+    parts[#parts + 1] = part(Sh.seg(bx + 0.8, by - 1, bz, bx + 0.8, by + 1, bz, 0.4), R.wood, 7)
+    parts[#parts + 1] = part(Sh.seg(bx + 0.8, by + 1, bz, bx, by + 3, bz, 0.35), R.wood, 7)
+    parts[#parts + 1] = part(Sh.seg(-2.2, 7.6, 1.4, -2.6, 11.4, 1.8, 0.6), R.dark, 9)
+    return parts
+end
+
+-- A mounted slinger: the cord whirled over the head.
+function UNIT.mountedslinger(look, pose)
+    local parts = {}
+    mount(parts, look, pose, "hood")
+    local hx, hy, hz = 0.4, 14.2, 1.6
+    parts[#parts + 1] = part(Sh.seg(-0.2, 10.4, 1.6, hx, hy, hz, 0.5), look.cloth, 4)
+    local sx, sz = hx + (pose == 3 and 3 or -1.2), hz + (pose == 3 and 0 or 1.5)
+    parts[#parts + 1] = part(Sh.seg(hx, hy, hz, sx, hy + 1.4, sz, 0.25), R.dark, 7)
+    parts[#parts + 1] = part(Sh.ell(sx, hy + 1.4, sz, 0.8, 0.8, 0.8), R.stone, 9)
+    return parts
+end
+
+-- The forms that ride (src/defs.lua D.FORMS): they go in a boat as a horse
+-- does, smaller.
+M.MOUNTED = { rider = true, horseman = true, lancer = true, knight = true, horsearcher = true, mountedslinger = true }
 
 --- on the water -----------------------------------------------------------------
 --
@@ -460,8 +535,8 @@ local function embarked(kind, look, pose, face)
         end)
         cargo = {}
         person(cargo, look, 0, { hat = "wide" })
-    elseif kind == "horseman" then
-        cargo = UNIT.horseman(look, 0)
+    elseif M.MOUNTED[kind] then
+        cargo = UNIT[kind](look, 0)
         s = 0.6
     else
         cargo = UNIT[kind](look, pose == 3 and 3 or 0)

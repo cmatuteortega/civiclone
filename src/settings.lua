@@ -86,6 +86,7 @@ Settings.COMMANDS = {
     { id = "farm", name = "BUILD FARM", default = "r" },
     { id = "mine", name = "BUILD MINE", default = "m" },
     { id = "boats", name = "BUILD FISHING BOATS", default = "n" },
+    { id = "refit", name = "REFIT IN A CITY", default = "e" },
     { id = "fullscreen", name = "TOGGLE FULLSCREEN", default = "f11" },
 }
 Settings.COMMAND = {}

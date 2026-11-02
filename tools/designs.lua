@@ -15,6 +15,10 @@ local Sh = require "src.shapes"
 local M = require "src.models"
 local H = require "src.hex"
 local Font = require "src.font"
+-- Letters off a whole pixel are plotted a pixel at a time, not out of the
+-- picture of them all that only LÖVE can make: so, here, always.
+local print_ = Font.print
+Font = setmetatable({ print = function(text, x, y) return print_(text, x + 1e-6, y) end }, { __index = Font })
 
 local floor, sin = math.floor, math.sin
 local IDX = T.IDX
@@ -150,7 +154,7 @@ local function title(text)
     Font.print(text, 4, 3)
 end
 
-local function row(name, head, items, picOf, ground_)
+local function row(name, head, items, picOf, ground_, lift)
     local cw = 64
     canvas(cw * #items, 96)
     local sea = ground(ground_ or ONE)
@@ -158,7 +162,7 @@ local function row(name, head, items, picOf, ground_)
         local px, py = (k - 0.5) * cw, 56
         reset(floor(px - cw / 2), 0, cw, 96)
         stamp(sea, px, py, 0, 0, 0)
-        stamp(picOf(it, k), px, py, 0, -2, 0)
+        stamp(picOf(it, k), px, py, 0, lift or -2, 0)
         label(it.label, px, 88)
     end
     title(head)
@@ -185,6 +189,28 @@ row("embarked", "EMBARKED - LAND UNITS ROWED OVER THE WATER", {
     { label = "HORSEMAN", kind = "horseman", look = "dark", face = 1 },
     { label = "SPEARMAN", kind = "spearman", look = "stripe", face = 3, pose = 1 },
 }, function(it) return M.unit(it.kind, it.look, it.face, it.pose or 0, 0, true) end)
+
+-- What a band is, by what it carries (src/defs.lua D.GEAR), on foot and
+-- on a horse.
+row("bands", "BANDS - WHAT THEY CARRY MAKES THEM", {
+    { label = "SCOUT", kind = "scout", look = "light", face = 1 },
+    { label = "WARRIOR", kind = "warrior", look = "dark", face = 1 },
+    { label = "SLINGER", kind = "slinger", look = "stripe", face = 1 },
+    { label = "ARCHER", kind = "archer", look = "light", face = 1 },
+    { label = "SPEARMAN", kind = "spearman", look = "dark", face = 1 },
+    { label = "SWORDSMAN", kind = "swordsman", look = "stripe", face = 1 },
+}, function(it) return M.unit(it.kind, it.look, it.face, it.pose or 0, 0) end, { { 0, 0, "land" } }, 4)
+
+row("riders", "BANDS ON HORSES", {
+    { label = "RIDER", kind = "rider", look = "light", face = 1 },
+    { label = "HORSEMAN", kind = "horseman", look = "dark", face = 1 },
+    { label = "MTD SLINGER", kind = "mountedslinger", look = "stripe", face = 1 },
+    { label = "HORSE ARCHER", kind = "horsearcher", look = "light", face = 1 },
+    { label = "LANCER", kind = "lancer", look = "dark", face = 1 },
+    { label = "KNIGHT", kind = "knight", look = "stripe", face = 1 },
+    { label = "KNIGHT BLOW", kind = "knight", look = "light", face = 0, pose = 3 },
+    { label = "IN A BOAT", kind = "horsearcher", look = "dark", face = 1, boat = true },
+}, function(it) return M.unit(it.kind, it.look, it.face, it.pose or 0, 0, it.boat) end, { { 0, 0, "land" } }, 4)
 
 row("fishing", "FISHING BOATS - ON FISH, SAILING. THE HAUL, STEP BY STEP", {
     { label = "REACH", look = "light", phase = 0 }, { label = "LIFT", look = "light", phase = 1 },

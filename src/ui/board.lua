@@ -763,7 +763,7 @@ local function cityBanner(c)
     -- Growth and production underneath, for the player's own.
     if c.owner == 1 then
         Draw.bar(x, y + 10, w, c.food / g:growthNeed(c), "c", "u")
-        local def = c.build and (c.build.kind == "unit" and D.UNITS[c.build.id] or D.BUILDINGS[c.build.id])
+        local def = c.build and g:buildDef(c.build)
         Draw.bar(x, y + 11, w, def and c.prod / def.cost or 0, "s", "n")
         if not c.build and floor(S.clock * 2) % 2 == 0 then Draw.rect("w", x + w + 2, y + 2, 1, 5) end
     end

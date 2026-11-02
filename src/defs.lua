@@ -772,15 +772,15 @@ D.QUAKE = {
 D.TECHS = {
     { id = "pottery", name = "POTTERY", cost = 25, needs = {}, gives = "GRANARY, HEARTH" },
     { id = "mining", name = "MINING", cost = 25, needs = {}, gives = "MINES, SHELTER" },
-    { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "ARCHER" },
+    { id = "archery", name = "ARCHERY", cost = 35, needs = {}, gives = "BOW" },
     { id = "masonry", name = "MASONRY", cost = 40, needs = { "mining" }, gives = "WALLS, CISTERN, LEVEE, BUTTRESS" },
     { id = "writing", name = "WRITING", cost = 50, needs = { "pottery" }, gives = "LIBRARY, SANCTUM, LAZARET" },
-    { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, gives = "SPEARMAN" },
-    { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, gives = "HORSEMAN" },
+    { id = "bronze", name = "BRONZE WORKING", cost = 55, needs = { "mining" }, gives = "SPEAR" },
+    { id = "horses", name = "HORSEBACK RIDING", cost = 60, needs = { "archery" }, gives = "HORSE" },
     { id = "currency", name = "CURRENCY", cost = 80, needs = { "writing" }, gives = "MARKET" },
-    { id = "iron", name = "IRON WORKING", cost = 100, needs = { "bronze" }, gives = "SWORDSMAN" },
-    { id = "sailing", name = "SAILING", cost = 40, needs = { "pottery" }, gives = "GALLEY, EMBARKING, FISHING BOATS" },
-    { id = "shipbuilding", name = "SHIPBUILDING", cost = 70, needs = { "sailing" }, gives = "QUADRIREME, HARBOUR" },
+    { id = "iron", name = "IRON WORKING", cost = 100, needs = { "bronze" }, gives = "SWORD" },
+    { id = "sailing", name = "SAILING", cost = 40, needs = { "pottery" }, gives = "SHIPS, EMBARKING, FISHING BOATS" },
+    { id = "shipbuilding", name = "SHIPBUILDING", cost = 70, needs = { "sailing" }, gives = "BOLT THROWER, HARBOUR" },
     { id = "cartography", name = "CARTOGRAPHY", cost = 90, needs = { "shipbuilding" }, gives = "OCEAN, LIGHTHOUSE" },
 }
 D.TECH = {}

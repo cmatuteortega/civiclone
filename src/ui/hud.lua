@@ -110,7 +110,9 @@ local function unitPanel(u)
     local def = u.def
     local acts = O.actions(u)
     local w, h = 168, Win.BAR + 1 + 28
-    local who = (u.owner == 1 or u.owner == g.WILD) and def.name or (g.players[u.owner].name .. " " .. def.name)
+    local rank = D.rank(u.xp)
+    local name = (rank and (rank.name .. " ") or "") .. def.name
+    local who = (u.owner == 1 or u.owner == g.WILD) and name or (g.players[u.owner].name .. " " .. name)
     Win.add({ id = "unit", title = who, w = w, h = h, x = 2, y = S.vh - h - 2,
         close = function() O.select(nil) end,
         draw = function(x, y)
@@ -126,6 +128,7 @@ local function unitPanel(u)
             stats[#stats + 1] = "HP " .. max(0, u.hp)
             stats[#stats + 1] = "MOVES " .. u.moves .. "/" .. g:maxMoves(u)
             if def.charges then stats[#stats + 1] = "BUILDS " .. u.charges end
+            if def.hide then stats[#stats + 1] = "HIDE" end
             text("c", table.concat(stats, "  "), x + 15, y + 4)
             local status = (u.sick and "CARRIES THE PLAGUE") or u.fortified and "FORTIFIED" or (u.sleep and "ASLEEP")
                 or (u.dest and "ON THE MOVE") or (embarked and "EMBARKED") or nil
@@ -133,7 +136,7 @@ local function unitPanel(u)
             local bx = x + 3
             for _, a in ipairs(acts) do
                 local bw = Font.width(a.label) + 8
-                button(a.label, bx, y + 14, bw, 11, a.fn, { off = a.off or u.moves <= 0 and a.label ~= "WAKE" })
+                button(a.label, bx, y + 14, bw, 11, a.fn, { off = a.off or u.moves <= 0 and a.label ~= "WAKE" and a.label ~= "REFIT" })
                 bx = bx + bw + 2
             end
         end })
@@ -145,12 +148,41 @@ local function costOf(it) return it.def.cost end
 
 local cityBody
 
+-- What a band or a ship being made (or refitted) could carry, slot by
+-- slot: { label, on, gear } for a row of buttons, the gear each would
+-- give it.
+local function gearChoices(c)
+    local g, p, b = S.game, me(), c.build
+    if not (b and b.gear and D.UNITS[b.id].geared) then return nil end
+    local out = {}
+    local function with(slot, id)
+        local gear = D.copyGear(b.gear)
+        gear[slot] = id
+        return gear
+    end
+    if not D.UNITS[b.id].armed then
+        out[#out + 1] = { label = "NONE", on = b.gear.weapon == nil, gear = with("weapon", nil) }
+    end
+    local weapons = g:gearFor(p, b.id, "weapon")
+    -- A weapon taken from the fallen stays on the list for a refit.
+    if b.gear.weapon and not g:canMake(p, b.gear.weapon) then table.insert(weapons, 1, b.gear.weapon) end
+    for _, id in ipairs(weapons) do
+        out[#out + 1] = { label = D.GEAR[id].name, on = b.gear.weapon == id, gear = with("weapon", id) }
+    end
+    for _, id in ipairs(g:gearFor(p, b.id, "mount")) do
+        out[#out + 1] = { label = D.GEAR[id].name, on = b.gear.mount == id,
+            gear = with("mount", b.gear.mount ~= id and id or nil) }
+    end
+    return out
+end
+
 local function cityPanel(c)
     local g = S.game
     local mine = c.owner == 1
     local w = 150
     local items = mine and g:buildable(c) or {}
     local h = 62 + (mine and (#items * 10 + 14) or 0) + (Cat.is(g, "plague") and Cat.stage(g) and 11 or 0)
+        + (mine and gearChoices(c) and 12 or 0)
     h = min(h, S.vh - 13 - 24)
     local cap = c.capital and " (CAPITAL)" or ""
     Win.add({ id = "city", title = c.name .. cap, w = w, h = h,
@@ -214,24 +246,50 @@ function cityBody(c, x, y, w, h, mine, items)
     if not mine then return end
     -- What it is building, and what it could.
     if c.build then
-        local def = c.build.kind == "unit" and D.UNITS[c.build.id] or D.BUILDINGS[c.build.id]
+        local def = g:buildDef(c.build)
         text("w", def.name .. " " .. floor(c.prod) .. "/" .. def.cost .. " (" .. g:turnsFor(c, def.cost) .. ")", x + 4, yy)
         Draw.bar(x + 4, yy + 7, w - 50, c.prod / def.cost, "w", "o")
         local cost = g:buyCost(c)
         local can = cost and me().gold >= cost and not c.bought
+        if c.build.refit and not g:refitReady(c) then can = false end
         button("BUY " .. cost, x + w - 44, yy - 2, 40, 10, function() g:buy(c) end, { off = not can })
     else
         text("w", "CHOOSE WHAT TO BUILD", x + 4, yy)
     end
     yy = yy + 13
+    -- What the band or ship under way carries: a button for each piece.
+    local choices = gearChoices(c)
+    if choices then
+        local bx = x + 3
+        for _, ch in ipairs(choices) do
+            local bw = Font.width(ch.label) + 6
+            button(ch.label, bx, yy - 1, bw, 10, function()
+                local b = c.build
+                if b.refit then
+                    local u = g:unitById(b.refit)
+                    if u then g:refit(u, ch.gear) end
+                else
+                    g:setBuild(c, "unit", b.id, ch.gear)
+                end
+            end, { on = ch.on })
+            bx = bx + bw + 2
+        end
+        yy = yy + 12
+    end
     for _, it in ipairs(items) do
         if yy + 10 > y + h - 2 then break end
         local cost = costOf(it)
-        local on = c.build and c.build.kind == it.kind and c.build.id == it.id
+        local on = c.build and c.build.kind == it.kind and c.build.id == it.id and not c.build.refit
+        -- A band or a ship: named as such, costed as what it carries now.
+        local label = it.def.name
+        if it.gear then
+            label = D.UNITS[it.id].name
+            if on then cost = g:buildDef(c.build).cost end
+        end
         local turns = g:turnsFor(c, cost, on and c.prod or 0)
         local note = (it.kind == "unit" and it.def.pop and c.pop <= it.def.pop) and "NEEDS 2 POP" or (cost .. "  " .. turns .. "T")
-        local hot = button(it.def.name, x + 3, yy, w - 6, 10, function()
-            g:setBuild(c, it.kind, it.id)
+        local hot = button(label, x + 3, yy, w - 6, 10, function()
+            if not on then g:setBuild(c, it.kind, it.id, it.gear) end
         end, { on = on, left = true, icon = it.kind == "unit" and it.id or "city" })
         text(hot and "o" or "u", note, x + w - 5 - Font.width(note), yy + 3)
         yy = yy + 10

@@ -219,7 +219,15 @@ local function followPlan()
         S.anim, S.effects, S.wakes = {}, {}, {}
         for _, u in ipairs(S.game.units) do u.trail = { u.cell } end
         local cap = S.game:citiesOf(1)[1]
-        if plan.select == "city" and cap then O.select(cap, true)
+        -- `--select gear`: the capital training a band, its gear to choose;
+        -- `--select refit`: the band in the capital, to be refitted.
+        if plan.select == "gear" and cap then
+            S.game:setBuild(cap, "unit", "band")
+            O.select(cap, true)
+        elseif plan.select == "refit" and cap then
+            local u = S.game.mil[cap.cell] or S.game:addUnit("band", 1, cap.cell, { weapon = "club" })
+            O.select(u, true)
+        elseif plan.select == "city" and cap then O.select(cap, true)
         else
             local u = S.game:unitsOf(1)[1]
             if u then O.select(u, true) end

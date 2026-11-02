@@ -97,8 +97,8 @@ Three civilizations play:
 | **Umbra** | Queen Nocta (AI) | Dark cloth | Solid dark line |
 | **Varro** | King Tess (AI) | Light cloth banded with dark | Dashed light and dark |
 
-Each starts with a **settler** and a **warrior** on its starting hex and a
-**scout** next to it, plus **10 gold**. The game opens on turn 1, 4000 BC,
+Each starts with a **settler** and a **warrior** (a band with a club) on its
+starting hex and a **scout** (a band with nothing) next to it, plus **10 gold**. The game opens on turn 1, 4000 BC,
 with your first idle unit (the settler) selected.
 
 ## Controls
@@ -350,25 +350,69 @@ then 20. Turn 1 is 4000 BC.
 
 ## Units
 
-| Unit | Cost | Strength | Ranged / range | Moves | Sight | Needs |
-| --- | --- | --- | --- | --- | --- | --- |
-| Settler | 70 | — | — | 2 | 2 | A city of 2+ citizens; costs 1 citizen |
-| Builder | 45 | — | — | 2 | 2 | — (3 builds) |
-| Warrior | 40 | 20 | — | 2 | 2 | — |
-| Scout | 30 | 10 | — | 3 | 3 | — |
-| Slinger | 35 | 5 | 15 / 2 | 2 | 2 | — |
-| Archer | 60 | 15 | 25 / 2 | 2 | 2 | Archery |
-| Spearman | 65 | 25 | — | 2 | 2 | Bronze Working |
-| Horseman | 80 | 36 | — | 4 | 2 | Horseback Riding |
-| Swordsman | 90 | 35 | — | 2 | 2 | Iron Working |
-| Galley | 65 | 25 | — | 3 | 2 | Sailing; a city on the water |
-| Quadrireme | 110 | 20 | 25 / 2 | 3 | 2 | Shipbuilding; a city on the water |
+A city trains four things: a **settler**, a **builder**, a **band** and a
+**ship**. What a band or a ship *is* comes from what it carries: a band with
+a club is a warrior, with a bow an archer, with a bow on a horse a horse
+archer, and with nothing a scout. Research opens new gear, not new units.
 
-- **Lines:** a unit gives way to the one that takes its place. Once you can
-  build an archer no city offers the slinger; the spearman takes the
-  warrior's place, and the swordsman the spearman's. What a city had under
-  way becomes the new unit, keeping the production put into it. Units
-  already on the map stay as they are.
+| Unit | Cost | Strength | Moves | Sight | Needs |
+| --- | --- | --- | --- | --- | --- |
+| Settler | 70 | — | 2 | 2 | A city of 2+ citizens; costs 1 citizen |
+| Builder | 45 | — | 2 | 2 | — (3 builds) |
+| Band | 30 + its gear | 10 (with no weapon) | 2 (3 with no weapon) | 2 (3 with no weapon) | — |
+| Ship | 45 + its weapon | 15 | 3 | 2 | Sailing; a city on the water |
+
+**Gear.** One weapon, and for a band a mount; armour is only ever taken.
+
+| Gear | For | Cost | Gives | Needs | Takes the place of |
+| --- | --- | --- | --- | --- | --- |
+| Club | Band | 10 | Strength 20 | — | — |
+| Sling | Band | 5 | Strength 5, ranged 15 / 2 | — | — |
+| Bow | Band | 30 | Strength 15, ranged 25 / 2 | Archery | Sling |
+| Spear | Band | 35 | Strength 25 | Bronze Working | Club |
+| Sword | Band | 60 | Strength 35 | Iron Working | Spear |
+| Horse | Band | 40 | +10 strength, 4 moves | Horseback Riding | — |
+| Bear hide | Band | — | +3 strength | Only taken from a bear | — |
+| Ram | Ship | 20 | Strength 25 | — | — |
+| Bolt thrower | Ship | 65 | Strength 20, ranged 25 / 2 | Shipbuilding | — |
+
+**What a band is called**, by its weapon, on foot and on a horse:
+
+| Weapon | On foot | Cost | On a horse | Cost |
+| --- | --- | --- | --- | --- |
+| None | Scout | 30 | Rider | 70 |
+| Club | Warrior | 40 | Horseman | 80 |
+| Sling | Slinger | 35 | Mounted slinger | 75 |
+| Bow | Archer | 60 | Horse archer | 100 |
+| Spear | Spearman | 65 | Lancer | 105 |
+| Sword | Swordsman | 90 | Knight | 130 |
+
+A ship with a ram is a **galley** (65); with a bolt thrower a
+**quadrireme** (110).
+
+- **Choosing the gear:** a city's list has one BAND (and, on the water, one
+  SHIP). Choosing it gives the strongest blade you have, on foot; the row of
+  buttons under what the city is building changes it: NONE, each weapon you
+  can make, and HORSE on or off. The cost and the turns follow.
+- **Lines:** a piece gives way to the one that takes its place. Once you know
+  Archery no city offers the sling; the spear takes the club's place, and the
+  sword the spear's. What a city had under way is given the new piece,
+  keeping the production put into it. Units already on the map keep theirs.
+- **Refitting:** a band (or a ship, in a city on the water) standing in a
+  city of yours can be refitted: REFIT (`E`) gives the city the order, with
+  the strongest gear of the same sort, and the city's panel changes it as for
+  a new one. It costs what the new gear costs over the old, at least 5, made
+  by the city or bought with gold, and is done when it is paid for, if the
+  unit is still there; one that has walked off is not refitted, and what was
+  made is kept. A bear hide stays on whatever else it is given.
+- **Rank:** a unit gains a point for each fight it comes through and two for
+  a kill. At 3 it is a **veteran** (+2 strength), at 8 **elite** (+4). The
+  rank is the unit's own, whatever it carries, and its panel's title says it.
+- **Plunder:** a band that kills another in melee takes from it a better
+  weapon of the same sort (a blade for a blade, a shot for a shot; a spear
+  for a club, never a sling), its horse if it has none and its hide if it has
+  none, research or not. The news says what it took and what it is now.
+
 - **Stacking:** one military and one civilian unit per hex, of any one civilization.
 - **HP:** every unit has 100 HP.
 - **Orders:**
@@ -433,6 +477,7 @@ formula reversed. Ranged attackers take nothing back.
 | +3 | Defender in forest |
 | +4 | Fortified defender (fortification is lost when attacked) |
 | −5 | Melee attacker striking across a river (the tooltip says so) |
+| +2 / +4 | A veteran / elite unit, attacking or defending |
 
 **Results:**
 
@@ -634,15 +679,15 @@ waits for the next choice.
 | --- | --- | --- | --- |
 | Pottery | 25 | — | Granary, Hearth |
 | Mining | 25 | — | Mines, Shelter |
-| Archery | 35 | — | Archer |
+| Archery | 35 | — | Bow |
 | Masonry | 40 | Mining | Walls, Cistern, Levee |
 | Writing | 50 | Pottery | Library, Sanctum |
-| Bronze Working | 55 | Mining | Spearman |
-| Horseback Riding | 60 | Archery | Horseman |
+| Bronze Working | 55 | Mining | Spear |
+| Horseback Riding | 60 | Archery | Horse |
 | Currency | 80 | Writing | Market |
-| Iron Working | 100 | Bronze Working | Swordsman |
-| Sailing | 40 | Pottery | Galley, embarking, fishing boats |
-| Shipbuilding | 70 | Sailing | Quadrireme, Harbour |
+| Iron Working | 100 | Bronze Working | Sword |
+| Sailing | 40 | Pottery | Ships, embarking, fishing boats |
+| Shipbuilding | 70 | Sailing | Bolt thrower, Harbour |
 | Cartography | 90 | Shipbuilding | Ocean travel, Lighthouse |
 
 ## The sea
@@ -701,18 +746,21 @@ technology.
 **Production:** a city with nothing to build chooses, in order:
 
 1. a soldier, if the city has no guard and the civilization has fewer than
-   2 soldiers per city, or fewer soldiers than cities (its best melee unit,
-   or 30% of the time a ranged one)
+   2 soldiers per city, or fewer soldiers than cities (a band with its
+   strongest blade, on a horse a third of the time once it has horses; or
+   30% of the time its strongest shot)
 2. a settler, from turn 5, in a city of 2+ citizens, while it has fewer than
    5 cities and settlers and no settler already planned
 3. a builder, from turn 7, while it has fewer than (cities − 1) builders (at least 1)
 4. from turn 16, a ship in a city on the water, while it has fewer than one
    for every two such cities (one more once it knows a rival's city on the
-   water, 3 at most)
+   water, 3 at most), with a ram or a bolt thrower by chance
 5. a building: monument, granary, walls (only after turn 30), library,
    harbour, market, then lighthouse
-6. more soldiers, up to 3 per city plus 1 per 15 turns
-7. otherwise a builder
+6. a refit of the band guarding it, if its weapon has been left behind (a
+   club once it has spears)
+7. more soldiers, up to 3 per city plus 1 per 15 turns
+8. otherwise a builder
 
 **Buying:** a damaged city building a unit buys it at once if it can afford it.
 
@@ -771,7 +819,7 @@ on flat plains, crocodiles on hexes by a river, serpents on the ocean.
 | Beast | Temper | Str | Moves | Strays | Notices | Loot |
 | --- | --- | --- | --- | --- | --- | --- |
 | **Wolf** (in twos, from a den) | Hostile | 16, **22 at night** | 2 | 3 | 2 (3 at night) | 15 gold |
-| **Bear** (from a cave) | Hostile | 30 | 1 | 2 | 2 | 25 gold, 5 culture |
+| **Bear** (from a cave) | Hostile | 30 | 1 | 2 | 2 | 25 gold, 5 culture; its hide to the band that killed it |
 | **Crocodile** | Hostile, strikes only **across its river** | 22 | 1 | 2 (river hexes only) | 1 | 20 gold |
 | **Sea serpent** | Hostile | 38 | 3 | 5 (ocean only) | 3 | 60 gold |
 | **Wild boar** | Neutral | 18 | 2 | 2 | – | 10 food, 5 gold |
@@ -815,8 +863,13 @@ culture go to the killer's city nearest the place it died. The amount
 rises off the hex, and the news says what it was ("WOLF SLAIN: +15 GOLD").
 
 **Taming:** once you know Horseback Riding, a soldier of yours (not a
-civilian) that comes onto a hex next to wild horses tames them. The horses
-become a horseman of yours, with no moves left that turn.
+civilian) that comes onto a hex next to wild horses tames them. A band with
+no horse mounts them (a warrior becomes a horseman, an archer a horse
+archer); otherwise the horses become a horseman of yours, with no moves left
+that turn.
+
+**Hides:** a band that kills a bear and wears nothing takes its hide: +3
+strength for good, kept through any refit.
 
 **Lairs:**
 
@@ -1692,7 +1745,7 @@ loud if the hex is off the edge.
 | Choosing a unit, a city | Two knocks on wood (lower for civilians); two bells |
 | A button, a panel opened or closed | A click; a page turned |
 | A right click a unit can't follow | Two low knocks |
-| A unit walking onto a hex | A footstep; hooves for a horseman; leaves in a forest; an oar's stroke on the water |
+| A unit walking onto a hex | A footstep; hooves for anyone on a horse; leaves in a forest; an oar's stroke on the water |
 | A unit taking to the water or landing | A thud on the planks and a splash |
 | Fortify, sleep | A thump on a shield; two falling lyre notes |
 | A melee attack | Bronze clashing as the lunge lands, and the blow |
@@ -1757,6 +1810,7 @@ and picks up where it left off.
 | `love . --shot title.png` | With no `--play`, a picture of the title screen; `--open newgame` or `--open settings` shows that window over it |
 | `love . --play --shot x.png --bare --select abyss --size 640x400` | The map alone, with no HUD, nothing chosen and nothing under the pointer. The new game window's pictures (`assets/menu/`, 160 by 96) are the middle of pictures taken so |
 | `love . --play --shot out.png --turns 40 --select city` | Let the AI play your side for 40 turns, select your capital, screenshot into LÖVE's save folder, and quit (silently) |
+| `love . --play --shot gear.png --turns 60 --select gear` | Your capital set to train a band, its gear row showing. `--select refit` selects a band in your capital instead (one put there if none), its REFIT button showing |
 | `love . --play --shot night.png --turns 40 --hour 0` | The same at midnight: `--hour H` plays every turn at H o'clock |
 | `love . --play --shot port.png --turns 80 --select harbour --hour 11` | The player's city on the water (one founded on the nearest shore if there is none) given a harbour and a lighthouse, with a galley, a quadrireme, a warrior in a boat and fishing boats round it. `--select port` looks at the best city on the water you know, `--select fleet` at one of your ships |
 | `love . --play --shot river.png --select river --hour 10` | The camera over the hex with the most river by it (a waterfall if there is one), with the land round it shown. `--select ford` adds a warrior who wades across it a moment later; `--select bridge` founds a city of yours where the most river runs by in open country near home, so its bridges show |
@@ -1777,7 +1831,7 @@ and picks up where it left off.
 | `love . --play --cataclysm plague --shot plague.png --turns 40 --select plague --hour 13 --zoom 2` | The plague round your capital: it sick (daubed, its dead buried, a pyre burning beside it, the miasma over it, crows over it), a second town of yours shut with a lazaret (founded if there is none), rats running, a soldier carrying it and farms fallow, all of it shown |
 | `luajit tools/demon_sheet.lua` | The demons' models painted on their own, every pose, beside beasts and a warrior, with the rift, the citadel and a town with a sanctum, into /tmp/sheet/sheet.ppm, no LÖVE needed; [shots/38-demon-models.png](shots/38-demon-models.png) was made so |
 | `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
-| `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
+| `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) and every form a band takes, on foot and on a horse, into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |
 
 To change the game, start in `src/defs.lua`: the map size, last turn, terrain
