@@ -107,6 +107,106 @@ local function farmOpen(cell)
     return open
 end
 
+-- What a mine looks like comes from the mines round it (M.mine), as a
+-- farm's walls do. In a run of them some are pitheads, with the headframe
+-- and the hut, and the rest workings: taken in an order shuffled by hex (so
+-- it is not row by row), a mine is a pithead unless a mine beside it that
+-- comes earlier already is. So no two pitheads touch, and every workings has
+-- one beside it, which its track runs to: the tracks of a run lead into its
+-- pitheads. A step of more than two between the hexes' tops and no track
+-- crosses. Kept for a frame (`pits`), as the board is laid.
+local pits = {}
+local function mineRank(cell) return (cell.id * 2654435761) % 4294967296 end
+local function mineAt(cell, e)
+    local n = S.game:cell(H.step(cell.c, cell.r, e))
+    return n and n.improvement == "mine" and n or nil
+end
+local function isPit(cell)
+    local v = pits[cell.id]
+    if v == nil then
+        v = true
+        local r = mineRank(cell)
+        for e = 0, 5 do
+            local n = mineAt(cell, e)
+            if n and mineRank(n) < r and isPit(n) then v = false break end
+        end
+        pits[cell.id] = v
+    end
+    return v
+end
+-- The pithead a workings sends its track to: the earliest beside it that
+-- the track can reach, and the edge to it.
+local function pitOf(cell)
+    local best, be
+    for e = 0, 5 do
+        local n = mineAt(cell, e)
+        if n and isPit(n) and math.abs(n.top - cell.top) <= 2 and (not best or mineRank(n) < mineRank(best)) then
+            best, be = n, e
+        end
+    end
+    return best, be
+end
+
+local function mineSite(cell)
+    local any = false
+    for e = 0, 5 do any = any or mineAt(cell, e) ~= nil end
+    local role = not any and "lone" or (isPit(cell) and "pithead" or "workings")
+    local links = {}
+    if role == "workings" then
+        local _, e = pitOf(cell)
+        if e then links[e] = true end
+    elseif role == "pithead" then
+        for e = 0, 5 do
+            local n = mineAt(cell, e)
+            if n and not isPit(n) and pitOf(n) == cell then links[e] = true end
+        end
+    end
+    local kind = (cell.resource == "stone" and "quarry") or (cell.resource == "gems" and "gems") or "shaft"
+    return { hills = cell.elev == "hills", kind = kind, role = role, links = links,
+        layout = cell.id % #M.MINE_LAYOUTS + 1, variant = floor(cell.id / 3) % 3 }
+end
+Board.mineSite = function(cell) pits = {} return mineSite(cell) end
+
+-- A mine's ground: dug and trodden, clods of it a step darker (a quarry's a
+-- step paler, with the dust of the cutting), thickest towards the middle,
+-- and the bed of each track dark under it.
+local function clod(a, b)
+    local h = (a * 374761393 + b * 668265263) % 2147483647
+    h = (h * h + 1013904223) % 2147483647
+    return h / 2147483647
+end
+local function dugGround(cell, site)
+    local w = S.world
+    local s = M.MINE_SCALE
+    local kind, river = w.buf.kind, World.LAND.river
+    local tracks = M.mineTracks(site)
+    local pale = site.kind == "quarry"
+    local reach = H.APOTHEM / s
+    P.eachTop(cell, function(i, j, n)
+        local x, z = w.wx[n], w.wz[n]
+        if kind[n] ~= river and H.inset(x, z, cell.x, cell.z) > 0.8 then
+            local mx, mz = (x - cell.x) / s, (z - cell.z) / s
+            local bed = false
+            for _, t in ipairs(tracks) do
+                local dx, dz = t[3] - t[1], t[4] - t[2]
+                local f = ((mx - t[1]) * dx + (mz - t[2]) * dz) / (dx * dx + dz * dz)
+                f = math.max(0, math.min(1, f))
+                local ex, ez = mx - t[1] - dx * f, mz - t[2] - dz * f
+                if ex * ex + ez * ez < 1.9 then bed = true break end
+            end
+            local k = w.key[n]
+            if bed then
+                P.put(T.DARKER[k], i, j)
+            else
+                local r = math.sqrt(mx * mx + mz * mz) / reach
+                if clod(floor(i / 2), floor(j / 2)) < 0.62 - 0.5 * r then
+                    P.put(pale and T.LIGHTER[k] or T.DARKER[k], i, j)
+                end
+            end
+        end
+    end)
+end
+
 -- A hex's top a step lighter, every other pixel: where a unit can go. On
 -- the sea, a mark for the moving water to lighten itself by.
 local function lighten(cell, step)
@@ -601,27 +701,30 @@ end
 
 local function things(me)
     local g = S.game
+    pits = {}
     wakes(me)
     local list = {}
     for _, cell in ipairs(g.cells) do
         if cell.improvement == "boats" and me.explored[cell.id] then
             fishing(cell, me, list)
         elseif cell.improvement and me.explored[cell.id] then
-            local pic
+            local pic, site
             if cell.improvement == "farm" then
                 local layout = M.farmLayout(cell.id)
                 furrows(cell, layout, me.visible[cell.id])
                 pic = M.farm(layout, farmOpen(cell))
             else
-                pic = M.mine(cell.elev == "hills")
+                site = mineSite(cell)
+                dugGround(cell, site)
+                pic = M.mine(site)
             end
             list[#list + 1] = { z = cell.z - 1, draw = function()
                 P.stamp(pic, cell.x, cell.top, cell.z)
-                if cell.improvement == "mine" then
-                    local step = me.visible[cell.id] and wheelStep(cell) or 0
-                    P.stamp(M.mineWheel(cell.elev == "hills", step), cell.x, cell.top, cell.z)
+                if site then
+                    local wheel = M.mineWheel(site, me.visible[cell.id] and wheelStep(cell) or 0)
+                    if wheel then P.stamp(wheel, cell.x, cell.top, cell.z) end
                 end
-                if me.visible[cell.id] then Smoke.improvement(cell) end
+                if me.visible[cell.id] then Smoke.improvement(cell, site) end
             end }
         end
     end

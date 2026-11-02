@@ -261,6 +261,57 @@ local function followPlan()
             local u = S.game:unitsOf(1)[1]
             if u then O.select(u, true) end
         end
+        -- `--select mines`: a field of mines on the most open level land near
+        -- the player's start, all on hills, to see how a run of them reads
+        -- together, and one mine on its own a little way off, all of it
+        -- shown. `--select mines:mixed` makes some of them quarries (stone)
+        -- and gem diggings (desert with gems).
+        local minesHow = plan.select and plan.select:match("^mines:?(%a*)$")
+        if minesHow then
+            local D = require "src.defs"
+            local g, p = S.game, S.game.players[1]
+            local start = g.cells[g:unitsOf(1)[1].cell]
+            local function open(c)
+                return not g:isWater(c) and c.elev ~= "mountain" and not c.city and not c.quarter and not c.river
+            end
+            local function base(c) return c.top - (c.elev == "hills" and D.ELEV.hills.rise or 0) end
+            local best, bs
+            for _, cell in ipairs(g:within(start, 8)) do
+                local s = 0
+                for _, n in ipairs(g:within(cell, 2)) do
+                    if open(n) and open(cell) and base(n) == base(cell) then s = s + 1 end
+                end
+                if g:dist(cell, start) >= 3 and (not bs or s > bs) then best, bs = cell, s end
+            end
+            local ids = {}
+            local level, soil = base(best), best.terrain == "desert" and "grass" or best.terrain
+            local function mine(n, k)
+                n.top, n.terrain = level + (k ~= 2 and D.ELEV.hills.rise or 0), k == 2 and "desert" or soil
+                n.elev = k ~= 2 and "hills" or "flat"
+                n.feature, n.improvement, n.owner = nil, "mine", 1
+                n.resource = (k == 1 and "stone") or (k == 2 and "gems") or nil
+                ids[#ids + 1] = n.id
+            end
+            for _, n in ipairs(g:within(best, 2)) do
+                if open(n) and not g.mil[n.id] and not g.civ[n.id] then
+                    local k = minesHow == "mixed" and n.id % 7 or 0
+                    mine(n, (k == 3 or k == 5) and 1 or (k == 6 and 2) or 0)
+                end
+            end
+            for _, n in ipairs(g:within(best, 4)) do
+                if g:dist(n, best) == 4 and open(n) and not g.mil[n.id] and not g.civ[n.id] then
+                    mine(n, 0)
+                    break
+                end
+            end
+            for _, n in ipairs(g:within(best, 3)) do ids[#ids + 1] = n.id end
+            S.world:refreshAll(ids)
+            for _, cell in ipairs(g:within(best, 7)) do p.explored[cell.id], p.visible[cell.id] = true, true end
+            p.sightChanged = true
+            S.bordersDirty = true
+            S.selected = nil
+            View.lookAt(g.cells[plan.at or best.id], true)
+        end
         -- `--select port`: the player's city on the water with the most
         -- built out over it; `--select fleet`: one of the player's ships, or
         -- failing that a unit of theirs on the water.

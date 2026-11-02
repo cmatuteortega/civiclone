@@ -203,15 +203,16 @@ end
 -- A farmhouse's fire is low: two small puffs, then nothing for a while.
 local FARM = { puffs = 2, gap = 1.1, every = 15, size = 0.6 }
 
--- A farm's, from the peak of the farmhouse's thatch; a mine's, from the hut.
-function Smoke.improvement(cell)
+-- A farm's, from the peak of the farmhouse's thatch; a mine's, from its hut,
+-- if `site` (M.mine) gives it one.
+function Smoke.improvement(cell, site)
     if Sea.still() then return end
     if cell.improvement == "farm" then
         local home, s = M.farmLayout(cell.id).home, M.FARM_SCALE
         chimney(cell.x + home[1] * s, cell.top + 7 * s, cell.z + home[2] * s, cell.id * 10, FARM)
-    elseif cell.improvement == "mine" then
-        local s = M.MINE_SCALE
-        chimney(cell.x + 5.2 * s, cell.top + 5.2 * s, cell.z + 5 * s, cell.id * 10)
+    elseif cell.improvement == "mine" and site then
+        local x, y, z = M.mineHut(site)
+        if x then chimney(cell.x + x, cell.top + y, cell.z + z, cell.id * 10) end
     end
 end
 

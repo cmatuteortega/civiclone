@@ -666,8 +666,34 @@ out, the builder is gone.
 | Fishing boats | Fish, the builder rowed out onto it | +1 food | Sailing |
 
 Building a new improvement replaces the old one. A farm shows as furrows and
-a barn with a haystack; a mine shows as a spoil heap with a timbered adit and
-an ore cart.
+a barn with a haystack. A mine is put together from what the mines round it
+are (`M.mine` in `src/models.lua`, its site worked out in `src/ui/board.lua`),
+so a run of them reads as one working rather than one picture over and over:
+
+- **Pitheads and workings.** Taken in an order shuffled by hex, a mine is a
+  pithead unless a mine beside it that comes earlier already is, so no two
+  pitheads touch and every other mine has one beside it. Pitheads carry the
+  headframe and its winding wheel, the miners' hut and its smoke; workings
+  have the digging: an adit in a heap of spoil, a smaller adit with pit
+  props, or a bell pit under a windlass. A mine with none beside it has it
+  all.
+- **Tracks.** Each working's track runs from its adit through the middle of
+  the hex and out by the edge it shares with its pithead, where the
+  pithead's track meets it, so the tracks of a run lead into its pitheads.
+  No track crosses a step of more than two between hexes.
+- **Three layouts and three variants**, by hex: things stand towards the
+  hex's corners and tracks run to its edges' middles, between them.
+- **Dug ground**: clods a step darker, thickest towards the middle, and the
+  tracks' beds dark under them.
+- **What is mined**: on hills or star iron a shaft as above; on stone a
+  quarry, its benches stepping down to the front, a crane at the pithead and
+  cut blocks in the carts, on ground pale with dust; on gems small adits, a
+  windlass, a tent and a sorting trough where the stones glint.
+
+[shots/66-mine-fields.png](shots/66-mine-fields.png) is a field of mines as
+they were (above) and as they are, and
+[shots/67-mine-fields-mixed.png](shots/67-mine-fields-mixed.png) the same
+with quarries and gem diggings among them (`--select mines`, seed 7).
 
 ### Working the land
 
@@ -1584,7 +1610,8 @@ crown stands, how much fog darkens it, and its colour.
   stands on them. They darken half the pixels one step, and a quarter at
   the edge.
 - **Smoke** (`src/ui/smoke.lua`) rises from city chimneys (one per two
-  citizens, up to three), from farmhouses and from mine huts, in puffs that
+  citizens, up to three), from farmhouses and from the huts of pitheads and
+  lone mines, in puffs that
   grow, drift east and break up. It shows only where you can see.
 
 - **Heat** shimmers over the desert. Its rows of sand waver a pixel either
@@ -1685,7 +1712,7 @@ crown stands, how much fog darkens it, and its colour.
   pixel a step darker. Bees swarm about a hive and hum. A cleared lair throws
   up stones and dust.
 - Neither deer, sheep, herons, goats nor foxes are part of the game or its save.
-- **Mines** wind their wheel for a few seconds, rest, and let it back down.
+- **Mines** with a headframe wind their wheel for a few seconds, rest, and let it back down.
 - **Units** standing idle rise a pixel for a moment every few seconds, each
   at its own time. Fortified units stand still.
 
@@ -1853,6 +1880,7 @@ and picks up where it left off.
 | `love . --play --cataclysm demons --shot abyss.png --select abyss --hour 13` | The demons: their citadel risen a few hexes from your start with its blight about it, a rift open, another and a tentacle coming, and one of every demon, all of it shown. `--select blight` looks at the most blighted land of a game played on (with `--skip`) |
 | `love . --play --cataclysm plague --shot plague.png --turns 40 --select plague --hour 13 --zoom 2` | The plague round your capital: it sick (daubed, its dead buried, a pyre burning beside it, the miasma over it, crows over it), a second town of yours shut with a lazaret (founded if there is none), rats running, a soldier carrying it and farms fallow, all of it shown |
 | `luajit tools/demon_sheet.lua` | The demons' models painted on their own, every pose, beside beasts and a warrior, with the rift, the citadel and a town with a sanctum, into /tmp/sheet/sheet.ppm, no LÖVE needed; [shots/38-demon-models.png](shots/38-demon-models.png) was made so |
+| `love . --play --seed 7 --shot mines.png --select mines --zoom 2 --hour 11` | A field of mines on hills near your start, the ground under them levelled, and one mine on its own a little way off, all of it shown: how a run of them reads together. `--select mines:mixed` makes some of them quarries (stone) and gem diggings (desert with gems) |
 | `love . --play --shot zoo.png --select zoo --zoom 1` | One of every beast of the wild and every lair the land allows, put round your start, all of it shown; [shots/20-wild.png](shots/20-wild.png) was made so. `--select wild` looks at the hex with the most of the wild round it (`--select wild:serpent`, or any beast's or lair's kind, for that one), and `--zoom N` brings the board N whole steps nearer |
 | `luajit tools/designs.lua dir` | Draws the sea's models (ships, embarked units, cities on the water, fishing boats, a fish's leap) and every form a band takes, on foot and on a horse, into `dir/*.ppm`, one group a picture; [shots/09-sea-designs.png](shots/09-sea-designs.png) is them put together |
 | `love . --sounds` | Write every effect, loop and music layer as a `.wav` into LÖVE's save folder (`sounds/`), and quit |
