@@ -32,6 +32,7 @@ local z, zTop = {}, 0    -- the stack: higher is nearer
 local drag               -- { id, dx, dy } while one is dragged
 local lastClick = { t = -1 }
 local dither, ditherW, ditherH
+local over = {}          -- what is drawn over all the windows this frame
 
 -- The top of the room windows may use: below the top bar while playing.
 local function topEdge() return S.mode == "play" and 11 or 0 end
@@ -140,7 +141,15 @@ function Win.flush()
         Win.rects[#Win.rects + 1] = w
     end
     if drag and not shown[drag.id] then drag = nil end
+    -- What a window asked to have drawn over them all: a tooltip.
+    local fns = over
+    over = {}
+    for _, fn in ipairs(fns) do fn() end
 end
+
+-- Draws fn over every window once they are all drawn, this frame only: for
+-- a window's tooltip, which may stick out of it over another.
+function Win.over(fn) over[#over + 1] = fn end
 
 -- The front window under HUD pixel (x, y), if any.
 function Win.at(x, y)

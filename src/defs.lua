@@ -343,39 +343,74 @@ end
 -- Stepping from the land onto the water, or back, takes all its moves.
 D.EMBARK = { moves = 3, str = 10 }
 
--- Buildings: what each adds to its city every turn.
+-- Buildings: what each adds to its city every turn. `icon` and `says` are
+-- how the city's build list shows it: the icon on its row, the lines in the
+-- tooltip over it.
 D.BUILDINGS = {
-    monument = { name = "MONUMENT", short = "MON.", cost = 50, culture = 2, order = 1 },
-    granary = { name = "GRANARY", short = "GRAN.", cost = 65, food = 2, tech = "pottery", order = 2 },
-    library = { name = "LIBRARY", short = "LIB.", cost = 90, science = 2, tech = "writing", order = 3 },
-    market = { name = "MARKET", short = "MKT.", cost = 100, gold = 4, tech = "currency", order = 4 },
-    walls = { name = "WALLS", short = "WALLS", cost = 80, defense = 10, hp = 100, tech = "masonry", order = 5 },
+    monument = { name = "MONUMENT", short = "MON.", cost = 50, culture = 2, order = 1,
+        icon = "culture", says = { "+2 CULTURE" } },
+    granary = { name = "GRANARY", short = "GRAN.", cost = 65, food = 2, tech = "pottery", order = 2,
+        icon = "food", says = { "+2 FOOD" } },
+    library = { name = "LIBRARY", short = "LIB.", cost = 90, science = 2, tech = "writing", order = 3,
+        icon = "science", says = { "+2 SCIENCE" } },
+    market = { name = "MARKET", short = "MKT.", cost = 100, gold = 4, tech = "currency", order = 4,
+        icon = "gold", says = { "+4 GOLD" } },
+    walls = { name = "WALLS", short = "WALLS", cost = 80, defense = 10, hp = 100, tech = "masonry", order = 5, icon = "shield",
+        says = {
+            "+10 DEFENSE, +100 HP",
+            "SHOOTS THE WEAKEST ENEMY IN REACH",
+        } },
     -- Only a city on the water: each worked water hex yields this much more.
-    harbour = { name = "HARBOUR", short = "HARB.", cost = 90, seaFood = 1, coastal = true, tech = "shipbuilding", order = 6 },
+    harbour = { name = "HARBOUR", short = "HARB.", cost = 90, seaFood = 1, coastal = true, tech = "shipbuilding", order = 6,
+        icon = "food", says = { "+1 FOOD FROM EACH WORKED WATER HEX" } },
     lighthouse = { name = "LIGHTHOUSE", short = "LIGHT.", cost = 80, seaGold = 1, sight = 4, coastal = true, tech = "cartography",
-        order = 7 },
+        order = 7, icon = "gold",
+        says = {
+            "+1 GOLD FROM EACH WORKED WATER HEX",
+            "THE CITY SEES 4 HEXES AWAY",
+        } },
     -- Against the heat (D.HEAT): the land the city owns dries slower, its
     -- farms keep their food through the drought, fire spreads onto its
     -- hexes less, and its people thirst less.
     -- Under the still sun (D.SUN) it holds off the endless day as well.
     cistern = { name = "CISTERN", short = "CIST.", cost = 70, ward = { heat = true, sun = true }, tech = "masonry",
-        order = 8 },
+        order = 8, icon = "star",
+        says = {
+            "AGAINST THE HEAT AND THE ENDLESS DAY:",
+            "ITS LAND DRIES SLOWER AND BURNS LESS,",
+            "ITS FARMS KEEP THEIR FOOD, ITS PEOPLE THIRST LESS",
+        } },
     -- Against the deluge (D.FLOOD): banks of earth faced with stone round
     -- the city's land. Its land floods and sours to marsh less, the sea
     -- can't take it, the city takes no harm from the water beside it, and
     -- its people sicken less.
     -- In the sundering (D.QUAKE) it keeps the waves out of the city.
     levee = { name = "LEVEE", short = "LEVEE", cost = 70, ward = { flood = true, quake = true }, tech = "masonry",
-        order = 9 },
+        order = 9, icon = "star",
+        says = {
+            "AGAINST THE DELUGE AND THE WAVES:",
+            "ITS LAND FLOODS LESS, THE SEA CANNOT TAKE IT,",
+            "ITS PEOPLE SICKEN LESS",
+        } },
     -- Against any cataclysm (D.SHELTER): cellars dug under the city, roofed
     -- with turf, where its people hide and its grain is kept. Built only
     -- when the world is ending, and the one ward the sky's falling has.
-    shelter = { name = "SHELTER", short = "SHELT.", cost = 60, ward = "any", tech = "mining", order = 10 },
+    shelter = { name = "SHELTER", short = "SHELT.", cost = 60, ward = "any", tech = "mining", order = 10, icon = "star",
+        says = {
+            "AGAINST ANY CATACLYSM:",
+            "HALF THE HARM OF ITS BLOWS,",
+            "STORES THAT SPARE FOOD IN THE HARD TURNS",
+        } },
     -- Against the demons (D.DEMONS): a ring of carved standing stones and a
     -- lamp kept burning. No rift opens on the city's land and the blight
     -- never takes it, the city shoots the demons near it even without walls,
     -- and its people dread less.
-    sanctum = { name = "SANCTUM", short = "SANCT.", cost = 70, ward = "demons", tech = "writing", order = 11 },
+    sanctum = { name = "SANCTUM", short = "SANCT.", cost = 70, ward = "demons", tech = "writing", order = 11, icon = "star",
+        says = {
+            "AGAINST THE DEMONS:",
+            "NO RIFT OPENS ON ITS LAND, NO BLIGHT,",
+            "IT SHOOTS DEMONS NEAR IT, ITS PEOPLE DREAD LESS",
+        } },
     -- Against the endless night of the still sun (D.SUN): a kiln-house of
     -- stone with a tall chimney, its fire never let go out, and the city's
     -- peat and wood stacked by it. The land the city owns freezes slower,
@@ -383,17 +418,32 @@ D.BUILDINGS = {
     -- cold.
     -- In the long night of the sky's falling (D.SKY) it does as much.
     hearth = { name = "HEARTH", short = "HEARTH", cost = 70, ward = { sun = true, sky = true }, tech = "pottery",
-        order = 12 },
+        order = 12, icon = "star",
+        says = {
+            "AGAINST THE ENDLESS NIGHT AND THE COLD:",
+            "ITS LAND FREEZES SLOWER, ITS FARMS KEEP",
+            "THEIR FOOD, ITS PEOPLE GO LESS COLD",
+        } },
     -- Against the plague (D.PLAGUE): a house of the sick outside the
     -- houses of the well, long and low, its beds in a row and a herb garden
     -- by it. Fewer of the city's sick die, they mend sooner, the well stay
     -- well longer after, and its people go hungry less.
-    lazaret = { name = "LAZARET", short = "LAZAR.", cost = 70, ward = "plague", tech = "writing", order = 13 },
+    lazaret = { name = "LAZARET", short = "LAZAR.", cost = 70, ward = "plague", tech = "writing", order = 13, icon = "star",
+        says = {
+            "AGAINST THE PLAGUE:",
+            "FEWER OF ITS SICK DIE AND THEY MEND SOONER,",
+            "THE WELL STAY WELL LONGER",
+        } },
     -- Against the sundering (D.QUAKE): the city's walls and halls shored up
     -- with stone buttresses and braced with timber. A quake does it half
     -- the harm and never brings a building down, kills half as many of its
     -- people, no fault opens on its land, and its people fear less.
-    buttress = { name = "BUTTRESS", short = "BUTTR.", cost = 70, ward = "quake", tech = "masonry", order = 14 },
+    buttress = { name = "BUTTRESS", short = "BUTTR.", cost = 70, ward = "quake", tech = "masonry", order = 14, icon = "star",
+        says = {
+            "AGAINST THE SUNDERING:",
+            "HALF THE HARM FROM A QUAKE, NO BUILDING FALLS,",
+            "HALF AS MANY DIE, NO FAULT OPENS ON ITS LAND",
+        } },
 }
 
 -- The shelter, against whatever ends the world: a city with one takes only

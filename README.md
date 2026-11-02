@@ -306,8 +306,8 @@ love .
 
 Optional flags: `--seed N` plays the map made from seed N, `--cataclysm heat|flood|sky|demons|sun|plague|quake|none` picks how the world ends, `--play` skips
 the title, `--resume` goes straight into the game that was kept, and `--touch` shows the touch-screen buttons. For checking how it looks, `--shot file.png [--turns N] [--select
-city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen|plague|sundering|rift|buttress|dry|ebbed|ruin|storm] [--zoom N]` lets the computer play your side for N turns, takes a screenshot into
-LÖVE's save folder, and quits (`--size WxH` makes the window that big; `--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out; `--bare` leaves the HUD off, which is how the new game window's pictures in `assets/menu/` are made; without `--play` it takes a picture of the title screen). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
+city|coast|river|ford|bridge|wild|zoo|fire|scorch|burnt|cistern|flood|marsh|silt|drowned|levee|crater|glow|mark|heart|shelter|skyfall|bigfall|abyss|blight|world|twilight|frost|tundra|snow|ice|hearth|frozen|plague|sundering|rift|buttress|dry|ebbed|ruin|storm] [--zoom N] [--mouse X,Y]` lets the computer play your side for N turns, takes a screenshot into
+LÖVE's save folder, and quits (`--size WxH` makes the window that big; `--mouse X,Y` puts the pointer at that HUD pixel, to see a tooltip; `--film N` takes N pictures a few frames apart instead; `--next` ends one more turn just before, to see it played out; `--bare` leaves the HUD off, which is how the new game window's pictures in `assets/menu/` are made; without `--play` it takes a picture of the title screen). `--hour H` plays every turn at H o'clock (0 to 24), and `--clock arc|dial|strip|scene|off` draws the clock so.
 
 ## Builds
 

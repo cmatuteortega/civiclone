@@ -146,6 +146,56 @@ end
 
 local function costOf(it) return it.def.cost end
 
+-- The build list's sections: units, what the city builds for itself, and
+-- what holds the cataclysm off.
+local SECTIONS = { unit = "UNITS", building = "CITY", ward = "AGAINST THE END" }
+local function sectionOf(it)
+    if it.kind == "unit" then return "unit" end
+    return it.def.ward and "ward" or "building"
+end
+
+-- How many sections a build list has, each with a heading.
+local function sectionCount(items)
+    local n, last = 0, nil
+    for _, it in ipairs(items) do
+        local sec = sectionOf(it)
+        if sec ~= last then n, last = n + 1, sec end
+    end
+    return n
+end
+
+-- What a unit is, for its tooltip in the build list.
+local function unitSays(def, geared)
+    local out = {}
+    if def.str > 0 then
+        local s = "STRENGTH " .. def.str
+        if def.ranged then s = s .. ", RANGED " .. def.ranged .. " AT " .. def.range end
+        out[#out + 1] = s
+    end
+    out[#out + 1] = "MOVES " .. def.moves .. (def.sea and ", AT SEA" or "")
+    if def.pop then out[#out + 1] = "FOUNDS A CITY; TAKES " .. def.pop .. " CITIZEN" end
+    if def.charges then out[#out + 1] = "IMPROVES THE LAND " .. def.charges .. " TIMES" end
+    if geared then out[#out + 1] = "ITS GEAR IS CHOSEN UNDER WHAT IS BUILDING" end
+    return out
+end
+
+-- The tooltip by the city's window for the build list's row under the
+-- pointer: its name, then what it does.
+local function buildTip(name, says, wx, rowY)
+    local lines = { name }
+    for _, l in ipairs(says) do lines[#lines + 1] = l end
+    Win.over(function()
+        local w = 0
+        for _, l in ipairs(lines) do w = max(w, Font.width(l)) end
+        local bw, bh = w + 6, #lines * 8 + 3
+        local x = wx - bw - 2
+        if x < 0 then x = wx + 2 end
+        local y = max(12, min(rowY, S.vh - bh - 2))
+        rect("o", x, y, bw, bh)
+        for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, x + 3, y + 2 + (k - 1) * 8) end
+    end)
+end
+
 local cityBody
 
 -- What a band or a ship being made (or refitted) could carry, slot by
@@ -181,7 +231,7 @@ local function cityPanel(c)
     local mine = c.owner == 1
     local w = 150
     local items = mine and g:buildable(c) or {}
-    local h = 62 + (mine and (#items * 10 + 14) or 0) + (Cat.is(g, "plague") and Cat.stage(g) and 11 or 0)
+    local h = 62 + (mine and (#items * 10 + sectionCount(items) * 9 + 14) or 0) + (Cat.is(g, "plague") and Cat.stage(g) and 11 or 0)
         + (mine and gearChoices(c) and 12 or 0)
     h = min(h, S.vh - 13 - 24)
     local cap = c.capital and " (CAPITAL)" or ""
@@ -276,7 +326,17 @@ function cityBody(c, x, y, w, h, mine, items)
         end
         yy = yy + 12
     end
+    local section
     for _, it in ipairs(items) do
+        -- A heading where a section starts.
+        local sec = sectionOf(it)
+        if sec ~= section then
+            if yy + 19 > y + h - 2 then break end
+            section = sec
+            text("s", SECTIONS[sec], x + 4, yy + 2)
+            rect("k", x + 6 + Font.width(SECTIONS[sec]), yy + 4, w - 10 - Font.width(SECTIONS[sec]), 1)
+            yy = yy + 9
+        end
         if yy + 10 > y + h - 2 then break end
         local cost = costOf(it)
         local on = c.build and c.build.kind == it.kind and c.build.id == it.id and not c.build.refit
@@ -290,8 +350,12 @@ function cityBody(c, x, y, w, h, mine, items)
         local note = (it.kind == "unit" and it.def.pop and c.pop <= it.def.pop) and "NEEDS 2 POP" or (cost .. "  " .. turns .. "T")
         local hot = button(label, x + 3, yy, w - 6, 10, function()
             if not on then g:setBuild(c, it.kind, it.id, it.gear) end
-        end, { on = on, left = true, icon = it.kind == "unit" and it.id or "city" })
+        end, { on = on, left = true, icon = it.kind == "unit" and it.id or it.def.icon or "city" })
         text(hot and "o" or "u", note, x + w - 5 - Font.width(note), yy + 3)
+        if hot then
+            local def = (it.gear and on) and g:buildDef(c.build) or it.def
+            buildTip(def.name, it.kind == "unit" and unitSays(def, it.gear ~= nil) or (def.says or {}), x, yy)
+        end
         yy = yy + 10
     end
 end

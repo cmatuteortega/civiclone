@@ -161,6 +161,12 @@ function love.load(args)
         if a == "--shot" then S.plan = { file = args[n + 1] or "shot.png", turns = 0, frames = 0 } end
         if a == "--turns" and S.plan then S.plan.turns = tonumber(args[n + 1]) or 0 end
         if a == "--select" and S.plan then S.plan.select = args[n + 1] end
+        -- `--mouse x,y`: the pointer at HUD pixel (x, y), to see what shows
+        -- under it (a tooltip in the city's build list).
+        if a == "--mouse" and S.plan and args[n + 1] then
+            local mx, my = args[n + 1]:match("^(%d+),(%d+)$")
+            if mx then S.plan.mouse = { tonumber(mx), tonumber(my) } end
+        end
         -- `--at N`: the camera over hex N once the selection is made.
         if a == "--at" and S.plan then S.plan.at = tonumber(args[n + 1]) end
         -- `--skip n`: the developer tools' skip, up to turn n, as its
@@ -902,6 +908,10 @@ local function followPlan()
                 S.mouse.wx, S.mouse.wy = (i - floor(S.camx)) * S.zoom, (j - floor(S.camy)) * S.zoom
                 S.mouse.x, S.mouse.y = floor(S.mouse.wx / S.uz), floor(S.mouse.wy / S.uz)
             end
+        end
+        if plan.mouse then
+            S.mouse.x, S.mouse.y = plan.mouse[1], plan.mouse[2]
+            S.mouse.wx, S.mouse.wy = plan.mouse[1] * S.uz, plan.mouse[2] * S.uz
         end
     end
     if plan.frames == 3 and plan.open then
