@@ -240,7 +240,7 @@ local function cityPanel(c)
     local mine = c.owner == 1
     local w = 150
     local items = mine and g:buildable(c) or {}
-    local h = 62 + (mine and (#items * 10 + sectionCount(items) * 9 + 14) or 0) + (Cat.is(g, "plague") and Cat.stage(g) and 11 or 0)
+    local h = 62 + (mine and (#items * 10 + sectionCount(items) * 9 + 14 + 11) or 0) + (Cat.is(g, "plague") and Cat.stage(g) and 11 or 0)
         + (mine and gearChoices(c) and 12 or 0)
     h = min(h, S.vh - 13 - 24)
     local cap = c.capital and " (CAPITAL)" or ""
@@ -290,6 +290,19 @@ function cityBody(c, x, y, w, h, mine, items)
     if Font.width(line2) > w - 8 then line2 = table.concat(short, " ") end
     text("s", #ids > 0 and line2 or "NO BUILDINGS", x + 4, y + 36)
     local yy = y + 45
+    -- What the city weighs first in working its land (D.FOCUS).
+    if mine then
+        text("s", "FOCUS", x + 4, yy)
+        local bx = x + 8 + Font.width("FOCUS")
+        for _, id in ipairs(D.FOCUS_ORDER) do
+            local label = D.FOCUS[id].short
+            local bw = Font.width(label) + 6
+            button(label, bx, yy - 2, bw, 10, function() g:setFocus(c, id) end,
+                { on = (c.focus or "balanced") == id })
+            bx = bx + bw + 2
+        end
+        yy = yy + 11
+    end
     -- The plague (src/plague.lua): how the town is, and its gates.
     if Cat.is(g, "plague") and Cat.stage(g) then
         local how
@@ -617,7 +630,7 @@ local overBody
 
 local function gameOver()
     local g = S.game
-    local w, h = 180, 64 + #g.players * 8
+    local w, h = 180, 64 + #g.players * 8 + 26
     h = h + Win.BAR + 1
     Win.add({ id = "over", title = "THE END", w = w, h = h,
         x = floor((S.vw - w) / 2), y = floor((S.vh - h) / 2),
@@ -637,6 +650,22 @@ function overBody(x, y, w, h)
     for _, p in ipairs(g.players) do
         local s = p.name .. "  " .. (p.alive and (#g:citiesOf(p.id) .. " CITIES") or "DESTROYED") .. "  SCORE " .. g:score(p)
         text(p.id == 1 and "w" or "s", s, x + 6, yy)
+        yy = yy + 8
+    end
+    -- Your score, part by part: what you had, and what of it lasted.
+    local parts = {}
+    for _, part in ipairs(g:scoreParts(me())) do
+        if part[2] ~= 0 then parts[#parts + 1] = part[1] .. " " .. part[2] end
+    end
+    local lines, line = {}, ""
+    for _, bit in ipairs(parts) do
+        local next = line == "" and bit or (line .. "  " .. bit)
+        if Font.width(next) > w - 12 and line ~= "" then lines[#lines + 1] = line; line = bit else line = next end
+    end
+    if line ~= "" then lines[#lines + 1] = line end
+    yy = yy + 2
+    for k = 1, min(3, #lines) do
+        text("c", lines[k], x + 6, yy)
         yy = yy + 8
     end
     button("NEW GAME", x + 10, y + h - 16, 76, 12, Menu.openNewGame, { strong = true })

@@ -951,18 +951,19 @@ function Game:growthNeed(city)
 end
 
 -- Picks the hexes a city's citizens work: the best of its own within reach,
--- food first.
+-- weighed by the city's focus (D.FOCUS), food a little first unless told.
 function Game:assignWork(city)
     for _, id in ipairs(city.worked) do
         if self.cells[id].workedBy == city then self.cells[id].workedBy = nil end
     end
     city.worked = {}
     local home = self.cells[city.cell]
+    local w = D.FOCUS[city.focus or "balanced"] or D.FOCUS.balanced
     local choices = {}
     for _, cell in ipairs(self:within(home, D.CITY.workRadius)) do
         if cell.owner == city.owner and not cell.city and not cell.quarter and not cell.workedBy and cell.elev ~= "mountain" then
             local f, p, g = self:workYield(city, cell)
-            choices[#choices + 1] = { cell = cell, v = f * 2.2 + p * 2 + g + self.rng:random() * 0.01 }
+            choices[#choices + 1] = { cell = cell, v = f * w.food + p * w.prod + g * w.gold + self.rng:random() * 0.01 }
         end
     end
     table.sort(choices, function(a, b) return a.v > b.v end)
@@ -971,6 +972,15 @@ function Game:assignWork(city)
         cell.workedBy = city
         city.worked[#city.worked + 1] = cell.id
     end
+end
+
+-- Sets what a city weighs first in working its land: "balanced", "food" or
+-- "prod". Its citizens move at once.
+function Game:setFocus(city, focus)
+    if not D.FOCUS[focus] then return false end
+    city.focus = focus ~= "balanced" and focus or nil
+    self:assignWork(city)
+    return true
 end
 
 -- What a cell yields worked by this city: its own yield, and on the water
@@ -1011,6 +1021,16 @@ end
 
 -- Can this player build `kind` ("unit" or "building", id) in this city,
 -- a band or a ship carrying `gear` (any it could carry, if not given)?
+-- Does this building hold off the cataclysm there is? A ward is only for
+-- that one ("any": whichever it is, but not when there is none; a table:
+-- against more than one, { heat = true, sun = true }).
+function Game:wardsOff(def)
+    if not def.ward or not self.cataclysm then return false end
+    if def.ward == "any" then return true end
+    if type(def.ward) == "table" then return def.ward[self.cataclysm.kind] == true end
+    return Cat.is(self, def.ward) and true or false
+end
+
 function Game:canBuild(city, kind, id, gear)
     if kind == "quarter" then return Q.can(self, city, id and self.cells[id]) end
     local p = self.players[city.owner]
@@ -1020,16 +1040,7 @@ function Game:canBuild(city, kind, id, gear)
     if def.tech and not p.techs[def.tech] then return false end
     if gear and not self:canEquip(p, id, gear) then return false end
     if kind == "building" and city.buildings[id] then return false end
-    -- What holds a cataclysm off, only against that one ("any": against
-    -- whichever it is, but not when there is none).
-    if def.ward == "any" then
-        if not self.cataclysm then return false end
-    elseif type(def.ward) == "table" then
-        -- Against more than one: { heat = true, sun = true }.
-        if not (self.cataclysm and def.ward[self.cataclysm.kind]) then return false end
-    elseif def.ward and not Cat.is(self, def.ward) then
-        return false
-    end
+    if def.ward and not self:wardsOff(def) then return false end
     -- Ships, harbours and lighthouses only by the water.
     if (def.sea or def.coastal) and not self:coastal(self.cells[city.cell]) then return false end
     return true
@@ -1521,6 +1532,8 @@ function Game:finishTurn(p)
     gold = gold - max(0, units - (2 + cities))
     p.gold = max(0, p.gold + gold)
     p.lastGold, p.lastScience = gold, sci
+    -- Its people at their most, for what the score counts kept.
+    p.peak = max(p.peak or 0, self:people(p))
     if p.researching then
         p.science = p.science + sci
         local t = D.TECH[p.researching]
@@ -1557,14 +1570,50 @@ function Game:income(p)
     return gold, sci, cul
 end
 
+-- Every citizen of a civilization's cities.
+function Game:people(p)
+    local n = 0
+    for _, c in ipairs(self:citiesOf(p.id)) do n = n + c.pop end
+    return n
+end
+
+-- The score, part by part: { { label, points }, ... }. It counts what a
+-- civilization has at the end and what of it lasted: the share of its
+-- people at their most it still has, its land that still gives food, and its
+-- cities that stand with a ward against the cataclysm (D.SCORE).
+function Game:scoreParts(p)
+    local S = D.SCORE
+    local cities, wards = self:citiesOf(p.id), 0
+    for _, c in ipairs(cities) do
+        for b in pairs(c.buildings) do
+            if self:wardsOff(D.BUILDINGS[b]) then wards = wards + 1 break end
+        end
+    end
+    local techs, explored, land = 0, 0, 0
+    for _ in pairs(p.techs) do techs = techs + 1 end
+    for _ in pairs(p.explored) do explored = explored + 1 end
+    for _, cell in ipairs(self.cells) do
+        if cell.owner == p.id and not self:isWater(cell) and self:yield(cell) >= 1 then land = land + 1 end
+    end
+    local people = self:people(p)
+    local peak = max(p.peak or 0, people)
+    return {
+        { "CITIES", #cities * S.city },
+        { "CITIZENS", people * S.citizen },
+        { "PEOPLE KEPT", peak > 0 and floor(S.kept * people / peak) or 0 },
+        { "GOOD LAND", floor(land * S.land) },
+        { "WARDS HELD", wards * S.ward },
+        { "TECHNOLOGY", techs * S.tech },
+        { "EXPLORED", floor(explored * S.explored) },
+        -- Demons slain, rifts sealed, the citadel razed (src/demons.lua).
+        { "GLORY", floor(p.glory or 0) },
+    }
+end
+
 function Game:score(p)
     local s = 0
-    for _, c in ipairs(self:citiesOf(p.id)) do s = s + 5 + c.pop * 2 end
-    for _ in pairs(p.techs) do s = s + 4 end
-    for _ in pairs(p.explored) do s = s + 0.05 end
-    -- Demons slain, rifts sealed, the citadel razed (src/demons.lua).
-    s = s + (p.glory or 0)
-    return floor(s)
+    for _, part in ipairs(self:scoreParts(p)) do s = s + part[2] end
+    return s
 end
 
 -- The last turn played: the cataclysm's, or without one an earlier end.

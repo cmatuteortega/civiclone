@@ -124,17 +124,23 @@ what the cuts got right, and where the core works against the focus.
 
 | # | Gap | Why it matters | Ideas |
 | --- | --- | --- | --- |
-| C1 | **The score does not measure the cataclysm.** It counts cities, citizens and techs (4 each, 48 at most); only the demons give glory | Surviving well scores about the same as a quiet game, beyond what it keeps of citizens and cities | Score what lasted: people alive on the last turn, land still good, wards that held. With the "last work" idea in §4 (ark, seed vault, cure), one per cataclysm, worth a large share of the score |
-| C2 | **Research probably runs out before the crisis.** 12 techs, about 670 science in all; the last ward tech is Masonry. On paper the tree is done by about turn 50–70 (estimate, not yet checked by a run) | Science counts for nothing through the 70 turns that matter most | A late tier of 3–4 techs per cataclysm, opened by the omen on 90 (so the omen also tells what is coming): better wards, the last work, a way to beat or shorten it. First check with all-AI runs when the tree is done |
+| C1 | **The score does not measure the cataclysm.** It counted cities, citizens and techs (4 each, 48 at most); only the demons give glory | Surviving well scored about the same as a quiet game, beyond what it kept of citizens and cities | **Done** (`Game:scoreParts`, `D.SCORE`): people kept (up to 20, the share of the peak still alive), good land (0.25 a hex still giving food), wards held (3 a city standing with its ward); techs down to 2 each. Still open: the "last work" of §4 (ark, seed vault, cure) |
+| C2 | **Research runs out during the crisis.** 12 techs, about 670 science in all; the last ward tech is Masonry. **Measured** (9 all-AI runs, seeds 3/8/21 × none/heat/deluge): 7–9 techs known at the omen, the tree done between turns 105 and 145, every civ ending with all 12 | Science counts for nothing through the last 15–55 turns, and the tech score was the same for everyone (now 2 a tech, not 4) | A late tier of 3–4 techs per cataclysm, opened by the omen on 90 (so the omen also tells what is coming): better wards, the last work, a way to beat or shorten it |
 | C3 | **The rivals ignore the end of the world.** No diplomacy at all (a fine cut), and the cataclysm changes nothing between civilizations | The rivals sit outside the theme instead of in it. Same as the Rivals row in §4 | A little diplomacy only the cataclysm brings: refugees from sunk or starving towns as settlers; a truce to raze the citadel; food for gold in the famine; closing borders in the plague |
 | C4 | **Nocta and Tess play alike.** Same script, research at random | Two rivals feel like one; every game's neighbours are the same | A personality each: one warlike (marches early, takes towns the cataclysm weakens), one a builder (wards first, spreads wide, makes peace); research weighted to match |
 | C5 | **Dread has nowhere to go.** No happiness, amenities or loyalty; fear and dread take food instead. §4 calls this the weakest fit and notes nothing touches loyalty | One rule doing a job that isn't its own | One small number per city, stability: unrest lowers yields, and at the bottom a town breaks away (to the wild, or to a rival). Fear, dread, hunger and the plague's dying feed it; wards and garrisons hold it up |
 | C6 | **The same timing every game.** Omen 90, finale told 144, struck 150, in all seven (R4) | No surprise about *when* after one game | Vary the omen by ±5; give each cataclysm its own finale shape (some a process, as the storm is); the "mystery" option in §4 |
-| C7 | **No say over a city's priorities.** Tiles are worked automatically, and the cataclysms mostly hit food | The one choice the player would want in a famine is missing | A city focus (balanced / food / production), one click, changing the tile scoring weights in `game.lua` |
+| C7 | **No say over a city's priorities.** Tiles are worked automatically, and the cataclysms mostly hit food | The one choice the player would want in a famine is missing | **Done** (`D.FOCUS`, `Game:setFocus`): BAL / FOOD / PROD in the city panel; the AI takes up food focus when a city starves |
+| C8 | **Gold has nothing to spend on.** Measured: with no cataclysm the AIs end on 600–3,000 gold; they buy only when a city is hurt. Only a cataclysm drains it (the heat's runs end near 50) | For 90 turns gold is a number on the bar; the treasury is never a decision | Sinks the cataclysm makes matter: buy a ward outright before a stage, pay to move people (a settler from a doomed town), buy food in a famine (from a rival, see C3), buy a quarter's hex. Let the AI buy wards from the omen |
+| C9 | **Empires grow slowly and stay small.** Measured: on seed 21 two of three civs still had one city on turn 60; empires end with 1–9 cities | The placement puzzle the cataclysms make (hills, rivers, spread-out towns) has few pieces to play with | Check the settler's cost and the 2-citizen rule against growth; a cheaper first settler; the AI's settler cap of 5 |
+| C10 | **Good land is near nothing after the creeping cataclysms.** Measured: 0–2 points in the heat, 0–9 in the deluge, 5–25 with none | It mostly rewards a quiet game, not holding land | Watch with play; maybe count land kept against land held at the omen, as people kept is counted |
+
+Also done: the quarters (housing, `src/quarters.lua`) are now in
+`GUIDE.md`, which had not described them.
 
 ### Where the effort goes
 
 `src/models.lua` is about 3,200 lines and the weather and life on the map
-fill many files; `src/ai.lua` is about 650. The look is a real strength. But
-C1–C3 are the cheapest gains in play left, and each makes the cataclysms
-count for more rather than bringing a Civ system back.
+fill many files; `src/ai.lua` is about 650. The look is a real strength. With
+C1 and C7 done, C2, C3 and C8 are the cheapest gains in play left, and each
+makes the cataclysms count for more rather than bringing a Civ system back.

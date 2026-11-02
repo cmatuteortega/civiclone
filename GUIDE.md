@@ -158,10 +158,11 @@ grey out when the unit has no moves left.
 
 **City panel** (right, when a city is selected):
 
-- Name, citizens and HP
+- Name, citizens against its housing, and HP
 - Food surplus, food stored against the amount needed, and when the city grows (or STARVING / STAGNANT)
 - Production, gold, science and culture per turn
 - Buildings it has
+- Its **focus**: **BAL**, **FOOD** or **PROD** (see [Yields](#yields))
 - What it is building, with progress and turns, and a **BUY** button with its gold price
 - Everything it can build, with cost and turns. Click one to switch to it
 
@@ -534,8 +535,17 @@ Your first city is your **capital**.
 - **Centre hex:** yields at least 2 food and 1 production.
 - **Worked hexes:** each citizen works one hex. The game picks the best
   ones: your own land within 3 hexes, not worked by another city, not
-  mountains, scored by food × 2.2 + production × 2 + gold. The pick is
-  redone every turn.
+  mountains or a quarter, scored by the city's **focus**. The pick is
+  redone every turn, and at once when the focus changes.
+
+  | Focus | Button | Each hex scored by | For |
+  | --- | --- | --- | --- |
+  | Balanced (the default) | BAL | food × 2.2 + production × 2 + gold | Ordinary times |
+  | Food | FOOD | food × 4 + production + gold × 0.5 | A famine, a cataclysm taking food, growing a city for a settler |
+  | Production | PROD | food × 1.2 + production × 4 + gold × 0.5 | Rushing a ward, walls or a quarter before a stage comes. It can starve the city |
+
+  The focus is set in the city's panel and kept until changed (numbers in
+  `D.FOCUS` in `src/defs.lua`).
 - **Science:** 0.5 per citizen.
 - **Culture:** 1, plus 1 per 3 citizens.
 - **Palace** (in the capital, for its founder): +2 production, +5 gold,
@@ -554,6 +564,22 @@ by one citizen when the store reaches:
 which is 15 at 1 citizen, 24 at 2, 33 at 3, and so on. The rest carries
 over. If the store would fall below zero, the city loses a citizen (never
 below 1) and the store empties.
+
+### Housing and quarters
+
+A city's middle houses **6** citizens. Past that it spills over into
+**quarters** (`src/quarters.lua`, numbers in `D.QUARTER`), each housing **5**
+more, **3** at most:
+
+- **Growth:** a city at its housing grows at a quarter of the pace, and at 2
+  past it not at all (the panel says NO ROOM).
+- **Building one:** QUARTER in the city's list, once it is a citizen short of
+  its housing, for **60, 90 and 120** production (the first, second and
+  third). Its hex is chosen on the map: the city's own flat or hill land,
+  nothing built on it and no other city's, beside one of its hexes and within
+  2 of its middle. A quarter's hex is not worked.
+- **Sacked:** a quarter an enemy stands in houses no one until 3 turns after
+  it leaves.
 
 ### Buildings
 
@@ -808,6 +834,9 @@ technology.
 8. otherwise a builder
 
 **Buying:** a damaged city building a unit buys it at once if it can afford it.
+
+**Focus:** a city that is starving takes up the food focus, and goes back to
+balanced once it has 4 food to spare and no cataclysm is under way.
 
 **Settlers** found the first city on the spot. After that, each picks the
 best site within 9 hexes and walks there to found the city. Sites are scored
@@ -1488,12 +1517,22 @@ blasts and roars, a wave rushes in and breaks.
 and any units it has left are removed. Before its first city, it has until
 turn 5.
 
-**Score:**
+**Score** counts what a civilization has at the end, and what of it lasted
+through the end of the world (numbers in `D.SCORE`):
 
-- 5 per city, plus 2 per citizen
-- 4 per technology
-- 0.05 per hex explored
-- 1 per glory: won against [the demons](#the-abyss)
+| Part | Points |
+| --- | --- |
+| Cities | 5 each |
+| Citizens | 2 each |
+| **People kept** | Up to 20: the share of its people at their most that it still has (all of them: 20; half: 10) |
+| **Good land** | 0.25 for each hex of its land that still gives food |
+| **Wards held** | 3 for each of its cities standing at the end with a building against the cataclysm in it (cistern, levee, sanctum, hearth, lazaret, buttress or shelter; once a city) |
+| Technology | 2 each |
+| Explored | 0.05 per hex |
+| Glory | 1 each: won against [the demons](#the-abyss) |
+
+The end panel shows your score part by part. With no cataclysm no ward can
+be built, so wards held is 0 for everyone.
 
 **At the end**, a panel shows the result, why, and every civilization's
 cities and score. **NEW GAME** starts again; **KEEP LOOKING** closes the

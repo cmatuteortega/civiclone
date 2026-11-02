@@ -858,6 +858,24 @@ D.TECHS = {
 D.TECH = {}
 for _, t in ipairs(D.TECHS) do D.TECH[t.id] = t end
 
+-- A city's focus: how it weighs food, production and gold in choosing the
+-- hexes its citizens work. `balanced` is what a city does unless told.
+D.FOCUS = {
+    balanced = { name = "BALANCED", short = "BAL", food = 2.2, prod = 2, gold = 1 },
+    food = { name = "FOOD", short = "FOOD", food = 4, prod = 1, gold = 0.5 },
+    prod = { name = "PRODUCTION", short = "PROD", food = 1.2, prod = 4, gold = 0.5 },
+}
+D.FOCUS_ORDER = { "balanced", "food", "prod" }
+
+-- The score at the end: what a civilization has, and what of it lasted.
+-- `kept`: up to this many for the share of its people at their most it still
+-- has. `land`: each hex of its land that still gives food. `ward`: each city
+-- standing at the end with a ward against the cataclysm in it.
+D.SCORE = {
+    city = 5, citizen = 2, tech = 2, explored = 0.05,
+    kept = 20, land = 0.25, ward = 3,
+}
+
 -- Cities.
 D.CITY = {
     hp = 200,

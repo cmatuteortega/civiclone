@@ -410,7 +410,8 @@ do: zoom in and out, next unit, go to the capital, the hex grid and sound.
   forests the same. Hills and forest each cost one more move to enter;
   mountains and water cannot be walked. Wheat, stone and gems add yields.
 - **Cities.** A settler founds a city at least four hexes from any other. It
-  owns the hexes round it and its citizens work the best ones. Food beyond
+  owns the hexes round it and its citizens work the best ones, by the focus
+  it is given: balanced, food or production. Food beyond
   two a citizen grows it (Civ VI's 15 + 8n + n^1.5). Culture claims new hexes
   at the border. Production builds units and buildings, and gold can buy them.
 - **Units.** A city trains four things: a settler, a builder, a band and a
@@ -431,7 +432,8 @@ do: zoom in and out, next unit, go to the capital, the hex grid and sound.
   brought down to 0 HP.
 - **Science.** Nine technologies unlock mines, buildings and units.
 - **Winning.** Destroy both rivals or hold every capital (domination). If
-  you reach turn 150, the higher score wins. You lose if you have no cities
+  you reach the last turn, the higher score wins. The score counts what
+  lasted: people kept, land still good, cities standing with their wards. You lose if you have no cities
   and no settler.
 
 The rivals are simple and greedy. They expand to the best free sites, build

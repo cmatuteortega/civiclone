@@ -619,6 +619,18 @@ local function gates(game, p)
     end
 end
 
+-- A city's focus: food while it starves, and while a cataclysm takes food
+-- from it; back to balanced once it is well fed and the world is quiet.
+local function focus(game, city)
+    local f = game:cityYield(city)
+    local spare = f - city.pop * 2
+    if spare < 0 and city.focus ~= "food" then
+        game:setFocus(city, "food")
+    elseif city.focus == "food" and spare >= 4 and not Cat.stage(game) then
+        game:setFocus(city, "balanced")
+    end
+end
+
 function AI.play(game, p)
     if not p.researching then
         local list = game:researchable(p)
@@ -632,6 +644,7 @@ function AI.play(game, p)
             else done = game:setBuild(city, kind, id, gear) end
             if not done then game:setBuild(city, "unit", "band") end
         end
+        focus(game, city)
         -- Buy a soldier when an enemy is at the gates.
         if city.hp < game:maxHp(city) and city.build and city.build.kind == "unit" then game:buy(city) end
     end
