@@ -716,6 +716,23 @@ local words = {
     ["GRID"] = "MALLA",
     ["SOUND"] = "SONIDO",
 
+    --- the HUD: what a yield is, under the pointer ---------------------------------------------
+    ["GOLD"] = "ORO",
+    ["{1} IN THE TREASURY, {2} A TURN"] = "{1} EN EL TESORO, {2} POR TURNO",
+    ["UPKEEP {1}: {2} UNITS, {3} FREE"] = "MANTENIMIENTO {1}: {2} UNIDADES, {3} GRATIS",
+    ["BUYS WHAT A CITY IS BUILDING"] = "COMPRA LO QUE CONSTRUYE UNA CIUDAD",
+    ["SCIENCE"] = "CIENCIA",
+    ["{1} A TURN"] = "{1} POR TURNO",
+    ["RESEARCHES TECHNOLOGIES"] = "INVESTIGA TECNOLOGÍAS",
+    ["CULTURE"] = "CULTURA",
+    ["EACH CITY CLAIMS A NEW HEX WITH ITS OWN"] = "CADA CIUDAD RECLAMA UNA CASILLA NUEVA CON LA SUYA",
+    ["{1} MADE, {2} EATEN BY {3} CITIZENS"] = "{1} PRODUCIDA, {2} COMIDA POR {3} CIUDADANOS",
+    ["{1}/{2} STORED TO GROW"] = "{1}/{2} GUARDADA PARA CRECER",
+    ["BUILDS UNITS AND BUILDINGS"] = "CONSTRUYE UNIDADES Y EDIFICIOS",
+    ["GOES TO THE TREASURY"] = "VA AL TESORO",
+    ["GOES TO RESEARCH"] = "VA A LA INVESTIGACIÓN",
+    ["{1}/{2} TO THE NEXT HEX"] = "{1}/{2} PARA LA SIGUIENTE CASILLA",
+
     --- settings ------------------------------------------------------------------------------
     ["DISPLAY"] = "PANTALLA",
     ["INTERFACE"] = "INTERFAZ",

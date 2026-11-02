@@ -43,6 +43,31 @@ local function signed(n)
     return n >= 0 and ("+" .. n) or tostring(n)
 end
 
+--- what a yield is ---------------------------------------------------------------
+
+-- A tip for the yield whose icon and figure are in the box (x, y, w, h), if
+-- the pointer is over it and nothing is in front: its name, then the lines
+-- under it. `win`: the window it is in, if any (none for the top bar).
+local function yieldTip(x, y, w, h, lines, win)
+    local mx, my = S.mouse.x, S.mouse.y
+    if not Draw.inside({ x = x, y = y, w = w, h = h }, mx, my) then return end
+    for k, l in ipairs(lines) do lines[k] = L(l) end
+    Win.over(function()
+        -- Asked once every window is placed: whether one is in front.
+        if Win.modal() or Win.dragging() then return end
+        local front = Win.at(mx, my)
+        if (front and front.id) ~= win then return end
+        local tw = 0
+        for _, l in ipairs(lines) do tw = max(tw, Font.width(l)) end
+        local bw, bh = tw + 6, #lines * 8 + 3
+        local bx = max(2, min(x, S.vw - bw - 2))
+        local by = y + h + 2
+        if by + bh > S.vh - 2 then by = max(2, y - bh - 2) end
+        rect("o", bx, by, bw, bh)
+        for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, bx + 3, by + 2 + (k - 1) * 8) end
+    end)
+end
+
 --- the top bar ---------------------------------------------------------------------
 
 local function topBar()
@@ -52,15 +77,33 @@ local function topBar()
     S.panels[#S.panels + 1] = { x = 0, y = 0, w = S.vw, h = 11 }
     local gold, sci, cul = g:income(p)
     local x = 3
-    icon("gold", x, 3, "w")
-    text("w", p.gold .. " (" .. signed(gold) .. ")", x + 7, 3)
-    x = x + 7 + Font.width(p.gold .. " (" .. signed(gold) .. ")") + 8
-    icon("science", x, 3, "c")
-    text("c", signed(sci), x + 7, 3)
-    x = x + 7 + Font.width(signed(sci)) + 8
-    icon("culture", x, 3, "s")
-    text("s", signed(cul), x + 7, 3)
-    x = x + 7 + Font.width(signed(cul)) + 10
+    -- Each figure's icon and text, and a tip for it under the pointer.
+    local function stat(kind, ink, s, lines)
+        icon(kind, x, 3, ink)
+        text(ink, s, x + 7, 3)
+        local w = 7 + Font.width(s)
+        yieldTip(x - 1, 0, w + 2, 10, lines)
+        x = x + w + 8
+    end
+    local units, cities = #g:unitsOf(p.id), #g:citiesOf(p.id)
+    local free = 2 + cities
+    stat("gold", "w", p.gold .. " (" .. signed(gold) .. ")", {
+        "GOLD",
+        L("{1} IN THE TREASURY, {2} A TURN", p.gold, signed(gold)),
+        L("UPKEEP {1}: {2} UNITS, {3} FREE", max(0, units - free), units, free),
+        "BUYS WHAT A CITY IS BUILDING",
+    })
+    stat("science", "c", signed(sci), {
+        "SCIENCE",
+        L("{1} A TURN", signed(sci)),
+        "RESEARCHES TECHNOLOGIES",
+    })
+    stat("culture", "s", signed(cul), {
+        "CULTURE",
+        L("{1} A TURN", signed(cul)),
+        "EACH CITY CLAIMS A NEW HEX WITH ITS OWN",
+    })
+    x = x + 2
     -- Research: what, how far, how long. A click opens the list.
     local label
     if p.researching then
@@ -285,15 +328,27 @@ function cityBody(c, x, y, w, h, mine, items)
     text("c", L("CITIZENS {1}/{2}", c.pop, Q.housing(g, c)) .. "   " .. L("HP {1}", max(0, c.hp) .. "/" .. g:maxHp(c)), x + 4, y + 12)
     icon("food", x + 4, y + 20, "w")
     text("w", signed(floor(surplus * 10 + 0.5) / 10) .. "  " .. c.food .. "/" .. need .. "  " .. grow, x + 11, y + 20)
+    yieldTip(x + 3, y + 19, w - 6, 7, {
+        "FOOD",
+        L("{1} MADE, {2} EATEN BY {3} CITIZENS", floor(f * 10 + 0.5) / 10, c.pop * 2, c.pop),
+        L("{1}/{2} STORED TO GROW", c.food, need),
+    }, "city")
     local line = y + 28
     icon("prod", x + 4, line, "c")
     text("c", tostring(p), x + 11, line)
+    yieldTip(x + 3, line - 1, 26, 7, { "PRODUCTION", "BUILDS UNITS AND BUILDINGS" }, "city")
     icon("gold", x + 30, line, "c")
     text("c", tostring(gold), x + 37, line)
+    yieldTip(x + 29, line - 1, 26, 7, { "GOLD", "GOES TO THE TREASURY" }, "city")
     icon("science", x + 56, line, "c")
     text("c", tostring(floor(sci * 10) / 10), x + 63, line)
+    yieldTip(x + 55, line - 1, 30, 7, { "SCIENCE", "GOES TO RESEARCH" }, "city")
     icon("culture", x + 86, line, "c")
     text("c", tostring(cul), x + 93, line)
+    yieldTip(x + 85, line - 1, w - 89, 7, {
+        "CULTURE",
+        L("{1}/{2} TO THE NEXT HEX", floor(c.culture), g:borderNeed(c)),
+    }, "city")
     -- What it has built, in the build list's order; short names if the
     -- long ones won't fit on a line.
     local ids = {}
