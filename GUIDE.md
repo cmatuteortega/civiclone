@@ -20,7 +20,7 @@ that is the file to edit to tune the game.
 14. [The sea](#the-sea)
 15. [Sight and fog of war](#sight-and-fog-of-war)
 16. [The rival civilizations](#the-rival-civilizations)
-17. [The wild](#the-wild)
+17. [The wild](#the-wild) · [The weather](#the-weather)
 18. [The heat death](#the-heat-death) · [The deluge](#the-deluge) · [The sky falls](#the-sky-falls) · [The abyss](#the-abyss) · [The still sun](#the-still-sun) · [The plague](#the-plague) · [The shattering](#the-shattering)
 19. [Winning and losing](#winning-and-losing)
 20. [How it is drawn](#how-it-is-drawn)
@@ -979,6 +979,28 @@ city.
 ink banner, the rest khaki. The tooltip shows what it is, its temper and
 strength, and what to know about it (stronger at night, strikes across its
 river, how to tame it). Over a lair it says how to clear it.
+
+## The weather
+
+The sky has its own moods (`src/weather.lua`, numbers in `D.WEATHER`).
+From turn 6, after at least five turns of fair weather, each turn has a
+12% chance of bringing a short spell over the whole map:
+
+- **Rain**, 3 to 5 turns: every farm yields **+1 food**.
+- **A storm**, about a third of the time: a turn of rain, 2 or 3 turns of
+  storm, a turn of rain. In the storm farms still yield +1 food, but
+  **mines yield 1 less production**, **fishing boats 1 less food** (they
+  stay in harbour), and **every unit sees 1 hex less far** (never under 1).
+
+The news tells as a spell begins and as the sky clears, and the top bar
+shows it beside the research, with the turns of it left (`RAIN 3`,
+`STORM 2`). The rain falls on the screen as the deluge's does, the storm
+heavy enough for lightning and thunder.
+
+The weather has its own dice, from the map's seed and the turn, so it is
+the same for the same seed and does not change the rest of the game's luck.
+Once a cataclysm's omen comes, the sky is the cataclysm's and the weather
+stays fair.
 
 ## The heat death
 

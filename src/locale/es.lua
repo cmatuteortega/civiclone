@@ -628,6 +628,14 @@ local words = {
     ["{1} IN THE TWILIGHT"] = "{1} EN EL CREPÚSCULO",
     ["OF OUR CITIES {1}"] = "DE NUESTRAS CIUDADES, {1}",
 
+    --- the weather (src/weather.lua) ---------------------------------------------------------
+    ["RAIN"] = "LLUVIA",
+    ["STORM"] = "TORMENTA",
+    ["THE RAINS HAVE COME: THE FARMS YIELD MORE"] = "HAN LLEGADO LAS LLUVIAS: LAS GRANJAS RINDEN MÁS",
+    ["A STORM BREAKS: THE MINES FLOOD, THE BOATS STAY IN HARBOUR"] =
+        "ESTALLA UNA TORMENTA: LAS MINAS SE INUNDAN, LOS BARCOS SE QUEDAN EN PUERTO",
+    ["THE SKY CLEARS"] = "EL CIELO SE DESPEJA",
+
     --- the HUD: the top bar, a unit ----------------------------------------------------------
     ["CHOOSE RESEARCH"] = "ELIGE INVESTIGACIÓN",
     ["ALL KNOWN"] = "TODO SABIDO",

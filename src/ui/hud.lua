@@ -9,6 +9,7 @@
 
 local D = require "src.defs"
 local Cat = require "src.cataclysm"
+local Weather = require "src.weather"
 local Beasts = require "src.beasts"
 local H = require "src.hex"
 local T = require "src.tracer"
@@ -77,10 +78,18 @@ local function topBar()
     -- The cataclysm, once foretold: its stage and the turns left to the
     -- world, ink on pale, after the research.
     local doom = Cat.label(g)
+    local dx = x + w + 8
     if doom then
-        local dx = x + w + 8
         rect("w", dx, 1, Font.width(doom) + 6, 9)
         text("o", doom, dx + 3, 3)
+        dx = dx + Font.width(doom) + 14
+    end
+    -- The weather, while a spell lasts (src/weather.lua), and the turns
+    -- left of it: pale on dark, so it is not taken for the cataclysm.
+    local sky = Weather.label(g)
+    if sky then
+        rect("o", dx, 1, Font.width(sky) + 6, 9)
+        text("w", sky, dx + 3, 3)
     end
     -- The menu, at the far right.
     button("MENU", S.vw - 25, 1, 24, 9, Menu.openPause)

@@ -13,6 +13,7 @@
 local H = require "src.hex"
 local D = require "src.defs"
 local Rng = require "src.rng"
+local Weather = require "src.weather"
 local Mapgen = require "src.mapgen"
 local Beasts = require "src.beasts"
 local Cat = require "src.cataclysm"
@@ -243,6 +244,8 @@ function Game:yield(cell)
     if cell.scorched then f = 0 end
     local K = Cat.kindOf(self)
     if K and K.food then f = K.food(self, cell, f) end
+    -- Rain and storm (src/weather.lua).
+    f, p = Weather.yield(self, cell, f, p)
     if cell.city then f, p = max(f, 2), max(p, 1) end
     return f, p, g
 end
@@ -1439,7 +1442,8 @@ function Game:look(p)
     for _, u in ipairs(self.units) do
         if u.owner == p.id then
             local cell = self.cells[u.cell]
-            see(cell, u.def.sight + (cell.elev == "hills" and 1 or 0))
+            -- A storm (src/weather.lua) shortens it.
+            see(cell, max(1, u.def.sight + (cell.elev == "hills" and 1 or 0) - Weather.blind(self)))
         end
     end
     for _, c in ipairs(self.cities) do
@@ -1681,6 +1685,7 @@ function Game:endTurn(ai)
     self.turn = self.turn + 1
     self:emit({ kind = "phase", who = "cataclysm" })
     Cat.turn(self)
+    Weather.turn(self)
     for _, p in ipairs(self.players) do self:checkAlive(p) end
     self:beginTurn(me)
     self:look(me)

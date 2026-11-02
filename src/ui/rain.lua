@@ -1,6 +1,7 @@
 -- The weather of the deluge (src/flood.lua): rain, heavier stage by stage,
 -- and in the floods and the rising sea a storm, with lightning and thunder;
--- and the same in the still sun's great storm (src/ui/storm.lua).
+-- and the same in the still sun's great storm (src/ui/storm.lua), and in
+-- the weather's short spells of rain and storm (src/weather.lua).
 --
 -- The rain is streaks of a few pixels slanting with the wind from the west,
 -- laid on the overlay over everything (as the birds are) in the canvas's
@@ -20,6 +21,7 @@ local S = require "src.ui.state"
 local P = require "src.ui.pixels"
 local Sea = require "src.ui.sea"
 local Cat = require "src.cataclysm"
+local Weather = require "src.weather"
 
 local floor, sin, min, random = math.floor, math.sin, math.min, math.random
 local IDX = T.IDX
@@ -28,6 +30,8 @@ local Rain = {}
 
 -- How hard it rains in each stage of the deluge.
 Rain.LEVEL = { omen = 0.2, rains = 0.5, floods = 0.8, sea = 1 }
+-- And in the weather's spells: the storm's heavy enough for lightning.
+Rain.WEATHER = { rain = 0.45, storm = 0.85 }
 -- Lightning: from this much rain on, every so often, seconds apart.
 local STORM, GAP = 0.7, { 5, 13 }
 local FALL = 190   -- how fast the rain falls, in pixels a second
@@ -46,9 +50,11 @@ end
 function Rain.want(game)
     -- The still sun's great storm (src/ui/storm.lua).
     if game and Cat.is(game, "sun") then return require("src.ui.storm").want(game) end
-    if not game or not Cat.is(game, "flood") then return 0 end
-    local s = Cat.stage(game)
-    return s and Rain.LEVEL[s] or 0
+    if not game then return 0 end
+    local s = Cat.is(game, "flood") and Cat.stage(game)
+    if s then return Rain.LEVEL[s] or 0 end
+    -- The weather's spells of rain and storm (src/weather.lua).
+    return Rain.WEATHER[Weather.now(game) or ""] or 0
 end
 
 -- A bolt from the sky to somewhere on the screen: its jagged way down, and
