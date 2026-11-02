@@ -18,6 +18,7 @@ local O = require "src.ui.orders"
 local Audio = require "src.ui.audio"
 local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
+local Help = require "src.ui.help"
 local Settings = require "src.settings"
 
 local abs, log, sqrt = math.abs, math.log, math.sqrt
@@ -131,6 +132,7 @@ function Input.mousereleased(x, y, b)
 end
 
 function Input.wheelmoved(_, dy)
+    if dy ~= 0 and Help.wheel(dy) then return end
     if S.mode ~= "play" or dy == 0 or Win.modal() or Win.at(S.mouse.x, S.mouse.y) then return end
     View.zoom(dy > 0 and 1 or -1, S.mouse.wx, S.mouse.wy)
 end
@@ -193,7 +195,13 @@ end
 
 function Input.keypressed(key)
     if Menu.key(key) then return end
+    -- The help window reads the keys while it is up; the help key opens it
+    -- at what the tooltip shows, from anywhere but a key being bound.
+    if Help.key(key) then return end
     local is = Settings.is
+    if is("help", key) then Help.open(S.helpTopic) return end
+    -- With it up, only the window and the sound keys get past it.
+    local helpUp = Help.isOpen()
     if is("fullscreen", key) or (key == "return" and love.keyboard.isDown("lalt", "ralt")) then
         local mode = Settings.get("mode") == "windowed" and "borderless" or "windowed"
         Settings.set("mode", mode)
@@ -211,6 +219,7 @@ function Input.keypressed(key)
         return
     end
     if is("sound", key) then O.cycleSound() return end
+    if helpUp then return end
     -- In the new game window, Enter starts it.
     if S.choosing and not S.ask and not S.settings and (key == "return" or key == "kpenter") then
         S.choosing = false

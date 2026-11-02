@@ -57,6 +57,9 @@ local TIPS = {
     autoCycle = "AFTER A UNIT'S ORDERS, ON TO THE NEXT THAT NEEDS SOME",
     follow = "THE CAMERA GOES TO EACH UNIT AS IT IS CHOSEN",
     grid = "THE LINES BETWEEN HEXES",
+    pointer = "THE POINTER DRAWN IN PIXELS LIKE THE REST, BIGGER, OR THE SYSTEM'S OWN",
+    outline = "HOW THICK THE LINE IS ROUND THE SELECTED HEX AND THE ONE POINTED AT",
+    hints = "TIPS IN YOUR FIRST GAMES, ONE AT A TIME. TURNED ON, THEY ALL COME BACK",
     resetWindows = "EVERY WINDOW BACK TO ITS OWN PLACE",
 }
 
@@ -163,6 +166,7 @@ local function changed(id)
     elseif id == "touch" then Menu.applyTouch()
     elseif id == "grid" then S.grid = Settings.get("grid")
     elseif id == "lang" then L.set(Settings.get("lang"))
+    elseif id == "hints" and Settings.get("hints") then require("src.ui.help").resetHints()
     end
     Settings.save()
 end
@@ -479,7 +483,7 @@ end
 
 local function pauseWindow()
     local dev = Settings.get("devTools")
-    local w, h = 120, 11 + (dev and 7 or 6) * 15 + 6
+    local w, h = 120, 11 + (dev and 8 or 7) * 15 + 6
     Win.add({
         id = "pause", title = "MENU", w = w, h = h, modal = true,
         x = floor((S.vw - w) / 2), y = floor((S.vh - h) / 2),
@@ -495,6 +499,7 @@ local function pauseWindow()
             local just = S.clock - savedAt < 2
             item(just and "GAME SAVED" or "SAVE GAME", Menu.keep, { off = just or S.over ~= nil })
             item("SETTINGS", Menu.openSettings)
+            item("HOW TO PLAY", function() require("src.ui.help").open() end)
             if dev then item("DEV TOOLS", function() S.pause = false Menu.openDev() end) end
             item("NEW GAME", function()
                 Menu.ask("START AGAIN? THIS GAME WILL BE LOST.", "NEW GAME", function()

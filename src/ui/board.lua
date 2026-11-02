@@ -34,6 +34,7 @@ local Abyss = require "src.ui.abyss"
 local Pest = require "src.ui.pestilence"
 local Audio = require "src.ui.audio"
 local Q = require "src.quarters"
+local Settings = require "src.settings"
 
 local floor, min = math.floor, math.min
 local IDX = T.IDX
@@ -233,6 +234,28 @@ local function selectedUnit()
 end
 Board.selectedUnit = selectedUnit
 
+-- The selection's outline round a hex, `inset` in from its edge, as thick
+-- as the HEX OUTLINE setting says: THIN is the one line; THICK two, with a
+-- line of the other end of the palette inside them, so it reads on pale
+-- desert and dark forest alike; BOLD three and the other line both sides.
+-- `k` is a key, or a function answering one (a blinking line).
+local STEP = 0.6
+local function ring(cell, k, inset)
+    inset = inset or 0
+    local n = Settings.get("outline") or 1
+    P.hexLine(cell, k, inset)
+    if n < 2 then return end
+    local other
+    if type(k) == "function" then
+        other = function(...) return k(...) == IDX.o and IDX.w or IDX.o end
+    else
+        other = k == IDX.o and IDX.w or IDX.o
+    end
+    for m = 1, n - 1 do P.hexLine(cell, k, inset + m * STEP) end
+    P.hexLine(cell, other, inset + n * STEP)
+    if n >= 3 then P.hexLine(cell, other, math.max(0, inset - STEP)) end
+end
+
 -- Where the selected unit could go this turn, and what it could hit.
 local function marks()
     S.hoverTurns = nil
@@ -244,10 +267,10 @@ local function marks()
     if placing then
         for _, cell in ipairs(Q.sites(g, placing)) do
             lighten(cell, 2)
-            P.hexLine(cell, function() return floor(S.clock * 3) % 2 == 0 and IDX.w or IDX.o end, 2)
+            ring(cell, function() return floor(S.clock * 3) % 2 == 0 and IDX.w or IDX.o end, 2)
         end
-        P.hexLine(g.cells[placing.cell], IDX.w, 0.5)
-        if S.hover then P.hexLine(S.hover, Q.can(g, placing, S.hover) and IDX.o or IDX.c, 0.5) end
+        ring(g.cells[placing.cell], IDX.w, 0.5)
+        if S.hover then ring(S.hover, Q.can(g, placing, S.hover) and IDX.o or IDX.c, 0.5) end
         return
     end
     if u and u.owner == 1 and not Anim.busy() then
@@ -260,11 +283,11 @@ local function marks()
             local range = u.def.ranged and u.def.range or 1
             for _, n in ipairs(g:within(cell, range)) do
                 if g:canAttack(u, n) and g.players[1].visible[n.id] then
-                    P.hexLine(n, function(f) return floor(S.clock * 4) % 2 == 0 and IDX.o or IDX.w end, 1)
+                    ring(n, function(f) return floor(S.clock * 4) % 2 == 0 and IDX.o or IDX.w end, 1)
                 end
             end
         end
-        P.hexLine(g.cells[u.cell], IDX.w, 0.5)
+        ring(g.cells[u.cell], IDX.w, 0.5)
         -- The way to the hex under the pointer.
         local hover = S.hover
         if hover and hover.id ~= u.cell and g.players[1].explored[hover.id] then
@@ -278,16 +301,16 @@ local function marks()
                         function(f, i, j) if (i + j) % 2 == 0 then return IDX.w end end)
                     last = id
                 end
-                P.hexLine(hover, attack and IDX.o or IDX.w, 1)
+                ring(hover, attack and IDX.o or IDX.w, 1)
             end
         end
     elseif S.selected and S.selected.city then
         local c = S.selected.city
         local g2 = S.game
         for _, id in ipairs(c.worked) do lighten(g2.cells[id], 3) end
-        P.hexLine(g2.cells[c.cell], IDX.w, 0.5)
+        ring(g2.cells[c.cell], IDX.w, 0.5)
     end
-    if S.hover and not u then P.hexLine(S.hover, IDX.c, 0.5) end
+    if S.hover and not u then ring(S.hover, IDX.c, 0.5) end
 end
 
 --- standing up -----------------------------------------------------------------

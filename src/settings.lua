@@ -39,6 +39,10 @@ Settings.LIST = {
     { id = "touch", tab = "interface", name = "TOUCH BUTTONS", values = { "auto", "on", "off" }, default = "auto",
         show = function(v) return v:upper() end },
     { id = "tooltips", tab = "interface", name = "HEX TOOLTIPS", values = ONOFF.values, show = ONOFF.show, default = true },
+    { id = "pointer", tab = "interface", name = "POINTER", values = { "pixel", "large", "system" }, default = "pixel",
+        show = function(v) return ({ pixel = "PIXEL", large = "PIXEL, LARGE", system = "SYSTEM" })[v] end },
+    { id = "outline", tab = "interface", name = "HEX OUTLINE", values = { 1, 2, 3 }, default = 1,
+        show = function(v) return ({ [1] = "THIN", [2] = "THICK", [3] = "BOLD" })[v] end },
     { id = "newsTime", tab = "interface", name = "NEWS STAYS FOR", values = { 4, 8, 16, 30 }, default = 8,
         show = function(v) return Lang("{1} SECONDS", v) end },
 
@@ -60,9 +64,13 @@ Settings.LIST = {
     { id = "autoCycle", tab = "gameplay", name = "AUTO-SELECT NEXT UNIT", values = ONOFF.values, show = ONOFF.show, default = true },
     { id = "follow", tab = "gameplay", name = "CAMERA FOLLOWS SELECTION", values = ONOFF.values, show = ONOFF.show, default = true },
     { id = "grid", tab = "gameplay", name = "HEX GRID", values = ONOFF.values, show = ONOFF.show, default = true },
+    { id = "hints", tab = "gameplay", name = "TUTORIAL HINTS", values = ONOFF.values, show = ONOFF.show, default = true },
     { id = "devTools", tab = "gameplay", name = "DEVELOPER TOOLS", values = ONOFF.values, show = ONOFF.show, default = false },
     -- Not in a tab: the cataclysm last chosen for a new game (the new game
     -- window, src/ui/menu.lua), kept for the next.
+    -- Not in a tab: the tutorial's hints already shown (src/ui/help.lua),
+    -- by id, a comma between each.
+    { id = "hintsSeen", tab = "hidden", name = "HINTS SEEN", default = "" },
     { id = "cataclysm", tab = "newgame", name = "CATACLYSM", values = { "heat", "flood", "sky", "demons", "sun", "plague", "quake", "none" }, default = "heat" },
 }
 Settings.BY = {}
@@ -97,6 +105,7 @@ Settings.COMMANDS = {
     { id = "mend", name = "MEND THE LAND", default = "y" },
     { id = "refit", name = "REFIT IN A CITY", default = "e" },
     { id = "fullscreen", name = "TOGGLE FULLSCREEN", default = "f11" },
+    { id = "help", name = "HELP / LOOK UP", default = "f1" },
 }
 Settings.COMMAND = {}
 for _, c in ipairs(Settings.COMMANDS) do Settings.COMMAND[c.id] = c end

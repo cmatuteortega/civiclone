@@ -136,9 +136,55 @@ with your first idle unit (the settler) selected.
 | End | End the turn now |
 | Esc | Close the open window, or deselect; with nothing to close, the menu |
 | F11, Alt+Enter | Windowed or borderless fullscreen |
+| F1 | Help: the glossary at whatever a tooltip is showing, or HOW TO PLAY with none; F1 or Esc again closes it |
 
 These are the default keys. All but Esc and the arrows can be changed in
 Settings → Controls (Esc, or MENU at the top right, opens the menu).
+
+### Help
+
+**HOW TO PLAY** (on the title screen, in the menu, or F1 with no tooltip up)
+opens the help window (`src/ui/help.lua`). It has two halves:
+
+- **How to play**: eleven short chapters, from the goal and the first turns
+  to fighting, the end of the world and every key as it is bound now.
+- **Glossary**: a page for everything the game names (`src/glossary.lua`):
+  how it works (turns, cities, growth, borders, movement, combat, strength,
+  HP, fortifying, upkeep, rivers, the fog, the cataclysm, winning), the five
+  yields, the land and its resources, improvements, every form a band or
+  ship can take, buildings, technologies and the wild's beasts. Pages about
+  things in `src/defs.lua` are made from it, so their numbers are the rules'.
+
+Every tooltip -- the hex under the pointer, a yield in the top bar, a row of
+a city's build list, a technology -- ends with **F1: MORE ABOUT ...**, and F1
+opens the glossary at that page. On a touch screen the **HELP** button down
+the right does the same. In the window, up and down go through the list (or
+the chapters), left and right through the chapters, Tab between the halves,
+Page Up and Page Down and the wheel scroll the glossary.
+
+**Hints.** In the first games a **HINT** window comes up below the top bar,
+one at a time, as there is something to say: found your first city, choose
+research, look in your city, the turn's button, what a builder does, someone
+near, the end foretold, and F1. Each goes when it is done (the city founded,
+the research chosen) or on **GOT IT**, and is not shown again; **NO MORE
+HINTS** turns them off. Settings → Gameplay → **TUTORIAL HINTS** turns them
+off and on, and turning them on brings them all back.
+
+### Seeing it
+
+Settings → Interface:
+
+- **POINTER**: **PIXEL** (the default) is the pointer drawn as the rest is,
+  in ink and cream, a pixel of it the size of a pixel of the HUD, so it
+  sits on the same grid as the lettering: an arrow, and a hand over what can
+  be pressed (`src/ui/cursor.lua`). **PIXEL, LARGE** is it twice the size;
+  **SYSTEM** the system's own. It is the system's pointer given these
+  pictures, not drawn into the frame, so it never lags.
+- **HEX OUTLINE**: how the selected hex, the one under the pointer and
+  those that can be attacked are outlined. **THIN** is a one-pixel line;
+  **THICK** two, with a line of ink (or, round an ink line, of white) inside
+  them, so it reads on pale desert and dark forest alike; **BOLD** three,
+  with the other line on both sides.
 
 ### Language
 

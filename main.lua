@@ -37,6 +37,8 @@ local L = require "src.lang"
 local Audio = require "src.ui.audio"
 local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
+local Help = require "src.ui.help"
+local Cursor = require "src.ui.cursor"
 local Settings = require "src.settings"
 local Save = require "src.save"
 local Sea = require "src.ui.sea"
@@ -143,8 +145,8 @@ function love.load(args)
     love.graphics.setLineStyle("rough")
     Sea.load()
     Daylight.load()
-    local os = love.system.getOS()
-    S.phone = os == "Android" or os == "iOS"
+    local system = love.system.getOS()
+    S.phone = system == "Android" or system == "iOS"
     S.touch = S.phone
     for n, a in ipairs(args or {}) do
         if a == "--seed" and tonumber(args[n + 1]) then S.seedArg = tonumber(args[n + 1]) end
@@ -1006,6 +1008,12 @@ local function followPlan()
         if what == "newgame" then Menu.openNewGame() end
         if what == "dev" then Menu.openDev() end
         if what == "research" then S.panel = "research" end
+        -- `--open help`, or `help:terrain.grass` for the glossary at a
+        -- page; `--open hint:found` shows that hint.
+        local page = plan.open:match("^help:(.+)$")
+        if what == "help" or page then Help.open(page) end
+        local hint = plan.open:match("^hint:(.+)$")
+        if hint then Help.show(hint) end
 
     end
     if plan.next and plan.frames == 26 then
@@ -1047,6 +1055,8 @@ function love.update(dt)
     Audio.hide(away())
     Audio.update(dt)
     Menu.update(dt)
+    Help.update()
+    Cursor.update()
     S.menuOpen = Menu.open() or Win.modal()
     if S.mode == "loading" then
         local t0 = love.timer.getTime()
@@ -1070,6 +1080,7 @@ function love.update(dt)
         if plan.frames == 3 and plan.open and plan.open:match("^settings") then
             Menu.openSettings(plan.open:match("^settings:(%a+)$"))
         end
+        if plan.frames == 3 and plan.open and plan.open:match("^help") then Help.open(plan.open:match("^help:(.+)$")) end
         if plan.frames == 8 then S.shot = plan.file end
         if plan.frames == 10 then love.event.quit() end
         return
@@ -1223,9 +1234,10 @@ local function title()
     end
     Draw.button("NEW GAME", cx - floor(bw / 2), yy, bw, 14, Menu.openNewGame, { strong = not info })
     yy = yy + 16
-    local hw = floor((bw - 4) / 2)
-    Draw.button("SETTINGS", cx - floor(bw / 2), yy, hw, 14, Menu.openSettings)
-    Draw.button("QUIT", cx - floor(bw / 2) + hw + 4, yy, hw, 14, function() love.event.quit() end)
+    local tw = floor((bw - 4) / 3)
+    Draw.button("SETTINGS", cx - floor(bw / 2), yy, tw, 14, Menu.openSettings)
+    Draw.button("HOW TO PLAY", cx - floor(bw / 2) + tw + 2, yy, bw - 2 * tw - 4, 14, function() Help.open() end)
+    Draw.button("QUIT", cx + floor(bw / 2) - tw, yy, tw, 14, function() love.event.quit() end)
 
     local below = y + ph + 6
     if S.titleNote then
@@ -1249,6 +1261,7 @@ local function title()
             L("{1}: FOUND CITY   {2}: FORTIFY   {3}: FARM   {4}: MINE   {5}: CAPITAL",
                 k("found"), k("fortify"), k("farm"), k("mine"), k("capital")),
             L("{1}: SOUND   ESC: MENU   DRAG A WINDOW BY ITS TITLE", k("sound")),
+            L("{1}: HOW TO PLAY, OR LOOK UP WHAT IS UNDER THE POINTER", k("help")),
         }
     end)()
     -- Only as much of it as there is room for below the panel.
@@ -1286,6 +1299,7 @@ function love.draw()
     -- The windows over all the rest, and the menus over them.
     if not bare then
         Menu.draw()
+        Help.draw()
         Win.flush()
         Menu.drawFps()
     end

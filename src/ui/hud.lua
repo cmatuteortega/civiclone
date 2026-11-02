@@ -27,6 +27,8 @@ local Clock = require "src.ui.clock"
 local Palette = require "src.palette"
 local Plague = require "src.plague"
 local Q = require "src.quarters"
+local Glossary = require "src.glossary"
+local Help = require "src.ui.help"
 
 local floor, max, min = math.floor, math.max, math.min
 local text, rect, button, icon = Draw.text, Draw.rect, Draw.button, Draw.icon
@@ -43,15 +45,38 @@ local function signed(n)
     return n >= 0 and ("+" .. n) or tostring(n)
 end
 
+--- looking things up --------------------------------------------------------------
+
+-- The last line of a tooltip about glossary page `id`: the key that opens
+-- it. Nothing on a touch screen, where the HELP button does.
+local function lookUpLine(id)
+    if not id or S.touch then return nil end
+    return L("{1}: MORE ABOUT {2}", L(Settings.keyName(Settings.key("help"))), Glossary.name(id))
+end
+
+-- A tooltip's lines drawn in a box at (x, y): the first pale, the rest
+-- cream, and the look-up line, if there is one, dim.
+local function tipBox(lines, x, y, look)
+    local bw, bh = 0, #lines * 8 + 3
+    for _, l in ipairs(lines) do bw = max(bw, Font.width(l)) end
+    bw = bw + 6
+    rect("o", x, y, bw, bh)
+    for k, l in ipairs(lines) do
+        text(k == 1 and "w" or (look and k == #lines and "t" or "c"), l, x + 3, y + 2 + (k - 1) * 8)
+    end
+end
+
 --- what a yield is ---------------------------------------------------------------
 
 -- A tip for the yield whose icon and figure are in the box (x, y, w, h), if
 -- the pointer is over it and nothing is in front: its name, then the lines
 -- under it. `win`: the window it is in, if any (none for the top bar).
-local function yieldTip(x, y, w, h, lines, win)
+local function yieldTip(x, y, w, h, lines, win, topic)
     local mx, my = S.mouse.x, S.mouse.y
     if not Draw.inside({ x = x, y = y, w = w, h = h }, mx, my) then return end
     for k, l in ipairs(lines) do lines[k] = L(l) end
+    local look = lookUpLine(topic)
+    if look then lines[#lines + 1] = look end
     Win.over(function()
         -- Asked once every window is placed: whether one is in front.
         if Win.modal() or Win.dragging() then return end
@@ -63,8 +88,8 @@ local function yieldTip(x, y, w, h, lines, win)
         local bx = max(2, min(x, S.vw - bw - 2))
         local by = y + h + 2
         if by + bh > S.vh - 2 then by = max(2, y - bh - 2) end
-        rect("o", bx, by, bw, bh)
-        for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, bx + 3, by + 2 + (k - 1) * 8) end
+        S.helpTopic = topic
+        tipBox(lines, bx, by, look)
     end)
 end
 
@@ -82,7 +107,7 @@ local function topBar()
         icon(kind, x, 3, ink)
         text(ink, s, x + 7, 3)
         local w = 7 + Font.width(s)
-        yieldTip(x - 1, 0, w + 2, 10, lines)
+        yieldTip(x - 1, 0, w + 2, 10, lines, nil, "yield." .. kind)
         x = x + w + 8
     end
     local units, cities = #g:unitsOf(p.id), #g:citiesOf(p.id)
@@ -250,9 +275,11 @@ end
 
 -- The tooltip by the city's window for the build list's row under the
 -- pointer: its name, then what it does.
-local function buildTip(name, says, wx, rowY)
+local function buildTip(name, says, wx, rowY, topic)
     local lines = { L(name) }
     for _, l in ipairs(says) do lines[#lines + 1] = L(l) end
+    local look = lookUpLine(topic)
+    if look then lines[#lines + 1] = look end
     Win.over(function()
         local w = 0
         for _, l in ipairs(lines) do w = max(w, Font.width(l)) end
@@ -260,8 +287,8 @@ local function buildTip(name, says, wx, rowY)
         local x = wx - bw - 2
         if x < 0 then x = wx + 2 end
         local y = max(12, min(rowY, S.vh - bh - 2))
-        rect("o", x, y, bw, bh)
-        for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, x + 3, y + 2 + (k - 1) * 8) end
+        S.helpTopic = topic
+        tipBox(lines, x, y, look)
     end)
 end
 
@@ -457,7 +484,9 @@ function cityBody(c, x, y, w, h, mine, items)
         text(hot and "o" or "u", note, x + w - 5 - Font.width(note), yy + 3)
         if hot then
             local def = (it.gear and on) and g:buildDef(c.build) or it.def
-            buildTip(def.name, it.kind == "unit" and unitSays(def, it.gear ~= nil) or (def.says or {}), x, yy)
+            local topic = it.kind == "unit" and Glossary.forUnit(def.kind or it.id)
+                or (it.kind == "building" and "building." .. it.id) or nil
+            buildTip(def.name, it.kind == "unit" and unitSays(def, it.gear ~= nil) or (def.says or {}), x, yy, topic)
         end
         yy = yy + 10
     end
@@ -526,6 +555,9 @@ local function researchTip(g, p, sci, t, nx, ny, nw)
         local n, cost, turns = wayTo(g, p, sci, t.id)
         lines[#lines + 1] = L("THE WAY: {1} TECHS, {2} SCIENCE, {3}T", n, cost, turns)
     end
+    local topic = "tech." .. t.id
+    local look = lookUpLine(topic)
+    if look then lines[#lines + 1] = look end
     Win.over(function()
         local w = 0
         for _, l in ipairs(lines) do w = max(w, Font.width(l)) end
@@ -534,8 +566,8 @@ local function researchTip(g, p, sci, t, nx, ny, nw)
         if x + bw > S.vw then x = nx - bw - 3 end
         x = max(0, x)
         local y = max(12, min(ny, S.vh - bh - 2))
-        rect("o", x, y, bw, bh)
-        for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, x + 3, y + 2 + (k - 1) * 8) end
+        S.helpTopic = topic
+        tipBox(lines, x, y, look)
     end)
 end
 
@@ -772,6 +804,10 @@ local function tooltip()
         end
         lines[#lines + 1] = move
     end
+    local topic = Glossary.forCell(g, cell, me())
+    S.helpTopic = topic
+    local look = lookUpLine(topic)
+    if look then lines[#lines + 1] = look end
     local w = 0
     for _, l in ipairs(lines) do w = max(w, Font.width(l)) end
     local x = floor((S.vw - w) / 2) - 3
@@ -794,8 +830,7 @@ local function tooltip()
         elseif r.px + r.w + bw + 1 <= S.vw then x = r.px + r.w + 1
         else break end
     end
-    rect("o", x, y, w + 6, #lines * 8 + 3)
-    for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, x + 3, y + 2 + (k - 1) * 8) end
+    tipBox(lines, x, y, look)
 end
 
 --- the minimap ---------------------------------------------------------------------
@@ -905,6 +940,7 @@ local function touchButtons()
         end },
         { "GRID", O.toggleGrid, S.grid },
         { "SOUND", O.cycleSound },
+        { "HELP", function() Help.open(S.helpTopic) end },
     }
     for _, b in ipairs(list) do
         button(b[1], x, y, TOUCH_W, 13, b[2], { on = b[3] })
@@ -966,6 +1002,7 @@ end
 
 function Hud.draw(dt)
     S.buttons, S.panels = {}, {}
+    S.helpTopic = nil
     topBar()
     messages(dt)
     Clock.draw(S.touch and S.vw - TOUCH_W - 5 or S.vw - 3)
