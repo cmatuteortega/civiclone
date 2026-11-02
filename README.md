@@ -499,7 +499,9 @@ in about two seconds while the title is up, so no frame waits on it.
   started together so they stay in step. The pad plays from the start, and
   strings, a lyre, a flute and a low drone come in as your empire grows.
   Frame drums join while enemies are near, and a layer of dread as the
-  cataclysm comes on, the lyre and the flute thinning under it. The night,
+  cataclysm comes on, the lyre and the flute thinning under it. From the
+  omen on the theme goes dark: every layer crossfades to its twin in D
+  minor, the flute's tune bent to it. The night,
   the sea and the mountains in view lean on the mix. Every few minutes the
   music draws back and lets the land be heard, and it stands back a moment
   for the great sounds.

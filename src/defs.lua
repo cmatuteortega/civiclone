@@ -946,12 +946,19 @@ D.COMBAT = {
 
 -- Civilizations: the player first. `look` is how their people are painted
 -- (src/models.lua): light cloth, dark cloth, or striped.
+-- How a civilization leans when the computer plays it (src/ai.lua): the
+-- technologies it is the likelier to pick, each so many times as likely as
+-- one not named, and the gold it keeps back once the cataclysm is foretold,
+-- buying its wards with the rest. Nocta is for war and keeps a war chest;
+-- Tess is a builder and spends it on walls against the end.
 D.CIVS = {
-    { name = "AURELIA", leader = "YOU", look = "light",
+    { name = "AURELIA", leader = "YOU", look = "light", reserve = 80,
         cities = { "AURUM", "SOLACE", "BRIGHTWATER", "ASHFORD", "LUMEN", "HALCYON", "MERIDIAN", "DAWNHOLD" } },
-    { name = "UMBRA", leader = "QUEEN NOCTA", look = "dark",
+    { name = "UMBRA", leader = "QUEEN NOCTA", look = "dark", reserve = 160,
+        leaning = { archery = 4, bronze = 4, horses = 4, iron = 4 },
         cities = { "NOCTIS", "DUSKMERE", "GLOAMING", "CINDERFALL", "SHADEHALL", "EVENFORD", "MIRKWALL" } },
-    { name = "VARRO", leader = "KING TESS", look = "stripe",
+    { name = "VARRO", leader = "KING TESS", look = "stripe", reserve = 40,
+        leaning = { pottery = 4, mining = 3, masonry = 4, writing = 4, currency = 3, sailing = 3 },
         cities = { "TESSERA", "BANDHOLM", "STRIATA", "LATTICE", "GRATEFORD", "CHEVRON", "ZIGRATH" } },
 }
 

@@ -10,10 +10,13 @@
 --   DEFS    the effects: a click, a step, a clash of bronze, a city founded
 --   LOOPS   the land: wind, the sea, birds, leaves, the wind on the heights,
 --           running water, a town, the desert, the cold, the marsh, the night,
+--           the great storm's gale,
 --           each a few seconds crossfaded end into start so it has no seam
 --   LAYERS  the music: forty seconds in D dorian (Dm9, Bbmaj7, F, Cadd9, ten
 --           seconds each) in seven layers of the very same length, so that,
---           started together, they stay in step however long they loop
+--           started together, they stay in step however long they loop; and
+--           five more, the first five gone dark (D minor: Dm, Bb, Gm, A7b9),
+--           that take their place from the omen on
 --
 -- Rendering needs nothing of LÖVE but love.sound for the last step (`make`),
 -- so src/audiothread.lua renders them off the main thread, and the tests
@@ -424,6 +427,15 @@ local DEFS = {
         { at = 1.1, dur = 1.6, wave = "noise", hp = { 200 }, lp = { 5000, 500 }, a = 0.01, curve = 1.6, vol = 0.9 },
         { at = 1.1, dur = 0.8, f0 = 70, f1 = 40, a = 0.005, curve = 1.8, vol = 0.5 }),
 
+    -- The great ebb (src/cataclysm.lua): the sea drawing back off the
+    -- shallows, a long hiss falling away, water gurgling down off the flats,
+    -- and the deep note of it going.
+    drain = sound({ vol = 0.45, gap = 2 },
+        { dur = 4.5, wave = "noise", hp = { 300, 80 }, lp = { 5000, 300 }, a = 0.4, curve = 1.1 },
+        { at = 0.3, dur = 3.5, wave = "grit", f0 = 260, f1 = 70, lp = { 1200, 300 }, a = 0.3, curve = 1.4, vol = 0.25,
+            trem = { 11, 0.8 } },
+        { at = 0.2, dur = 4, f0 = 90, f1 = 45, a = 0.5, curve = 1.3, vol = 0.3 }),
+
     -- The plague's (src/plague.lua): a knell for its dead, one great bell
     -- tolled low with its hum held under it; and rats, a scuttle of claws
     -- and a few thin squeaks.
@@ -656,6 +668,28 @@ local LOOPS = {
         { dur = 13, wave = "noise", lp = { 2500 }, hp = { 1200 }, a = 0.01, curve = 0, trem = { 1 / 4, 0.9 }, vol = 0.15 },
         { dur = 13, f0 = 880, vib = { 1 / 6, 0.03 }, a = 0.01, curve = 0, trem = { 1 / 12, 0.95 }, vol = 0.04 },
         { dur = 13, f0 = 1175, vib = { 1 / 4, 0.02 }, a = 0.01, curve = 0, trem = { 1 / 6, 0.95 }, vol = 0.03 }),
+    -- The great storm's gale (src/stillsun.lua): a roar that gusts, the
+    -- rush over it gusting harder, and a howl through it that climbs with
+    -- each gust and falls back.
+    gale = { len = 12, loop = 1, gain = 0.6, seed = 37,
+        gen = function()
+            local lo1, lo2, hi, ph1, ph2 = 0, 0, 0, 0, 0
+            local hk = onePole(1500)
+            return function(t, rng)
+                local n = rng:random() * 2 - 1
+                -- Gusts every four seconds, every other one the stronger.
+                local gust = (0.5 - 0.5 * cos(TAU * t / 4)) * (0.65 + 0.35 * sin(TAU * t / 12))
+                local k = onePole(220 + 700 * gust)
+                lo1 = lo1 + k * (n - lo1)
+                lo2 = lo2 + k * (lo1 - lo2)
+                hi = hi + hk * (n - hi)
+                local f = 330 + 260 * gust + 12 * sin(TAU * t * 0.9)
+                ph1 = ph1 + f / RATE
+                ph2 = ph2 + f * 1.49 / RATE
+                local howl = (sin(TAU * ph1) + 0.5 * sin(TAU * ph2)) * gust ^ 2.5
+                return lo2 * 3 * (0.35 + 0.65 * gust) + (n - hi) * 0.12 * gust ^ 1.5 + howl * 0.07
+            end
+        end },
     -- The marsh: frogs, a deep one croaking and a small one answering, and
     -- the insects' thin hum over the reeds.
     marsh = { len = 10, loop = 0.5, gain = 0.65, seed = 29,
@@ -721,12 +755,22 @@ local CHORDS = {
     { 41, 48, 57, 67, 72 }, -- Fadd9: F C A G C
     { 48, 55, 64, 62, 67 }, -- Cadd9: C G E D G
 }
+-- From the omen on, the same four bars gone dark: D minor with the dread in
+-- it. The home chord takes its minor sixth, the F and the C give way to G
+-- minor and to A with its flat ninth, the C sharp in it pulling hard back
+-- home every time round.
+local OMEN = {
+    { 50, 57, 65, 70, 74 }, -- Dm(b6): D A F Bb D
+    { 46, 53, 62, 69, 74 }, -- Bbmaj7: Bb F D A D
+    { 43, 50, 58, 57, 67 }, -- Gm(add9): G D Bb A G
+    { 45, 52, 61, 67, 70 }, -- A7(b9): A E C# G Bb
+}
 local BAR, LEN = 10, 40
 local BEAT = BAR / 8
 
-local function padNotes(tones, wave, vol, octave, extra)
+local function padNotes(chords, tones, wave, vol, octave, extra)
     local list = { wrap = LEN }
-    for c, ch in ipairs(CHORDS) do
+    for c, ch in ipairs(chords) do
         for _, k in ipairs(tones) do
             for _, dt in ipairs({ 0.997, 1.003 }) do
                 local v = { at = (c - 1) * BAR, dur = BAR + 3, wave = wave, f0 = midi(ch[k] + 12 * (octave or 0)) * dt,
@@ -739,43 +783,51 @@ local function padNotes(tones, wave, vol, octave, extra)
     return list
 end
 
-local LAYERS = {}
--- 0: the pad, root and fifth, breathing slowly.
-LAYERS[0] = padNotes({ 1, 2 }, "soft", 0.14, 0, { trem = { 1 / 10, 0.3 } })
--- 1: strings, the third and the colour, darker.
-LAYERS[1] = padNotes({ 3, 4 }, "tri", 0.06, 0, { trem = { 1 / 5, 0.3 }, lp = { 1400 } })
-do -- 2: the lyre, up and down each chord, one note a beat
-    local lyre = sound({ wrap = LEN, echo = { BEAT / 2, 0.3 } })
+-- The lyre, up and down each chord, one note a beat.
+local function lyre(chords)
+    local out = sound({ wrap = LEN, echo = { BEAT / 2, 0.3 } })
     local pattern = { 1, 2, 3, 5, 4, 3, 2, 3 }
-    for c, ch in ipairs(CHORDS) do
+    for c, ch in ipairs(chords) do
         for s = 0, 7 do
             local n = ch[pattern[s + 1]] + 12
-            sound(lyre, pluck((c - 1) * BAR + s * BEAT, midi(n), 2.2, s == 0 and 0.13 or 0.1))
+            sound(out, pluck((c - 1) * BAR + s * BEAT, midi(n), 2.2, s == 0 and 0.13 or 0.1))
         end
     end
-    LAYERS[2] = lyre
+    return out
 end
-do -- 3: a flute, slow over the top, falling home to D each time round
-    local flute = { wrap = LEN, echo = { 0.45, 0.3 } }
-    local melody = {
-        { 81, 2 }, { 79, 1 }, { 77, 1 }, { 76, 2 }, { 74, 2 },
-        { 74, 1 }, { 77, 1 }, { 81, 2 }, { 79, 2 }, { 77, 2 },
-        { 76, 2 }, { 77, 1 }, { 79, 1 }, { 81, 3 }, { 0, 1 },
-        { 79, 2 }, { 76, 2 }, { 74, 3 }, { 0, 1 },
-    }
+
+-- A flute, slow over the top: `melody` a list of { note, beats } (note 0 a
+-- rest), eight beats to a chord.
+local function flute(melody)
+    local out = { wrap = LEN, echo = { 0.45, 0.3 } }
     local at = 0
     for _, m in ipairs(melody) do
         if m[1] > 0 then
-            flute[#flute + 1] = { at = at, dur = m[2] * BEAT + 0.6, wave = "soft", f0 = midi(m[1]), vib = { 5, 0.006 },
+            out[#out + 1] = { at = at, dur = m[2] * BEAT + 0.6, wave = "soft", f0 = midi(m[1]), vib = { 5, 0.006 },
                 lp = { 2400 }, a = 0.25, curve = 1.3, vol = 0.07 }
-            flute[#flute + 1] = { at = at, dur = 0.12, wave = "noise", hp = { 2500 }, lp = { 6000 }, a = 0.05, curve = 1, vol = 0.006 }
+            out[#out + 1] = { at = at, dur = 0.12, wave = "noise", hp = { 2500 }, lp = { 6000 }, a = 0.05, curve = 1, vol = 0.006 }
         end
         at = at + m[2] * BEAT
     end
-    LAYERS[3] = flute
+    return out
 end
+
+local LAYERS = {}
+-- 0: the pad, root and fifth, breathing slowly.
+LAYERS[0] = padNotes(CHORDS, { 1, 2 }, "soft", 0.14, 0, { trem = { 1 / 10, 0.3 } })
+-- 1: strings, the third and the colour, darker.
+LAYERS[1] = padNotes(CHORDS, { 3, 4 }, "tri", 0.06, 0, { trem = { 1 / 5, 0.3 }, lp = { 1400 } })
+-- 2: the lyre.
+LAYERS[2] = lyre(CHORDS)
+-- 3: the flute, falling home to D each time round.
+LAYERS[3] = flute({
+    { 81, 2 }, { 79, 1 }, { 77, 1 }, { 76, 2 }, { 74, 2 },
+    { 74, 1 }, { 77, 1 }, { 81, 2 }, { 79, 2 }, { 77, 2 },
+    { 76, 2 }, { 77, 1 }, { 79, 1 }, { 81, 3 }, { 0, 1 },
+    { 79, 2 }, { 76, 2 }, { 74, 3 }, { 0, 1 },
+})
 -- 4: a drone an octave under the root, swelling.
-LAYERS[4] = padNotes({ 1 }, "sine", 0.16, -1, { trem = { 1 / 5, 0.4 } })
+LAYERS[4] = padNotes(CHORDS, { 1 }, "sine", 0.16, -1, { trem = { 1 / 5, 0.4 } })
 do -- 5: frame drums, for when there are enemies about: boom, tak, boom, tak
     local drums = sound({ wrap = LEN })
     for b = 0, LEN / (2 * BEAT) - 1 do
@@ -787,9 +839,10 @@ do -- 5: frame drums, for when there are enemies about: boom, tak, boom, tak
     LAYERS[5] = drums
 end
 do -- 6: dread, as the cataclysm comes on: the root low, rubbed against the
-   -- note a half step over it and the tritone, and the earth humming under
+   -- note a half step over it and the tritone, and the earth humming under.
+   -- It only ever plays after the omen, so it follows the dark chords.
     local dread = { wrap = LEN }
-    for c, ch in ipairs(CHORDS) do
+    for c, ch in ipairs(OMEN) do
         for _, n in ipairs({ ch[1] - 12, ch[1] - 11, ch[1] - 6 }) do
             dread[#dread + 1] = { at = (c - 1) * BAR, dur = BAR + 3, wave = "saw", f0 = midi(n), lp = { 260 }, a = 2.5,
                 curve = 1.4, vol = 0.06, trem = { 1 / 5, 0.5 } }
@@ -803,6 +856,22 @@ do -- 6: dread, as the cataclysm comes on: the root low, rubbed against the
     end
     LAYERS[6] = dread
 end
+-- 7 to 11: the twins of 0 to 4 over the omen's chords, the flute's tune
+-- bent to them (a B flat leaning on the A, and the C sharp at the end of
+-- it). From the omen on they take the place of the first five, crossfaded;
+-- being as long, they stay in step with everything.
+LAYERS[7] = padNotes(OMEN, { 1, 2 }, "soft", 0.14, 0, { trem = { 1 / 10, 0.3 } })
+LAYERS[8] = padNotes(OMEN, { 3, 4 }, "tri", 0.06, 0, { trem = { 1 / 5, 0.3 }, lp = { 1200 } })
+LAYERS[9] = lyre(OMEN)
+LAYERS[10] = flute({
+    { 81, 2 }, { 82, 1 }, { 81, 1 }, { 77, 2 }, { 74, 2 },
+    { 74, 1 }, { 77, 1 }, { 81, 2 }, { 79, 2 }, { 77, 2 },
+    { 74, 2 }, { 79, 1 }, { 82, 1 }, { 81, 3 }, { 0, 1 },
+    { 82, 2 }, { 79, 1 }, { 76, 1 }, { 73, 3 }, { 0, 1 },
+})
+LAYERS[11] = padNotes(OMEN, { 1 }, "sine", 0.16, -1, { trem = { 1 / 5, 0.4 } })
+-- Each of the first five layers' dark twin.
+Synth.TWIN = { [0] = 7, 8, 9, 10, 11 }
 
 Synth.DEFS, Synth.LOOPS, Synth.LAYERS, Synth.LENGTH = DEFS, LOOPS, LAYERS, LEN
 

@@ -90,6 +90,76 @@ local function count(game, p, kind)
     return n
 end
 
+-- What city `city` should be making against the cataclysm, once it is
+-- foretold, that it hasn't: its ward, or else a shelter.
+local function wardDue(game, city)
+    if not Cat.stage(game) then return nil end
+    local ward = Cat.ward(game, city)
+    if ward and game:canBuild(city, "building", ward) then return ward end
+    if game:canBuild(city, "building", "shelter") then return "shelter" end
+end
+
+-- The cataclysm foretold, does city `city` put down what it is making for
+-- its ward `due` (what it has made so far goes into the ward)? Any other
+-- building, yes. A builder, a ship or a quarter, if the ward can be bought
+-- outright now. Never a soldier or a settler: those are wanted for this.
+local function putBy(game, p, city, due)
+    local b = city.build
+    if b.kind == "building" then return not D.BUILDINGS[b.id].ward end
+    if b.kind == "unit" and (b.id == "settler" or not D.UNITS[b.id].civilian and not D.UNITS[b.id].sea) then
+        return false
+    end
+    local cost = game:buyCost({ build = { kind = "building", id = due }, prod = city.prod })
+    return p.gold - cost >= (p.civ.reserve or 80)
+end
+
+-- Does building `def` hold off cataclysms of kind `kind`?
+local function holds(def, kind)
+    local w = def.ward
+    return w == kind or w == "any" or (type(w) == "table" and w[kind])
+end
+
+-- The first technology to learn on the way to `id`, or nil if it is known.
+local function toward(game, p, id)
+    if p.techs[id] then return nil end
+    if game:canResearch(p, id) then return id end
+    for _, need in ipairs(D.TECH[id].needs) do
+        local step = toward(game, p, need)
+        if step then return step end
+    end
+end
+
+-- What a civilization researches next. Once the cataclysm is foretold, the
+-- way to the buildings that hold it off, its own wards before the shelter;
+-- otherwise by chance, leaning to what it favours (D.CIVS).
+local function research(game, p)
+    if Cat.stage(game) then
+        local kind, wants = game.cataclysm.kind, {}
+        for id, def in pairs(D.BUILDINGS) do
+            if def.tech and holds(def, kind) then wants[#wants + 1] = { id = id, any = def.ward == "any" } end
+        end
+        table.sort(wants, function(a, b)
+            if a.any ~= b.any then return not a.any end
+            return a.id < b.id
+        end)
+        for _, w in ipairs(wants) do
+            local step = toward(game, p, D.BUILDINGS[w.id].tech)
+            if step then return step end
+        end
+    end
+    local list, lean, total = game:researchable(p), p.civ.leaning or {}, 0
+    for _, t in ipairs(list) do total = total + (lean[t.id] or 1) end
+    if total == 0 then return nil end
+    local roll = game.rng:random() * total
+    for _, t in ipairs(list) do
+        roll = roll - (lean[t.id] or 1)
+        if roll <= 0 then return t.id end
+    end
+    return list[#list].id
+end
+
+AI.research = research
+
 local function chooseBuild(game, p, city)
     local soldiers = 0
     for _, u in ipairs(game:unitsOf(p.id)) do if military(u) then soldiers = soldiers + 1 end end
@@ -647,11 +717,12 @@ local function focus(game, city)
 end
 
 function AI.play(game, p)
-    if not p.researching then
-        local list = game:researchable(p)
-        if #list > 0 then p.researching = list[game.rng:random(#list)].id end
-    end
+    if not p.researching then p.researching = research(game, p) end
     for _, city in ipairs(game:citiesOf(p.id)) do
+        local due = wardDue(game, city)
+        if due and city.build and city.build.id ~= due and putBy(game, p, city, due) then
+            game:setBuild(city, "building", due)
+        end
         if not city.build then
             local kind, id, gear = chooseBuild(game, p, city)
             local done
@@ -662,6 +733,12 @@ function AI.play(game, p)
         focus(game, city)
         -- Buy a soldier when an enemy is at the gates.
         if city.hp < game:maxHp(city) and city.build and city.build.kind == "unit" then game:buy(city) end
+        -- Once the cataclysm is foretold, gold is for wards: what is left
+        -- over the civilization's reserve buys the one this city is making.
+        if due and city.build and city.build.id == due and not city.bought then
+            local cost = game:buyCost(city)
+            if cost and p.gold - cost >= (p.civ.reserve or 80) then game:buy(city) end
+        end
     end
     gates(game, p)
     local soldiers = 0

@@ -39,7 +39,7 @@
 -- `burnt` (it has; `burntForest` if trees stood there), `scorched` (baked
 -- desert), `dry` (the river beds by it: dry[k], as river[k] was),
 -- `ebbed` (the sea has left it). The game emits "ebb" as the sea draws
--- back, and "terrain" for
+-- back (`great` the first time, off every shallow), and "terrain" for
 -- every hex that changes, "ignite" for every fire that starts and "heat"
 -- as each stage begins. Nothing here draws.
 
@@ -570,7 +570,7 @@ function Cat.ebb(game, n)
         if not u.dead then beach(game, u, game.cells[u.cell]) end
     end
     for _, c in ipairs(game.cities) do game:assignWork(c) end
-    game:emit({ kind = "ebb", cells = #list })
+    game:emit({ kind = "ebb", cells = #list, great = n == nil })
     return list
 end
 

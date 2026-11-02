@@ -22,7 +22,7 @@
 -- the louder. Night quiets the birds and the towns and brings the crickets
 -- out. Wind under it all.
 --
--- The music. Forty seconds in six layers, all started together so they stay
+-- The music. Forty seconds in seven layers and their twins, all started together so they stay
 -- in step, each faded in as the empire earns it:
 --   0 the pad                  always
 --   1 strings                  a first city
@@ -32,6 +32,9 @@
 --   5 frame drums              enemy soldiers in sight near home (and a horn
 --                              as they first appear)
 --   6 dread                    the cataclysm come, more of it each stage
+--   7-11                       0 to 4 gone dark (src/synth.lua): from the
+--                              omen on they take the place of 0 to 4,
+--                              crossfaded, so the theme turns to D minor
 -- The world in view leans on the mix: at night the lyre and the flute draw
 -- back and the pad holds; over mountains the drone is the stronger, over the
 -- sea the pad; and as the cataclysm comes on the lyre and the flute thin out
@@ -50,6 +53,7 @@ local Settings = require "src.settings"
 local Rain = require "src.ui.rain"
 local Daylight = require "src.ui.daylight"
 local Cat = require "src.cataclysm"
+local Sun = require "src.stillsun"
 
 local floor, min, max, sqrt = math.floor, math.min, math.max, math.sqrt
 
@@ -62,6 +66,10 @@ local function level(kind)
 end
 -- How loud each layer of the music is when it is in.
 local MIX = { [0] = 0.32, 0.26, 0.24, 0.2, 0.28, 0.32, 0.3 }
+-- A dark twin is as loud as the layer it stands in for, earned and leaning
+-- as that one does.
+local BRIGHT = {}
+for k, twin in pairs(Synth.TWIN) do BRIGHT[twin] = k; MIX[twin] = MIX[k] end
 -- The cycle the music breathes on: in for so long, then back for a while.
 local PLAYS, RESTS = 160, 45
 
@@ -261,9 +269,13 @@ function Audio.hear(game, e)
     elseif k == "sunk" then
         -- A town gone under the great flood (src/flood.lua).
         if e.city.owner == 1 then at("fallen", e.cell) elseif seen(e.cell) then at("splash", e.cell, 0.9, 0, 0.45) end
-    elseif k == "greatflood" or k == "ebb" then
-        -- The sea rising over the land, or drawing back off it.
+    elseif k == "greatflood" then
+        -- The sea rising over the land.
         at("gong", nil, 0.8, 0, 0.5)
+    elseif k == "ebb" then
+        -- The sea drawing back off the land: all at once with a gong, then
+        -- a little more each turn.
+        if e.great then at("gong", nil, 0.8, 0, 0.5) at("drain", nil, 1, 0.3) else at("drain", nil, 0.4, 0, 1.1) end
     elseif k == "cyclone" and e.from then
         -- A cyclone striking: the wind's rush and a blow.
         if seen(e.cell) then at("splash", e.cell, 0.8, 0, 0.35) end
@@ -392,6 +404,20 @@ local function survey()
         end
     end
 
+    -- The great storm: its gale everywhere, and the louder the nearer a
+    -- cyclone is to the middle of the screen.
+    local gale = 0
+    if Sun.storming(game) then
+        local near = 0
+        for _, cy in ipairs(Sun.cyclones(game)) do
+            local x, y = onScreen(game.cells[cy.cell])
+            if x > -0.2 and x < 1.2 and y > -0.2 and y < 1.2 then
+                near = max(near, centred(max(0, min(1, x)), max(0, min(1, y))))
+            end
+        end
+        gale = 0.16 + 0.34 * near
+    end
+
     -- Night, and how near the camera is.
     local n, c = dark(), closeness()
     local out = max(0, min(1, 1 / c - 1))  -- 0 at the board's own zoom, 1 out to half or further
@@ -413,6 +439,7 @@ local function survey()
         cold = 0.4 * f.cold ^ 0.6,
         marsh = 0.35 * f.marsh ^ 0.6 * (1 + 0.4 * n) * here,
         night = 0.3 * n * alive * (1 - rain * 0.8) * (1 - f.cold) * here,
+        gale = gale,
     }, f
 end
 
@@ -570,21 +597,35 @@ function Audio.update(dt)
         end
     end
 
-    -- The music, once every layer is ready: all started together.
-    for k = 0, #layers do if not layers[k].src then return end end
+    -- The music, once every layer is ready: all started together. The dark
+    -- twins aren't waited for (they aren't wanted till the omen): each is
+    -- started as it comes, where the others are in their turn.
+    for k = 0, #layers do if not layers[k].src and not BRIGHT[k] then return end end
     if not musicAt then
         musicAt = clock
-        for k = 0, #layers do layers[k].src:play() end
+        for k = 0, #layers do if layers[k].src then layers[k].src:play() end end
+    end
+    for twin in pairs(BRIGHT) do
+        local src = layers[twin].src
+        if src and not src:isPlaying() then
+            src:seek(layers[0].src:tell())
+            src:play()
+        end
     end
     local on = playing and earned(S.game) or { [0] = true, true, true, true }
     local m = playing and lean(S.game) or {}
     local breath = (clock - musicAt) % (PLAYS + RESTS) < PLAYS and 1 or 0.3
+    -- After the omen the theme is its dark twin's.
+    local omened = playing and doom(S.game) > 0
     for k = 0, #layers do
         local l = layers[k]
-        local want = on[k] and MIX[k] * (m[k] or 1) * level("music") * ((k == 5 or k == 6) and 1 or breath) or 0
+        local b = BRIGHT[k] or k
+        local side = 1
+        if BRIGHT[k] then side = omened and 1 or 0 elseif Synth.TWIN[k] then side = omened and 0 or 1 end
+        local want = on[b] and MIX[k] * (m[b] or 1) * side * level("music") * ((k == 5 or k == 6) and 1 or breath) or 0
         -- In slowly, and the drums out slowly too once the danger has passed.
         l.vol = l.vol + (want - l.vol) * min(1, dt * (k == 5 and want > l.vol and 0.8 or 0.25))
-        l.src:setVolume(min(1, l.vol * room))
+        if l.src then l.src:setVolume(min(1, l.vol * room)) end
     end
 end
 

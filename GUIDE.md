@@ -820,8 +820,15 @@ builds them (N).
 The two rivals follow the same rules as you, with no bonuses. Each turn,
 each rival does the following.
 
-**Research:** if nothing is being researched, it picks a random available
-technology.
+**Research:** if nothing is being researched, it picks an available
+technology by chance, each rival leaning its own way: Queen Nocta is four
+times as likely to pick Archery, Bronze Working, Horseback Riding or Iron
+Working as anything else; King Tess the same for Pottery, Masonry and
+Writing, and three times for Mining, Currency and Sailing. From the omen on,
+it makes for the buildings that hold off the cataclysm instead: the next
+technology on the way to its own wards (Masonry for the cistern, the levee
+and the buttress; Writing for the sanctum and the lazaret; Pottery for the
+hearth), then Mining for the shelter, and only then by chance again.
 
 **Production:** a city with nothing to build chooses, in order:
 
@@ -843,6 +850,18 @@ technology.
 8. otherwise a builder
 
 **Buying:** a damaged city building a unit buys it at once if it can afford it.
+
+**Against the cataclysm, from the omen on:** a city's ward is the one it
+needs where it stands, or a shelter once that is up. A city making any other
+building puts it by for its ward, and what it had made goes into the ward. A
+city making a builder, a ship or a quarter does the same if the ward could
+be bought outright now; one making a soldier or a settler finishes it. A
+city making its ward buys it at once with what gold its civilization has
+over its reserve: 160 for Nocta, who keeps a war chest, and 40 for Tess
+(80 for your side, when the AI plays it). Measured over 12 all-AI games
+(seeds 3, 8 and 21 under the heat, the deluge, the falling sky and the
+plague), twenty turns after the omen most cities have their ward; before,
+many civilizations had none, sitting on 500–1,500 gold.
 
 **Focus:** a city that is starving takes up the food focus, and goes back to
 balanced once it has 4 food to spare and no cataclysm is under way.
@@ -1898,7 +1917,8 @@ half as much; the great sounds not at all.
 | Enemy soldiers in sight on your land or within 4 hexes of your city | A distant horn, at most once every 90 seconds |
 | A city taken; one of yours lost; a civilization destroyed | Drums, a horn and bells; a horn falling; a gong |
 | The plague: a death, one of your towns falling sick; the great pestilence; rats running out | A knell, a great bell tolled low over its own hum (a little higher for a town falling sick); two knells and a gong; a scuttle of claws and thin squeaks |
-| The great ebb or the great flood; a town sunk (yours, or one in sight); a cyclone striking in sight | A low gong; a horn falling, or a deep splash; the wind's rush. The storm's rain and thunder are the deluge's |
+| The great flood; a town sunk (yours, or one in sight); a cyclone striking in sight | A low gong; a horn falling, or a deep splash; the wind's rush. The storm's rain and thunder are the deluge's |
+| The great ebb; the sea drawing back a little more each turn after | A low gong and the sea draining away: a long hiss falling, water gurgling off the flats, a deep note going down; the drain alone, softer and a little higher |
 | Victory, defeat | A rising fanfare; a falling one |
 
 **The land.** Every half second, 54 points spread over the screen are
@@ -1922,6 +1942,7 @@ The mix follows what is there:
 | The cold: a hollow wind with a thin whistle in it | 0.4 × (share of tundra, snow and sea ice)^0.6 |
 | The marsh: frogs croaking, insects humming | 0.35 × (share of marsh)^0.6 |
 | The night: crickets, and an owl far off | 0.3 × the dark × the share of open ground and forest × 1.6; none in the cold |
+| The great storm's gale: a gusting roar, and a howl climbing with each gust | From the turn the cyclones form: 0.16 everywhere, up to 0.5 with a cyclone in the middle of the screen |
 
 **Night** (when day and night are on): the birds fall almost silent, the
 towns drop to under half, the leaves, the wind, the sea and the desert soften
@@ -1949,6 +1970,14 @@ stay in step, each faded in slowly once earned:
 | Frame drums | Enemy soldiers in sight near home (as for the horn) |
 | Dread: the root low against the half step over it and the tritone, the earth humming | The cataclysm's omen, louder each stage |
 
+**After the omen** the theme goes dark. The first five layers each have a
+twin, the same forty seconds over D minor: Dm with its minor sixth, B♭maj7,
+Gm(add9) and A7♭9, the C♯ in the last pulling hard back home. The flute's
+tune is bent to it (a B♭ leaning on the A, and the C♯ at its end). From the
+omen on the twins take the layers' places, crossfaded over some seconds, in
+step; the dread follows the dark chords' roots. The title waits only for
+the first seven layers; each twin is started in step with them as it comes.
+
 What is in view leans on the mix. At night the lyre is halved, the flute
 drops to 70% and the pad holds a little fuller. Over the sea the pad is
 fuller and the lyre softer; over hills and mountains the drone is up to half
@@ -1971,7 +2000,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders and their works (felling, firebreaks, dousing, mending, the AI fighting fire), 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, the rivers running dry from their springs, the great ebb and the salt flats walked on, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, the great flood over the lowland and then the upland, towns sunk to ruins and a levee holding through the first, a civilization gone with its towns, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, the great storm's cyclones formed on the line, seen coming, running along it and striking, the gales, a whole game to its end), the shattering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders and their works (felling, firebreaks, dousing, mending, the AI fighting fire), 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, the rivers running dry from their springs, the great ebb and the salt flats walked on, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, the great flood over the lowland and then the upland, towns sunk to ruins and a levee holding through the first, a civilization gone with its towns, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, the great storm's cyclones formed on the line, seen coming, running along it and striking, the gales, a whole game to its end), the shattering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length, each of the first five with its dark twin), the rivals against the cataclysm (research made for the wards, buildings put by for them, wards bought over the reserve, and each rival's leaning), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --lang es` | The words in Spanish (or `en`), for this run only; with `--shot` and `--open settings:interface` (or `pause`, `newgame`, `dev`, `research`), a picture of that window in it |
 | `luajit tools/lang_keys.lua es` | The lines the Spanish table has not yet (see [Translations](#translations)); with no language, every line the game can show |

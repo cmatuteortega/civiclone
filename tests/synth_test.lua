@@ -46,6 +46,12 @@ return {
             assert(check(k) == Synth.LENGTH * Synth.RATE, "layer " .. k)
         end
     end },
+    { "each of the first five layers has a dark twin for after the omen", function()
+        for k = 0, 4 do
+            local twin = Synth.TWIN[k]
+            assert(twin and Synth.LAYERS[twin] and twin > 6, "layer " .. k)
+        end
+    end },
     { "the same sound renders the same each time", function()
         local a, n = Synth.render(Synth.def("sea"))
         local b = Synth.render(Synth.def("sea"))
