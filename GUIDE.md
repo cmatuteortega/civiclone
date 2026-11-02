@@ -1827,11 +1827,14 @@ don't sound like one footstep a hundred times.
 
 **Effects.** You hear only what you can see: an event in the fog is silent.
 Each sound is panned to where its hex is on the screen, and is a third as
-loud if the hex is off the edge.
+loud if the hex is off the edge. Small, close sounds (footsteps, hooves,
+oars, a spade, a snort, bees) follow the camera: zoomed out to half they are
+half as loud, zoomed in they are up to a third louder. Fighting follows it
+half as much; the great sounds not at all.
 
 | What | Sound |
 | --- | --- |
-| Choosing a unit, a city | Two knocks on wood (lower for civilians); two bells |
+| Choosing a unit, a city | Two knocks on wood (lower for civilians), from where it stands, and under them what it is: a band's bronze clinking, a scout's whistle, a ship's hull creaking, a settler's cart, a builder's tools tapping, a horse snorting. A city: two bells, lower and fuller the bigger the town |
 | A button, a panel opened or closed | A click; a page turned |
 | A right click a unit can't follow | Two low knocks |
 | A unit walking onto a hex | A footstep; hooves for anyone on a horse; leaves in a forest; an oar's stroke on the water |
@@ -1852,22 +1855,42 @@ loud if the hex is off the edge.
 | The great ebb or the great flood; a town sunk (yours, or one in sight); a cyclone striking in sight | A low gong; a horn falling, or a deep splash; the wind's rush. The storm's rain and thunder are the deluge's |
 | Victory, defeat | A rising fanfare; a falling one |
 
-**The land.** Every half second, 35 points spread over the screen are
-looked at, counting only explored hexes. The mix follows what is there:
+**The land.** Every half second, 54 points spread over the screen are
+looked at, counting only explored hexes. Those near the middle count most
+(a corner under half as much), and the hex chosen, with a unit or a city on
+it, counts for almost a quarter of the whole while it is chosen, so its
+river or its sea comes up. The towns on the screen are counted too, each by
+its size and how near the middle it is (a remembered one out of sight less).
+The mix follows what is there:
 
 | Loop | How loud |
 | --- | --- |
-| Wind | 0.14, plus 0.18 × the share of open ground and high ground |
+| Wind | 0.14, plus 0.18 × the share of open and high ground (and half the desert and the cold) |
 | The sea | 0.5 × (share of water)^0.6 |
-| Birds, and a dove far off | 0.32 × the share of open ground and forest × 1.6, at most 0.32 |
+| Birds, and a dove far off | 0.32 × the share of open ground and forest × 1.6, at most 0.32; less in the rain and the cold |
 | Leaves | 0.4 × (share of forest)^0.7 |
 | Wind on the heights | 0.4 × (share of hills and mountains)^0.8 |
+| Running water: the rush and the babble | 0.35 × (2.5 × the share on a river, at most 1)^0.7; not a frozen one |
+| A town: voices talking, a smith at the anvil, a cart going by | 0.32 × (the towns on the screen)^0.8 |
+| The desert: sand hissing on the wind, the grains ticking | 0.35 × (share of desert and salt flat)^0.7 |
+| The cold: a hollow wind with a thin whistle in it | 0.4 × (share of tundra, snow and sea ice)^0.6 |
+| The marsh: frogs croaking, insects humming | 0.35 × (share of marsh)^0.6 |
+| The night: crickets, and an owl far off | 0.3 × the dark × the share of open ground and forest × 1.6; none in the cold |
+
+**Night** (when day and night are on): the birds fall almost silent, the
+towns drop to under half, the leaves, the wind, the sea and the desert soften
+a little, the frogs come up, and the crickets come out.
+
+**The camera's height.** Zoomed out, the wind rises (up to 60% more) and
+the land close by (birds, leaves, rivers, towns, the marsh, the crickets)
+falls to half; zoomed in, it is up to a quarter louder and the wind a fifth
+quieter.
 
 Each is a few seconds long, crossfaded end into start, its swells a whole
 number of cycles over its length, so the seam doesn't show.
 
 **Music.** Forty seconds in D dorian: Dm9, B♭maj7, Fadd9, Cadd9, ten seconds
-each. Six layers, each exactly forty seconds, all started at once so they
+each. Seven layers, each exactly forty seconds, all started at once so they
 stay in step, each faded in slowly once earned:
 
 | Layer | In when |
@@ -1878,6 +1901,17 @@ stay in step, each faded in slowly once earned:
 | A flute melody, falling home to D | Two technologies, or turn 30 |
 | A drone an octave under the root | Three cities, or turn 50 |
 | Frame drums | Enemy soldiers in sight near home (as for the horn) |
+| Dread: the root low against the half step over it and the tritone, the earth humming | The cataclysm's omen, louder each stage |
+
+What is in view leans on the mix. At night the lyre is halved, the flute
+drops to 70% and the pad holds a little fuller. Over the sea the pad is
+fuller and the lyre softer; over hills and mountains the drone is up to half
+again as loud. As the cataclysm comes on, stage by stage, the lyre thins to
+half and the flute to under half, and the drone deepens under the dread.
+
+The great sounds (a city founded, taken or lost, a technology, a gong, a
+knell, the horn, the end) have the music and the land stand back for them:
+down by up to 60% at once, and back up over a couple of seconds after.
 
 The title plays the pad, strings, lyre and flute over wind, birds and a little
 sea. The music plays for 160 seconds, then draws back to under a third for 45

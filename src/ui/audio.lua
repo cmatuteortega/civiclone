@@ -9,9 +9,18 @@
 -- grown, a border pushed out, a technology learned) comes one item after
 -- another, not all at once.
 --
--- The land. Every half second a few dozen points of the screen are looked
--- at: the more of it is sea, the louder the waves; forest, the leaves; hills
--- and mountains, the wind on the heights; open ground, birds. Wind under it all.
+-- How near the camera is matters to both: zoomed out, the small close sounds
+-- (a footstep, a spade, a snort) go quiet and the wind comes up; zoomed in,
+-- they and the land close by are heard the fuller.
+--
+-- The land. Every half second some fifty points of the screen are looked at,
+-- those near the middle counting most, and the hex chosen most of all: the
+-- more of it is sea, the louder the waves; forest, the leaves; hills and
+-- mountains, the wind on the heights; open ground, birds; a river, running
+-- water; desert, the dry wind and the sand; snow and ice, the cold; marsh,
+-- frogs. The towns on the screen are heard talking and working, the bigger
+-- the louder. Night quiets the birds and the towns and brings the crickets
+-- out. Wind under it all.
 --
 -- The music. Forty seconds in six layers, all started together so they stay
 -- in step, each faded in as the empire earns it:
@@ -22,8 +31,13 @@
 --   4 a low drone              a third city, or turn 50
 --   5 frame drums              enemy soldiers in sight near home (and a horn
 --                              as they first appear)
--- Every few minutes the music draws back for a while and lets the land be
--- heard.
+--   6 dread                    the cataclysm come, more of it each stage
+-- The world in view leans on the mix: at night the lyre and the flute draw
+-- back and the pad holds; over mountains the drone is the stronger, over the
+-- sea the pad; and as the cataclysm comes on the lyre and the flute thin out
+-- under the dread. Every few minutes the music draws back for a while and
+-- lets the land be heard, and it and the land both stand back a moment for
+-- the great sounds (a city founded or lost, a technology, a gong).
 --
 -- How loud each is comes from the settings (src/settings.lua): a master
 -- volume over the music, the land and the effects, each its own. V goes the
@@ -34,6 +48,8 @@ local Synth = require "src.synth"
 local S = require "src.ui.state"
 local Settings = require "src.settings"
 local Rain = require "src.ui.rain"
+local Daylight = require "src.ui.daylight"
+local Cat = require "src.cataclysm"
 
 local floor, min, max, sqrt = math.floor, math.min, math.max, math.sqrt
 
@@ -45,7 +61,7 @@ local function level(kind)
     return Settings.get("master") / 100 * Settings.get(kind) / 100
 end
 -- How loud each layer of the music is when it is in.
-local MIX = { [0] = 0.32, 0.26, 0.24, 0.2, 0.28, 0.32 }
+local MIX = { [0] = 0.32, 0.26, 0.24, 0.2, 0.28, 0.32, 0.3 }
 -- The cycle the music breathes on: in for so long, then back for a while.
 local PLAYS, RESTS = 160, 45
 
@@ -55,6 +71,30 @@ local clock, musicAt, newsAt = 0, nil, 0
 local jobs, done
 local land, threat, hornAt = { wind = 0.2 }, false, -1e9
 local was = {}
+local kinds = {} -- how much of the screen is each kind of land (survey)
+-- How far the music and the land stand back for a great sound, and till when.
+local duck, duckWant, duckUntil = 0, 0, 0
+local DUCK = { found = 0.4, taken = 0.5, fallen = 0.5, tech = 0.35, gong = 0.45, knell = 0.35, horn = 0.35,
+    won = 0.6, lost = 0.6, heartfall = 0.5, eruption = 0.45 }
+
+-- How near the camera is: 1 at the board's own zoom, 2 zoomed in twice as
+-- close, 0.5 out to half.
+local function closeness()
+    if not S.zoom then return 1 end
+    return S.zoom / max(1, S.zoom - (S.zoomStep or 0))
+end
+
+-- How loud a sound `near` close (its def's) is at the camera's height.
+local function nearness(near)
+    if not near or near == 0 then return 1 end
+    return max(0.25, min(1.3, closeness())) ^ near
+end
+
+-- How dark it is, 0 by day to 1 at night.
+local function dark()
+    if not Daylight.on() then return 0 end
+    return Daylight.at(Daylight.now()).night
+end
 
 --- starting and stopping -----------------------------------------------------------
 
@@ -141,6 +181,9 @@ function Audio.play(name, pan, vol, pitch)
     pan = max(-1, min(1, pan or 0)) * 0.7
     src:setPosition(pan, 0, -sqrt(1 - pan * pan))
     src:play()
+    if DUCK[name] then
+        duckWant, duckUntil = max(duckWant, DUCK[name]), clock + 2.5
+    end
 end
 
 -- Where on the screen hex `id` is, as a pan, and how loud for being there:
@@ -279,33 +322,98 @@ end
 
 --- each frame ------------------------------------------------------------------------
 
--- What the camera is over: how much of the screen is sea, forest, high
--- ground and open ground, of what has been explored.
+-- What a hex sounds like, as one of the land's kinds.
+local function kindOf(cell)
+    local t = D.TERRAIN[cell.terrain]
+    if t.frozen then return "cold"
+    elseif t.water then return "water"
+    elseif cell.elev ~= "flat" then return "high"
+    elseif cell.terrain == "marsh" then return "marsh"
+    elseif cell.feature == "forest" then return "forest"
+    elseif cell.terrain == "desert" or cell.terrain == "saltflat" then return "desert" end
+    return "open"
+end
+
+-- Where hex `cell` is on the screen, 0..1 across and down.
+local function onScreen(cell)
+    local i, j = S.world:toImage(cell.x, cell.top, cell.z)
+    return (i - S.camx) / S.cw, (j - S.camy) / S.ch
+end
+
+-- How much a point of the screen counts, 0..1 across and down: the middle
+-- fully, the corners under half.
+local function centred(x, y)
+    local dx, dy = (x - 0.5) * 2, (y - 0.5) * 2
+    return 1 - 0.6 * min(1, sqrt(dx * dx + dy * dy) / sqrt(2))
+end
+
+-- What the camera is over: how much of the screen is each kind of land, of
+-- what has been explored (the middle counting most, the hex chosen more),
+-- how much of it runs with rivers, and how many people are in the towns on
+-- it. Answers the loudness of each loop, and the kinds.
 local function survey()
-    local p = S.game.players[1]
-    local water, forest, high, open = 0, 0, 0, 0
-    local cols, rows = 7, 5
+    local game = S.game
+    local p = game.players[1]
+    local f = { water = 0, forest = 0, high = 0, open = 0, desert = 0, cold = 0, marsh = 0, river = 0 }
+    local total = 0
+    local function count(cell, w)
+        if cell and p.explored[cell.id] then
+            local k = kindOf(cell)
+            f[k] = f[k] + w
+            if k ~= "cold" and game:onRiver(cell) then f.river = f.river + w end
+        end
+        total = total + w
+    end
+    local cols, rows = 9, 6
     for a = 0, cols - 1 do
         for b = 0, rows - 1 do
-            local cell = S.world:pick(S.camx + S.cw * (a + 0.5) / cols, S.camy + S.ch * (b + 0.5) / rows)
-            if cell and p.explored[cell.id] then
-                if D.TERRAIN[cell.terrain].water then water = water + 1
-                elseif cell.elev ~= "flat" then high = high + 1
-                elseif cell.feature == "forest" then forest = forest + 1
-                else open = open + 1 end
+            local x, y = (a + 0.5) / cols, (b + 0.5) / rows
+            count(S.world:pick(S.camx + S.cw * x, S.camy + S.ch * y), centred(x, y))
+        end
+    end
+    -- The hex chosen, and what is on it, heard the more while it is chosen.
+    local sel = S.selected and (S.selected.unit or S.selected.city)
+    local selCell = sel and game.cells[sel.cell]
+    if selCell then count(selCell, total * 0.3) end
+    for k, v in pairs(f) do f[k] = v / total end
+
+    -- The towns: each as loud as it is big, and as near the middle.
+    local town = 0
+    for _, c in ipairs(game.cities) do
+        local cell = game.cells[c.cell]
+        if p.explored[c.cell] then
+            local x, y = onScreen(cell)
+            if x > -0.1 and x < 1.1 and y > -0.1 and y < 1.1 then
+                local w = centred(max(0, min(1, x)), max(0, min(1, y))) * (0.5 + 0.5 * min(1, (c.pop or 1) / 8))
+                if not p.visible[c.cell] then w = w * 0.4 end
+                if cell == selCell then w = w * 2 end
+                town = town + w
             end
         end
     end
-    local n = cols * rows
-    water, forest, high, open = water / n, forest / n, high / n, open / n
+
+    -- Night, and how near the camera is.
+    local n, c = dark(), closeness()
+    local out = max(0, min(1, 1 / c - 1))  -- 0 at the board's own zoom, 1 out to half or further
+    local close = max(0, min(1, c - 1))    -- 0 at the board's own zoom, 1 in to twice as close
+    local here = (1 - 0.5 * out) * (1 + 0.25 * close)
+    local rain = Rain.level()
+    local alive = min(1, (f.open + f.forest + 0.4 * f.marsh) * 1.6)
     return {
-        wind = 0.14 + 0.18 * (open + high),
-        sea = 0.5 * water ^ 0.6,
-        leaves = 0.4 * forest ^ 0.7,
-        heights = 0.4 * high ^ 0.8,
-        birds = 0.32 * min(1, (open + forest) * 1.6) * (1 - Rain.level() * 0.8),
-        rain = 0.5 * Rain.level(),
-    }
+        wind = (0.14 + 0.18 * (f.open + f.high + 0.5 * (f.desert + f.cold))) * (1 + 0.6 * out) * (1 - 0.2 * close)
+            * (1 - 0.15 * n),
+        sea = 0.5 * f.water ^ 0.6 * (1 - 0.15 * n),
+        leaves = 0.4 * f.forest ^ 0.7 * (1 - 0.3 * n) * here,
+        heights = 0.4 * f.high ^ 0.8 * (1 + 0.25 * out),
+        birds = 0.32 * alive * (1 - rain * 0.8) * (1 - 0.9 * n) * (1 - 0.8 * f.cold) * here,
+        rain = 0.5 * rain,
+        river = 0.35 * min(1, f.river * 2.5) ^ 0.7 * here,
+        town = 0.32 * min(1, town * 0.45) ^ 0.8 * (1 - 0.6 * n) * here,
+        desert = 0.35 * f.desert ^ 0.7 * (1 - 0.3 * n),
+        cold = 0.4 * f.cold ^ 0.6,
+        marsh = 0.35 * f.marsh ^ 0.6 * (1 + 0.4 * n) * here,
+        night = 0.3 * n * alive * (1 - rain * 0.8) * (1 - f.cold) * here,
+    }, f
 end
 
 -- Enemy soldiers the player can see on their land or near one of their cities.
@@ -324,6 +432,30 @@ local function danger(game)
     return false
 end
 
+-- How far on the cataclysm is, 0 before its omen to 1 at its last stage.
+local function doom(game)
+    if not Cat.kindOf(game) then return 0 end
+    local now, stages = Cat.stage(game), Cat.stagesOf(game)
+    if not now then return 0 end
+    for k, st in ipairs(stages) do
+        if st[1] == now then return k / #stages end
+    end
+    return 0
+end
+
+-- How each layer of the music leans with the world in view: the night, the
+-- land, the cataclysm.
+local function lean(game)
+    local n, d = dark(), doom(game)
+    local m = { [0] = 1, 1, 1, 1, 1, 1, 1 }
+    m[0] = 1 + 0.15 * n + 0.3 * (kinds.water or 0)
+    m[2] = (1 - 0.5 * n) * (1 - 0.3 * (kinds.water or 0)) * (1 - 0.5 * d)
+    m[3] = (1 - 0.3 * n) * (1 - 0.6 * d)
+    m[4] = 1 + 0.5 * (kinds.high or 0) + 0.3 * d
+    m[6] = d ^ 0.7
+    return m
+end
+
 -- Which layers of the music the empire has earned.
 local function earned(game)
     local cities, techs = #game:citiesOf(1), 0
@@ -335,7 +467,21 @@ local function earned(game)
         techs >= 2 or game.turn >= 30,
         cities >= 3 or game.turn >= 50,
         threat,
+        doom(game) > 0,
     }
+end
+
+-- What a unit sounds like chosen, under the select's knock: its arms, its
+-- hull, its cart, its tools; a horse snorting, a beast its own.
+local function flavour(u)
+    local d = u.def
+    if d.beast then return d.temper == "hostile" and "growl" or "snort", 0.5 end
+    if d.sea then return "creak", 1 end
+    if d.mounted then return "snort", 0.7 end
+    if u.kind == "settler" then return "cart", 1 end
+    if u.kind == "builder" then return "tool", 1 end
+    if d.scout then return "whistle", 1 end
+    return "arms", 1
 end
 
 -- Sounds for what the player did on the screen: chose a unit or city, opened
@@ -343,8 +489,15 @@ end
 local function watch()
     local sel = S.selected and (S.selected.unit or S.selected.city)
     if sel ~= was.sel and sel then
-        if S.selected.city then Audio.play("city")
-        else Audio.play("select", 0, 1, sel.def.civilian and 0.84 or 1) end
+        local pan = where(sel.cell)
+        if S.selected.city then
+            -- Lower and fuller the bigger the town.
+            Audio.play("city", pan, 1, 1 - min(0.18, ((sel.pop or 1) - 1) * 0.02))
+        else
+            Audio.play("select", pan, 1, sel.def.civilian and 0.84 or 1)
+            local name, vol = flavour(sel)
+            at(name, sel.cell, vol, 0.05)
+        end
     end
     if S.panel ~= was.panel then Audio.play("page") end
     if S.over and not was.over then Audio.play(S.over.result == "won" and "won" or "lost") end
@@ -366,7 +519,11 @@ function Audio.update(dt)
             if clock >= l.t then
                 table.remove(later, k)
                 local pan, vol = 0, 1
-                if l.id then pan, vol = where(l.id) end
+                if l.id then
+                    pan, vol = where(l.id)
+                    local p = pools[l.name]
+                    vol = vol * nearness(p and p.def.near)
+                end
                 Audio.play(l.name, pan, vol * l.vol, l.pitch)
             end
         end
@@ -378,7 +535,7 @@ function Audio.update(dt)
         tick = tick - dt
         if tick <= 0 then
             tick = 0.5
-            land = survey()
+            land, kinds = survey()
             local now = danger(S.game)
             if now and not threat and clock - hornAt > 90 then
                 Audio.play("horn")
@@ -389,9 +546,14 @@ function Audio.update(dt)
         local loud = Rain.thunder()
         if loud then Audio.play("thunder", 0, loud, 0.85 + 0.3 * math.random()) end
     else
-        later, news, threat = {}, {}, false
+        later, news, threat, kinds = {}, {}, false, {}
         land = { wind = 0.2, birds = 0.14, sea = 0.12 }
     end
+
+    -- Standing back for a great sound: quickly, and slowly back.
+    if clock >= duckUntil then duckWant = 0 end
+    duck = duck + (duckWant - duck) * min(1, dt * (duckWant > duck and 8 or 0.8))
+    local room = 1 - duck
 
     -- The land: each loop eases to where it should be; silent ones stop.
     for name, l in pairs(loops) do
@@ -403,7 +565,7 @@ function Audio.update(dt)
                 l.vol = 0
             else
                 if not l.src:isPlaying() then l.src:play() end
-                l.src:setVolume(l.vol)
+                l.src:setVolume(l.vol * room)
             end
         end
     end
@@ -415,13 +577,14 @@ function Audio.update(dt)
         for k = 0, #layers do layers[k].src:play() end
     end
     local on = playing and earned(S.game) or { [0] = true, true, true, true }
+    local m = playing and lean(S.game) or {}
     local breath = (clock - musicAt) % (PLAYS + RESTS) < PLAYS and 1 or 0.3
     for k = 0, #layers do
         local l = layers[k]
-        local want = on[k] and MIX[k] * level("music") * (k == 5 and 1 or breath) or 0
+        local want = on[k] and MIX[k] * (m[k] or 1) * level("music") * ((k == 5 or k == 6) and 1 or breath) or 0
         -- In slowly, and the drums out slowly too once the danger has passed.
         l.vol = l.vol + (want - l.vol) * min(1, dt * (k == 5 and want > l.vol and 0.8 or 0.25))
-        l.src:setVolume(l.vol)
+        l.src:setVolume(min(1, l.vol * room))
     end
 end
 

@@ -9,9 +9,10 @@
 -- Three kinds of thing are made here:
 --   DEFS    the effects: a click, a step, a clash of bronze, a city founded
 --   LOOPS   the land: wind, the sea, birds, leaves, the wind on the heights,
+--           running water, a town, the desert, the cold, the marsh, the night,
 --           each a few seconds crossfaded end into start so it has no seam
 --   LAYERS  the music: forty seconds in D dorian (Dm9, Bbmaj7, F, Cadd9, ten
---           seconds each) in six layers of the very same length, so that,
+--           seconds each) in seven layers of the very same length, so that,
 --           started together, they stay in step however long they loop
 --
 -- Rendering needs nothing of LÖVE but love.sound for the last step (`make`),
@@ -221,7 +222,9 @@ end
 --- the effects -------------------------------------------------------------------------------
 --
 -- Each: its voices, then how it is played: `vol`, `gap` (shortest time between
--- two), `poly` (most at once), `wob` (how far its pitch wanders, either way).
+-- two), `poly` (most at once), `wob` (how far its pitch wanders, either way),
+-- `near` (how much it is a small, close sound, quieter the further out the
+-- camera is: 1 a footstep, 0 or none what is heard at any height).
 
 local DEFS = {
     --- the screen
@@ -235,22 +238,49 @@ local DEFS = {
         { at = 0.05, dur = 0.07, wave = "noise", hp = { 1200 }, lp = { 4000, 1500 }, a = 0.01, curve = 1.5, vol = 0.6 }),
     deny = sound({ vol = 0.25, gap = 0.15 }, wood(0, 180), wood(0.09, 160)),
 
+    --- a unit chosen, heard as what it is (under the select's knock)
+    -- A band's arms: bronze clinking on bronze, and leather.
+    arms = sound({ vol = 0.16, gap = 0.1, wob = 0.06 },
+        { dur = 0.18, f0 = 2350, a = 0.001, curve = 3, vol = 0.4 }, { dur = 0.12, f0 = 3480, a = 0.001, curve = 3, vol = 0.25 },
+        { at = 0.07, dur = 0.16, f0 = 2610, a = 0.001, curve = 3, vol = 0.3 },
+        { at = 0.07, dur = 0.1, f0 = 3900, a = 0.001, curve = 3, vol = 0.15 },
+        { dur = 0.09, wave = "noise", lp = { 1500 }, hp = { 300 }, a = 0.01, curve = 1.5, vol = 0.35 }),
+    -- A scout's whistle, two notes.
+    whistle = sound({ vol = 0.1, gap = 0.1, wob = 0.03 },
+        { dur = 0.1, wave = "soft", f0 = 1580, f1 = 1900, a = 0.015, curve = 1.5, vib = { 20, 0.01 } },
+        { at = 0.13, dur = 0.16, wave = "soft", f0 = 1500, f1 = 1420, a = 0.015, curve = 1.5, vib = { 20, 0.01 } }),
+    -- A hull creaking at its mooring, the water lapping on it.
+    creak = sound({ vol = 0.18, gap = 0.1, wob = 0.08 },
+        { dur = 0.45, wave = "grit", f0 = 95, f1 = 125, lp = { 900 }, vib = { 6, 0.08 }, a = 0.08, curve = 1.4 },
+        wood(0.32, 170, 0.6),
+        { dur = 0.5, wave = "noise", hp = { 200 }, lp = { 900, 400 }, a = 0.1, curve = 1.5, vol = 0.3 }),
+    -- A settler's cart: the wheels knocking, the load rattling.
+    cart = sound({ vol = 0.16, gap = 0.1, wob = 0.06 },
+        wood(0, 240, 0.7), wood(0.13, 200, 0.6),
+        { dur = 0.3, wave = "grit", f0 = 60, lp = { 600 }, a = 0.01, trem = { 16, 0.7 }, curve = 1.5, vol = 0.4 }),
+    -- A builder's tools: iron tapping on stone, twice.
+    tool = sound({ vol = 0.15, gap = 0.1, wob = 0.06 },
+        { dur = 0.06, wave = "noise", hp = { 1500 }, lp = { 5000 }, a = 0.001, curve = 2, vol = 0.5 },
+        { dur = 0.2, f0 = 1450, a = 0.001, curve = 3.5, vol = 0.35 },
+        { at = 0.17, dur = 0.06, wave = "noise", hp = { 1500 }, lp = { 5000 }, a = 0.001, curve = 2, vol = 0.4 },
+        { at = 0.17, dur = 0.2, f0 = 1380, a = 0.001, curve = 3.5, vol = 0.3 }),
+
     --- units at rest and on the move
-    step = sound({ vol = 0.1, gap = 0.06, poly = 3, wob = 0.15 },
+    step = sound({ vol = 0.1, gap = 0.06, poly = 3, wob = 0.15, near = 1 },
         { dur = 0.06, wave = "noise", lp = { 600, 200 }, curve = 2 },
         { dur = 0.05, f0 = 95, f1 = 60, curve = 2, vol = 0.6 }),
-    hoof = sound({ vol = 0.12, gap = 0.06, poly = 3, wob = 0.1 },
+    hoof = sound({ vol = 0.12, gap = 0.06, poly = 3, wob = 0.1, near = 1 },
         { dur = 0.04, wave = "tri", f0 = 330, f1 = 220, curve = 3 },
         { at = 0.07, dur = 0.04, wave = "tri", f0 = 300, f1 = 200, curve = 3, vol = 0.8 },
         { dur = 0.03, wave = "noise", lp = { 1500 }, vol = 0.5 }, { at = 0.07, dur = 0.03, wave = "noise", lp = { 1500 }, vol = 0.4 }),
-    rustle = sound({ vol = 0.1, gap = 0.08, poly = 3, wob = 0.12 },
+    rustle = sound({ vol = 0.1, gap = 0.08, poly = 3, wob = 0.12, near = 1 },
         { dur = 0.2, wave = "noise", hp = { 900 }, lp = { 5000, 1500 }, a = 0.03, trem = { 28, 0.6 }, curve = 1.5 }),
     -- An oar's stroke: the blade's wash, and the loom knocking in its pin.
-    oar = sound({ vol = 0.12, gap = 0.08, poly = 3, wob = 0.12 },
+    oar = sound({ vol = 0.12, gap = 0.08, poly = 3, wob = 0.12, near = 1 },
         { dur = 0.28, wave = "noise", hp = { 300 }, lp = { 2200, 500 }, a = 0.05, curve = 1.6 },
         wood(0.02, 210, 0.5)),
     -- Into a boat or out of it: a thud on the planks and a splash.
-    splash = sound({ vol = 0.2, gap = 0.12, poly = 2, wob = 0.1 },
+    splash = sound({ vol = 0.2, gap = 0.12, poly = 2, wob = 0.1, near = 0.6 },
         wood(0, 150, 0.8),
         { at = 0.03, dur = 0.4, wave = "noise", hp = { 400 }, lp = { 5000, 700 }, a = 0.01, curve = 2 },
         { at = 0.05, dur = 0.12, f0 = 260, f1 = 120, curve = 2, vol = 0.3 }),
@@ -268,7 +298,7 @@ local DEFS = {
         { dur = 1.8, f0 = N.D3, a = 0.2, curve = 1.5, vol = 0.35 }),
     built = sound({ vol = 0.3, gap = 0.3, echo = { 0.12, 0.2 } },
         wood(0, 720, 0.8), wood(0.11, 960, 0.8), bell(0.22, N.E5, 0.8, 0.5)),
-    dig = sound({ vol = 0.28, gap = 0.3, wob = 0.08 },
+    dig = sound({ vol = 0.28, gap = 0.3, wob = 0.08, near = 1 },
         { dur = 0.12, wave = "noise", hp = { 300 }, lp = { 2400, 700 }, curve = 1.5 },
         { at = 0.17, dur = 0.12, wave = "noise", hp = { 300 }, lp = { 2100, 600 }, curve = 1.5 },
         { at = 0.34, dur = 0.2, f0 = 130, f1 = 60, curve = 2, vol = 0.8 },
@@ -284,15 +314,15 @@ local DEFS = {
         { at = 0.2, dur = 1, wave = "noise", hp = { 5000 }, a = 0.3, curve = 1.5, vol = 0.04 }),
 
     --- war
-    clash = sound({ vol = 0.3, gap = 0.08, poly = 3, wob = 0.1 },
+    clash = sound({ vol = 0.3, gap = 0.08, poly = 3, wob = 0.1, near = 0.5 },
         { dur = 0.05, wave = "noise", hp = { 2000 }, curve = 1.5 },
         { dur = 0.35, f0 = 1900, curve = 3, vol = 0.35 }, { dur = 0.25, f0 = 2830, curve = 3, vol = 0.25 },
         { dur = 0.15, f0 = 4100, curve = 3, vol = 0.15 },
         { dur = 0.14, f0 = 150, f1 = 70, curve = 2, vol = 0.7 }),
-    loose = sound({ vol = 0.28, gap = 0.08, poly = 3, wob = 0.08 },
+    loose = sound({ vol = 0.28, gap = 0.08, poly = 3, wob = 0.08, near = 0.5 },
         { dur = 0.14, wave = "tri", f0 = 420, f1 = 180, vib = { 40, 0.05 }, curve = 2 },
         { at = 0.03, dur = 0.3, wave = "noise", hp = { 600 }, lp = { 1200, 3500 }, a = 0.12, curve = 1.5, vol = 0.4 }),
-    hit = sound({ vol = 0.3, gap = 0.06, poly = 3, wob = 0.12 },
+    hit = sound({ vol = 0.3, gap = 0.06, poly = 3, wob = 0.12, near = 0.5 },
         { dur = 0.1, wave = "noise", lp = { 1500, 300 }, curve = 1.5 },
         { dur = 0.18, f0 = 160, f1 = 55, curve = 2, vol = 0.9 }),
     stone = sound({ vol = 0.32, gap = 0.08, poly = 2, wob = 0.1 },
@@ -306,22 +336,22 @@ local DEFS = {
     --- the wild
     -- A wolf's howl: a soft voice sliding up, held, falling away; a second
     -- answering under it.
-    howl = sound({ vol = 0.2, gap = 3, echo = { 0.3, 0.35 }, wob = 0.06 },
+    howl = sound({ vol = 0.2, gap = 3, echo = { 0.3, 0.35 }, wob = 0.06, near = 0.3 },
         { dur = 2.2, wave = "soft", f0 = 330, f1 = 520, bend = 0.25, a = 0.5, vib = { 5, 0.012 }, curve = 1.2 },
         { at = 1.6, dur = 1.0, wave = "soft", f0 = 500, f1 = 300, bend = 2, a = 0.05, vib = { 5, 0.012 }, curve = 1.5,
             vol = 0.6 },
         { at = 0.5, dur = 1.8, wave = "soft", f0 = 260, f1 = 410, bend = 0.3, a = 0.6, vib = { 4.5, 0.01 }, curve = 1.3,
             vol = 0.35 }),
     -- A beast going for someone: a low rasping snarl.
-    growl = sound({ vol = 0.28, gap = 0.2, poly = 2, wob = 0.12 },
+    growl = sound({ vol = 0.28, gap = 0.2, poly = 2, wob = 0.12, near = 0.5 },
         { dur = 0.55, wave = "grit", f0 = 85, f1 = 70, lp = { 900, 500 }, a = 0.05, trem = { 26, 0.6 }, curve = 1.4 },
         { dur = 0.4, wave = "noise", lp = { 700, 300 }, a = 0.04, trem = { 30, 0.5 }, curve = 1.5, vol = 0.5 }),
     -- A horse's snort, or an ox's: a breath blown out hard.
-    snort = sound({ vol = 0.18, gap = 1, wob = 0.15 },
+    snort = sound({ vol = 0.18, gap = 1, wob = 0.15, near = 1 },
         { dur = 0.32, wave = "noise", hp = { 300 }, lp = { 2500, 700 }, a = 0.02, trem = { 18, 0.4 }, curve = 1.6 },
         { dur = 0.2, wave = "grit", f0 = 120, f1 = 90, lp = { 600 }, curve = 2, vol = 0.4 }),
     -- Bees about their nest.
-    buzz = sound({ vol = 0.08, gap = 2, wob = 0.1 },
+    buzz = sound({ vol = 0.08, gap = 2, wob = 0.1, near = 1 },
         { dur = 1.4, wave = "saw", f0 = 220, f1 = 235, lp = { 1400 }, a = 0.2, vib = { 9, 0.02 }, trem = { 7, 0.4 },
             curve = 1.2 },
         { dur = 1.2, wave = "saw", f0 = 330, f1 = 318, lp = { 1600 }, a = 0.3, vib = { 11, 0.02 }, curve = 1.2,
@@ -400,7 +430,7 @@ local DEFS = {
     knell = sound({ vol = 0.42, gap = 1.5, echo = { 0.3, 0.3 } },
         bell(0, 146.8, 3.2, 0.8), bell(0, 146.8 * 1.19, 2.4, 0.25),
         { dur = 3.6, f0 = 73.4, a = 0.01, curve = 1.4, vol = 0.35, vib = { 2.2, 0.003 } }),
-    squeak = sound({ vol = 0.16, gap = 0.4, poly = 2, wob = 0.15 },
+    squeak = sound({ vol = 0.16, gap = 0.4, poly = 2, wob = 0.15, near = 1 },
         { dur = 0.3, wave = "noise", hp = { 2200 }, lp = { 7000, 3000 }, a = 0.01, curve = 1.2, vol = 0.5, trem = { 23, 0.9 } },
         { at = 0.05, dur = 0.06, wave = "tri", f0 = 3400, f1 = 2900, a = 0.003, curve = 1.6, vol = 0.5 },
         { at = 0.17, dur = 0.05, wave = "tri", f0 = 3900, f1 = 3300, a = 0.003, curve = 1.6, vol = 0.4 }),
@@ -427,6 +457,28 @@ local DEFS = {
 
 -- A one-pole low pass for a gen: k from its cut-off.
 local function onePole(hz) return 1 - exp(-TAU * hz / RATE) end
+
+-- A gen's way with many short notes: `notes` (each with a start `t` and a
+-- length `d`, and whatever `play` wants of it) sorted by start, and `play`
+-- (note, time into it, 0..1 through it) answering its sample. Only the notes
+-- sounding are looked at, so a loop can hold hundreds.
+local function scatter(notes, play)
+    table.sort(notes, function(a, b) return a.t < b.t end)
+    local longest = 0
+    for _, c in ipairs(notes) do longest = max(longest, c.d) end
+    local lo = 1
+    return function(time)
+        while notes[lo] and notes[lo].t + longest < time do lo = lo + 1 end
+        local s = 0
+        for k = lo, #notes do
+            local c = notes[k]
+            if c.t > time then break end
+            local u = time - c.t
+            if u < c.d then s = s + play(c, u, u / c.d) end
+        end
+        return s
+    end
+end
 
 local LOOPS = {
     -- Wind over open ground: a low rush and a thin high one, swelling out of step.
@@ -511,6 +563,151 @@ local LOOPS = {
     heights = sound({ len = 9, loop = 0.9, gain = 0.5, seed = 11 },
         { dur = 9.9, wave = "noise", lp = { 900 }, hp = { 250 }, a = 0.01, curve = 0, trem = { 1 / 4.5, 0.7 } },
         { dur = 9.9, f0 = 620, vib = { 2 / 9, 0.12 }, a = 0.01, curve = 0, trem = { 1 / 9, 0.95 }, vol = 0.05 }),
+    -- A town: people talking, a few voices rising and falling, a smith at
+    -- his anvil now and then, a cart's wheels knocking past.
+    town = { len = 12, loop = 0.8, gain = 0.5, seed = 15,
+        gen = function()
+            local r = Rng.new(41)
+            local notes = {}
+            -- The smith: strikes in threes and fours, a little under half a
+            -- second apart.
+            for _, at in ipairs({ 1.2, 6.9 }) do
+                for k = 0, 2 + r:random(2) - 1 do
+                    notes[#notes + 1] = { t = at + k * 0.46, d = 0.5, anvil = true, f = 1720 * (1 + (r:random() - 0.5) * 0.02),
+                        v = k == 0 and 1 or 0.75 }
+                end
+            end
+            -- Wheels and wood.
+            for _, at in ipairs({ 3.6, 3.82, 4.05, 9.4, 9.61 }) do
+                notes[#notes + 1] = { t = at, d = 0.1, f = 190 + r:random() * 70, v = 0.6 }
+            end
+            local strikes = scatter(notes, function(c, u, x)
+                if c.anvil then
+                    local e = exp(-u * 11)
+                    return (sin(TAU * c.f * u) + 0.6 * sin(TAU * c.f * 1.51 * u) * exp(-u * 9) + 0.3 * sin(TAU * c.f * 2.63 * u) * exp(-u * 20))
+                        * e * c.v * 0.18
+                end
+                return sin(TAU * c.f * u) * (1 - x) ^ 4 * c.v * 0.5
+            end)
+            -- The voices: each its own band of noise, opened and shut a
+            -- syllable at a time, with breaths between.
+            local voices = {}
+            for k = 1, 4 do
+                voices[k] = { lo = 0, hi = 0, env = 0, want = 0, next = 0, lk = onePole(700 + k * 140), hk = onePole(220 + k * 30) }
+            end
+            local ek = onePole(14)
+            return function(t, rng)
+                local s = 0
+                for _, v in ipairs(voices) do
+                    if t >= v.next then
+                        local talking = r:random() < 0.82
+                        v.want = talking and (0.3 + r:random() * 0.7) or 0
+                        v.next = t + (talking and 0.08 + r:random() * 0.16 or 0.3 + r:random() * 0.9)
+                    end
+                    v.env = v.env + ek * (v.want - v.env)
+                    local n = rng:random() * 2 - 1
+                    v.lo = v.lo + v.lk * (n - v.lo)
+                    v.hi = v.hi + v.hk * (v.lo - v.hi)
+                    s = s + (v.lo - v.hi) * v.env
+                end
+                return s * 1.1 + strikes(t)
+            end
+        end },
+    -- Running water: a river's rush over its stones, and the babble of it,
+    -- bubble after bubble.
+    river = { len = 9, loop = 0.6, gain = 0.5, seed = 17,
+        gen = function()
+            local r = Rng.new(43)
+            local notes = {}
+            for k = 1, 9 * 22 do
+                local d = 0.02 + r:random() * 0.045
+                notes[k] = { t = r:random() * (9 - d), d = d, f = 380 + r:random() * 950, v = 0.3 + r:random() * 0.7 }
+            end
+            local bubbles = scatter(notes, function(c, u, x)
+                return sin(TAU * c.f * (u + 0.6 * u * x)) * sin(math.pi * x) ^ 2 * c.v
+            end)
+            local lo, hi, lk, hk = 0, 0, onePole(700), onePole(140)
+            return function(t, rng)
+                local n = rng:random() * 2 - 1
+                lo = lo + lk * (n - lo)
+                hi = hi + hk * (lo - hi)
+                return (lo - hi) * 2.2 * (0.8 + 0.2 * sin(TAU * t / 4.5)) + bubbles(t) * 0.22
+            end
+        end },
+    -- The desert: a dry hiss of sand on the wind, low gusts under it, and
+    -- the grains ticking.
+    desert = { len = 10, loop = 1, gain = 0.5, seed = 19,
+        { dur = 11, wave = "noise", hp = { 2600 }, lp = { 7000 }, a = 0.01, curve = 0, trem = { 1 / 5, 0.8 }, vol = 0.5 },
+        { dur = 11, wave = "noise", hp = { 60 }, lp = { 300 }, a = 0.01, curve = 0, trem = { 1 / 10, 0.6 } },
+        gen = function()
+            local r = Rng.new(47)
+            local notes = {}
+            for k = 1, 500 do notes[k] = { t = r:random() * 9.99, d = 0.004, f = 4500 + r:random() * 3000, v = r:random() } end
+            local grains = scatter(notes, function(c, u, x) return sin(TAU * c.f * u) * (1 - x) ^ 2 * c.v end)
+            return function(t)
+                -- The grains come with the gusts.
+                return grains(t) * 0.04 * (0.4 + 0.6 * (0.5 - 0.5 * cos(TAU * t / 5)))
+            end
+        end },
+    -- The cold: a hollow wind over the snow and the ice, with a thin
+    -- whistle in it that comes and goes.
+    cold = sound({ len = 12, loop = 1, gain = 0.5, seed = 23 },
+        { dur = 13, wave = "noise", lp = { 700 }, hp = { 150 }, a = 0.01, curve = 0, trem = { 1 / 6, 0.75 } },
+        { dur = 13, wave = "noise", lp = { 2500 }, hp = { 1200 }, a = 0.01, curve = 0, trem = { 1 / 4, 0.9 }, vol = 0.15 },
+        { dur = 13, f0 = 880, vib = { 1 / 6, 0.03 }, a = 0.01, curve = 0, trem = { 1 / 12, 0.95 }, vol = 0.04 },
+        { dur = 13, f0 = 1175, vib = { 1 / 4, 0.02 }, a = 0.01, curve = 0, trem = { 1 / 6, 0.95 }, vol = 0.03 }),
+    -- The marsh: frogs, a deep one croaking and a small one answering, and
+    -- the insects' thin hum over the reeds.
+    marsh = { len = 10, loop = 0.5, gain = 0.65, seed = 29,
+        { dur = 10.5, wave = "noise", hp = { 3000 }, lp = { 6500 }, a = 0.01, curve = 0, trem = { 9, 0.5 }, vol = 0.06 },
+        gen = function()
+            local r = Rng.new(53)
+            local notes = {}
+            local t = 0.4
+            while t < 9.2 do -- the deep one, two or three croaks at a time
+                for k = 0, r:random(2) do
+                    notes[#notes + 1] = { t = t + k * 0.32, d = 0.24, f = 135 + r:random() * 10, v = 0.9 }
+                end
+                t = t + 1.6 + r:random() * 1.4
+            end
+            t = 1.1
+            while t < 9.5 do -- the small one, a quick ribbit
+                notes[#notes + 1] = { t = t, d = 0.1, f = 260 + r:random() * 30, v = 0.6 }
+                notes[#notes + 1] = { t = t + 0.14, d = 0.13, f = 250 + r:random() * 30, v = 0.6 }
+                t = t + 0.9 + r:random() * 1.5
+            end
+            return scatter(notes, function(c, u, x)
+                local pulse = (0.5 + 0.5 * sin(TAU * 24 * u)) ^ 2
+                local tone = sin(TAU * c.f * u) + 0.45 * sin(TAU * c.f * 2 * u) + 0.2 * sin(TAU * c.f * 3 * u)
+                return tone * pulse * min(1, x * 10) * (1 - x) * c.v * 0.5
+            end)
+        end },
+    -- The night: crickets, two of them chirping out of step, and once
+    -- round an owl far off.
+    night = { len = 16, loop = 0.8, gain = 0.65, seed = 31,
+        gen = function()
+            local notes = {}
+            local r = Rng.new(59)
+            for _, c in ipairs({ { every = 0.62, f = 4400, n = 3, v = 0.5 }, { every = 0.81, f = 3900, n = 4, v = 0.35, from = 0.2 } }) do
+                local t = c.from or 0
+                while t < 15.9 do
+                    for k = 0, c.n - 1 do
+                        notes[#notes + 1] = { t = t + k * 0.035, d = 0.018, f = c.f, v = c.v * (0.8 + 0.2 * r:random()) }
+                    end
+                    t = t + c.every * (0.95 + 0.1 * r:random())
+                end
+            end
+            for _, h in ipairs({ { 5.0, 0.5 }, { 6.1, 0.3 }, { 6.5, 0.7 } }) do
+                notes[#notes + 1] = { t = h[1], d = h[2], f = 390, owl = true, v = 1 }
+            end
+            return scatter(notes, function(c, u, x)
+                if c.owl then
+                    local f = c.f * (1 - 0.08 * x)
+                    return (sin(TAU * f * u) + 0.1 * sin(TAU * 2 * f * u)) * sin(math.pi * x) ^ 1.5 * 0.35
+                end
+                return sin(TAU * c.f * u) * sin(math.pi * x) * c.v * 0.3
+            end)
+        end },
 }
 
 --- the music ---------------------------------------------------------------------------------
@@ -588,6 +785,23 @@ do -- 5: frame drums, for when there are enemies about: boom, tak, boom, tak
             { at = t + BEAT * 1.5, dur = 0.05, wave = "noise", hp = { 1500 }, lp = { 5000 }, vol = 0.08 })
     end
     LAYERS[5] = drums
+end
+do -- 6: dread, as the cataclysm comes on: the root low, rubbed against the
+   -- note a half step over it and the tritone, and the earth humming under
+    local dread = { wrap = LEN }
+    for c, ch in ipairs(CHORDS) do
+        for _, n in ipairs({ ch[1] - 12, ch[1] - 11, ch[1] - 6 }) do
+            dread[#dread + 1] = { at = (c - 1) * BAR, dur = BAR + 3, wave = "saw", f0 = midi(n), lp = { 260 }, a = 2.5,
+                curve = 1.4, vol = 0.06, trem = { 1 / 5, 0.5 } }
+        end
+    end
+    -- Two halves of the hum, each swelling in as the other dies, folded
+    -- round so it never stops.
+    for _, at in ipairs({ 0, LEN / 2 }) do
+        dread[#dread + 1] = { at = at, dur = LEN / 2 + 6, wave = "noise", lp = { 140 }, a = 6, curve = 1.2, vol = 0.5,
+            trem = { 1 / 10, 0.6 } }
+    end
+    LAYERS[6] = dread
 end
 
 Synth.DEFS, Synth.LOOPS, Synth.LAYERS, Synth.LENGTH = DEFS, LOOPS, LAYERS, LEN

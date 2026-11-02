@@ -486,15 +486,23 @@ in about two seconds while the title is up, so no frame waits on it.
   edge of the screen: footsteps, hooves and leaves as units walk, bronze
   clashing, bowstrings, blows, a city founded, a technology learned, a horn
   when enemy soldiers first come near your cities. A turn's news (a unit
-  trained, a city grown, a border pushed out) comes one item at a time.
-- **The land under the camera.** Wind always; the sea, birds, leaves and
-  the wind on the heights each as loud as how much of the screen is coast,
-  open ground, forest or hills.
-- **Music:** forty seconds in D dorian in six layers of the same length,
+  trained, a city grown, a border pushed out) comes one item at a time. The
+  small close sounds fade as the camera zooms out. A unit chosen sounds like
+  what it is: bronze, a whistle, a hull, a cart, tools, a horse.
+- **The land under the camera.** Wind always; the sea, birds, leaves, the
+  wind on the heights, running water, the desert, the cold and the marsh each
+  as loud as how much of the screen (the middle and the hex chosen counting
+  most) is coast, open ground, forest, hills, river, sand, snow or marsh; the
+  towns on it talking and working. At night the birds and the towns go quiet
+  and the crickets come out. Zoomed out, the wind rises over the rest.
+- **Music:** forty seconds in D dorian in seven layers of the same length,
   started together so they stay in step. The pad plays from the start, and
   strings, a lyre, a flute and a low drone come in as your empire grows.
-  Frame drums join while enemies are near. Every few minutes the music draws
-  back and lets the land be heard.
+  Frame drums join while enemies are near, and a layer of dread as the
+  cataclysm comes on, the lyre and the flute thinning under it. The night,
+  the sea and the mountains in view lean on the mix. Every few minutes the
+  music draws back and lets the land be heard, and it stands back a moment
+  for the great sounds.
 
 `love . --sounds` writes every sound into LÖVE's save folder as a `.wav`.
 
