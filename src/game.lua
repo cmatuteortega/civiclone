@@ -21,6 +21,8 @@ local Frost = require "src.frost"
 local Quake = require "src.quake"
 local Q = require "src.quarters"
 local L = require "src.lang"
+local Diplo = require "src.diplomacy"
+local Loyalty = require "src.loyalty"
 
 local floor, ceil, max, min, exp = math.floor, math.ceil, math.max, math.min, math.exp
 
@@ -48,6 +50,9 @@ function Game.new(opts)
     self.turn = 1
     self.nextId = 1
     self.players = {}
+    -- Who has met whom, and how they stand (src/diplomacy.lua).
+    self.diplo = nil
+    Diplo.ensure(self)
     for k = 1, opts.civs or #D.CIVS do
         local civ = D.CIVS[k]
         local p = {
@@ -169,6 +174,9 @@ end
 -- Cartography of either.
 function Game:canEnter(u, cell)
     if u.owner == Game.WILD then return Beasts.canEnter(self, u, cell) end
+    -- Another's land, closed to us: at peace, borders shut (src/diplomacy.lua).
+    local owner = cell.owner
+    if owner and owner ~= u.owner and not Diplo.mayEnter(self, u.owner, owner) then return false end
     local water = self:isWater(cell)
     local techs = self.players[u.owner].techs
     if u.def.sea then
@@ -739,6 +747,8 @@ function Game:canAttack(u, cell)
     if u.def.civilian or u.moves <= 0 or u.attacked or self:embarked(u) then return false end
     local target = self:foreignAt(cell, u.owner)
     if not target then return false end
+    -- Only those we are at war with (src/diplomacy.lua).
+    if self:atPeaceWith(u.owner, cell) then return false end
     local d = self:dist(self.cells[u.cell], cell)
     -- A shot needs a soldier or a city to aim at; a civilian is only taken.
     if u.def.ranged then
@@ -762,6 +772,19 @@ function Game:canAttack(u, cell)
     if u.def.sea then return self:isWater(cell) or (u.def.demon == true and self:passable(cell)) end
     return self:passable(cell)
 end
+
+-- Whose is what `owner`'s unit would strike on the cell, if it is a
+-- civilization's it is at peace with: that civilization, else nil.
+function Game:atPeaceWith(owner, cell)
+    if owner == Game.WILD then return nil end
+    local m, c = self.mil[cell.id], self.civ[cell.id]
+    local who = (m and m.owner ~= owner and m.owner) or (cell.city and cell.city.owner ~= owner and cell.city.owner)
+        or (c and c.owner ~= owner and c.owner)
+    if who and who ~= Game.WILD and not Diplo.atWar(self, owner, who) then return who end
+end
+
+-- At war: the wild with all, and civilizations that have declared it.
+function Game:hostile(a, b) return Diplo.atWar(self, a, b) end
 
 -- What an attack would do: damage dealt, damage taken (a guess, no luck).
 function Game:forecast(u, cell)
@@ -927,7 +950,7 @@ function Game:found(u)
     local city = {
         id = self.nextId, name = name, owner = u.owner, cell = cell.id, pop = 1, food = 0, prod = 0,
         culture = 0, claimed = 0, hp = D.CITY.hp, buildings = {}, worked = {},
-        capital = not p.everCity, founder = u.owner, founded = self.turn,
+        capital = not p.everCity, founder = u.owner, founded = self.turn, loyalty = 100,
     }
     self.nextId = self.nextId + 1
     self:removeUnit(u)
@@ -1031,6 +1054,10 @@ function Game:cityYield(city)
     f = f - Cat.thirst(self, city)
     local K = Cat.kindOf(self)
     if K and K.gold then g = K.gold(self, city, g) end
+    -- A city in unrest or uprising makes less of all but its food
+    -- (src/loyalty.lua).
+    local lf = Loyalty.factor(city)
+    if lf < 1 then p, g, sci, cul = floor(p * lf), floor(g * lf), sci * lf, floor(cul * lf) end
     return f, p, g, sci, cul
 end
 
@@ -1364,7 +1391,8 @@ function Game:cityStrike(city)
     local best
     for _, cell in ipairs(self:within(home, D.CITY.rangedRange)) do
         local u = self.mil[cell.id] or self.civ[cell.id]
-        if u and u.owner ~= city.owner and (walls or u.def.demon) and (not best or u.hp < best.hp) then best = u end
+        if u and u.owner ~= city.owner and (walls or u.def.demon) and Diplo.atWar(self, city.owner, u.owner)
+            and (not best or u.hp < best.hp) then best = u end
     end
     if not best then return end
     local dealt = damage(self.rng, self:cityStrength(city), self:defense(best))
@@ -1388,6 +1416,10 @@ function Game:conquer(u, city)
     city.hp = 50
     city.build, city.prod = nil, 0
     city.buildings.walls = nil
+    -- Its people do not love their conquerors yet (src/loyalty.lua), nor
+    -- their old leader them.
+    city.loyalty, city.taken, city.pleading = D.LOYALTY.taken, self.turn, nil
+    Diplo.remember(self, old, u.owner, "tookCity", D.DIPLO.MEMORY.tookCity)
     for _, n in ipairs(self.cells) do
         if n.ownerCity == city then n.owner = u.owner end
     end
@@ -1397,6 +1429,37 @@ function Game:conquer(u, city)
     self:tell(old, "{1} HAS FALLEN TO {2}", city.name, self.players[u.owner].name)
     self:tell(u.owner, "WE HAVE TAKEN {1}", city.name)
     self:checkAlive(self.players[old])
+end
+
+-- City `city` goes over to civilization `to` of its own will: its loyalty
+-- gone (src/loyalty.lua). The soldiers in it go with it.
+function Game:cede(city, to)
+    local old = city.owner
+    local cell = self.cells[city.cell]
+    for _, slot in ipairs({ self.mil, self.civ }) do
+        local v = slot[cell.id]
+        if v and v.owner == old then v.owner, v.dest, v.fortified = to, nil, false end
+    end
+    city.owner = to
+    city.build, city.prod = nil, 0
+    city.loyalty, city.taken, city.pleading = D.LOYALTY.after, nil, nil
+    for _, n in ipairs(self.cells) do
+        if n.ownerCity == city then n.owner = to end
+    end
+    self:assignWork(city)
+    self:emit({ kind = "defect", cell = cell.id, city = city, from = old })
+    self:tell(old, "{1} HAS GONE OVER TO {2}", city.name, self.players[to].name)
+    self:tell(to, "{1} HAS JOINED US", city.name)
+    Diplo.remember(self, old, to, "stirred", D.DIPLO.MEMORY.stirred)
+    if self.players[old].human then Diplo.send(self, to, old, "revolt", { city = city.name }) end
+    Diplo.expel(self, old, to)
+    self:look(self.players[to])
+    self:look(self.players[old])
+    self:checkAlive(self.players[old])
+end
+
+function Game:cityById(id)
+    for _, c in ipairs(self.cities) do if c.id == id then return c end end
 end
 
 -- A player with no cities left and no settler to found one is out.
@@ -1471,15 +1534,19 @@ function Game:look(p)
     local function see(cell, n)
         for _, m in ipairs(self:within(cell, n)) do vis[m.id] = true end
     end
+    -- What an ally sees, we see (src/diplomacy.lua).
+    local function ours(owner)
+        return owner == p.id or (owner ~= Game.WILD and Diplo.allied(self, p.id, owner))
+    end
     for _, u in ipairs(self.units) do
-        if u.owner == p.id then
+        if ours(u.owner) then
             local cell = self.cells[u.cell]
             -- A storm (src/weather.lua) shortens it.
             see(cell, max(1, u.def.sight + (cell.elev == "hills" and 1 or 0) - Weather.blind(self)))
         end
     end
     for _, c in ipairs(self.cities) do
-        if c.owner == p.id then
+        if ours(c.owner) then
             -- A lighthouse's beam carries further.
             see(self.cells[c.cell], c.buildings.lighthouse and D.BUILDINGS.lighthouse.sight or 2)
         end
@@ -1495,6 +1562,24 @@ function Game:look(p)
     for id in pairs(p.visible) do if not vis[id] then changed = true end end
     p.visible = vis
     if changed then p.sightChanged = true end
+    -- A people seen for the first time, by a unit, a city or the land of
+    -- theirs: met.
+    local meet
+    local function saw(o)
+        if o ~= p.id and o ~= Game.WILD and not Diplo.met(self, p.id, o) then
+            meet = meet or {}
+            meet[o] = true
+        end
+    end
+    for id in pairs(vis) do
+        local m, c, cell = self.mil[id], self.civ[id], self.cells[id]
+        if m then saw(m.owner) end
+        if c then saw(c.owner) end
+        if cell.owner then saw(cell.owner) end
+    end
+    if meet then
+        for o in pairs(meet) do Diplo.meet(self, p.id, o) end
+    end
 end
 
 --- turns ---------------------------------------------------------------------------
@@ -1558,6 +1643,10 @@ function Game:finishTurn(p)
                 city.pop = city.pop - 1
                 self:assignWork(city)
                 self:tell(p.id, "{1} IS STARVING", city.name)
+                -- Under the cataclysm, the hungry go looking for bread
+                -- abroad (src/diplomacy.lua).
+                local stage = Cat.stage(self)
+                if stage and stage ~= "omen" then Diplo.homeless(self, p.id, city, 1) end
             end
             city.food = 0
         end
@@ -1573,6 +1662,7 @@ function Game:finishTurn(p)
         end
         city.hp = min(self:maxHp(city), city.hp + D.CITY.heal)
         self:cityStrike(city)
+        Loyalty.turn(self, city)
     end
     -- Upkeep: a unit beyond the free ones costs one gold.
     local units = #self:unitsOf(p.id)
@@ -1724,6 +1814,7 @@ function Game:endTurn(ai)
     self:emit({ kind = "phase", who = "cataclysm" })
     Cat.turn(self)
     Weather.turn(self)
+    Diplo.turn(self)
     for _, p in ipairs(self.players) do self:checkAlive(p) end
     self:beginTurn(me)
     self:look(me)

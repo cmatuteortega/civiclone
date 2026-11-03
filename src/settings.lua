@@ -83,6 +83,7 @@ Settings.COMMANDS = {
     { id = "endTurn", name = "END TURN NOW", default = "end" },
     { id = "nextUnit", name = "NEXT UNIT", default = "tab" },
     { id = "research", name = "RESEARCH", default = "t" },
+    { id = "diplomacy", name = "DIPLOMACY", default = "p" },
     { id = "capital", name = "GO TO CAPITAL", default = "h" },
     { id = "grid", name = "HEX GRID", default = "g" },
     { id = "sound", name = "SOUND LOUD/SOFT/OFF", default = "v" },

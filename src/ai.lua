@@ -17,6 +17,7 @@ local Sun = require "src.stillsun"
 local Plague = require "src.plague"
 local Flood = require "src.flood"
 local Q = require "src.quarters"
+local Diplo = require "src.diplomacy"
 
 local max = math.max
 
@@ -432,18 +433,19 @@ local function strike(game, u)
 end
 
 -- The nearest thing of an enemy's this player has seen: a city first.
+-- An enemy is one it is at war with (src/diplomacy.lua), and the wild.
 local function targetFor(game, p, u)
     local here = game.cells[u.cell]
     local best, bd
     for _, c in ipairs(game.cities) do
-        if c.owner ~= p.id and p.explored[c.cell] then
+        if c.owner ~= p.id and p.explored[c.cell] and game:hostile(p.id, c.owner) then
             local d = game:dist(here, game.cells[c.cell])
             if not bd or d < bd then best, bd = game.cells[c.cell], d end
         end
     end
     if best then return best end
     for _, v in ipairs(game.units) do
-        if v.owner ~= p.id and p.visible[v.cell] then
+        if v.owner ~= p.id and p.visible[v.cell] and game:hostile(p.id, v.owner) then
             local d = game:dist(here, game.cells[v.cell])
             if not bd or d < bd then best, bd = game.cells[v.cell], d end
         end
@@ -505,7 +507,7 @@ local function ship(game, p, u, attacking)
         local best, bd
         for _, c in ipairs(game.cities) do
             local cell = game.cells[c.cell]
-            if c.owner ~= p.id and p.explored[c.cell] and game:coastal(cell) then
+            if c.owner ~= p.id and p.explored[c.cell] and game:coastal(cell) and game:hostile(p.id, c.owner) then
                 local d = game:dist(here, cell)
                 if not bd or d < bd then best, bd = cell, d end
             end
@@ -717,6 +719,10 @@ local function focus(game, city)
 end
 
 function AI.play(game, p)
+    -- War and peace, and what to ask of the others (src/diplomacy.lua).
+    -- Playing the player's side, it answers their letters too.
+    if p.human then Diplo.answerFor(game, p.id) end
+    Diplo.think(game, p)
     if not p.researching then p.researching = research(game, p) end
     for _, city in ipairs(game:citiesOf(p.id)) do
         local due = wardDue(game, city)
@@ -743,7 +749,8 @@ function AI.play(game, p)
     gates(game, p)
     local soldiers = 0
     for _, u in ipairs(game:unitsOf(p.id)) do if military(u) and not u.def.scout then soldiers = soldiers + 1 end end
-    local attacking = game.turn >= 25 and soldiers >= 2 + #game:citiesOf(p.id)
+    -- The army marches once there is a war to march to.
+    local attacking = Diplo.atWarWithAny(game, p.id) and soldiers >= 2 + #game:citiesOf(p.id)
     -- A copy: units die and found cities as the list is walked.
     local units = {}
     for k, u in ipairs(game:unitsOf(p.id)) do units[k] = u end

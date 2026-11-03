@@ -1004,15 +1004,91 @@ D.COMBAT = {
 -- one not named, and the gold it keeps back once the cataclysm is foretold,
 -- buying its wards with the rest. Nocta is for war and keeps a war chest;
 -- Tess is a builder and spends it on walls against the end.
+--
+-- How each leader deals with the others (src/diplomacy.lua): `temper` is
+-- the row of D.DIPLO.TEMPER they decide war and tribute by, `regard` what
+-- they think of everyone before anything happens, and `motto` how they sign
+-- their letters.
 D.CIVS = {
-    { name = "AURELIA", leader = "YOU", look = "light", reserve = 80,
+    { name = "AURELIA", leader = "YOU", look = "light", reserve = 80, temper = "calm", regard = 0,
+        motto = "LIGHT KEEPS",
         cities = { "AURUM", "SOLACE", "BRIGHTWATER", "ASHFORD", "LUMEN", "HALCYON", "MERIDIAN", "DAWNHOLD" } },
-    { name = "UMBRA", leader = "QUEEN NOCTA", look = "dark", reserve = 160,
+    { name = "UMBRA", leader = "QUEEN NOCTA", look = "dark", reserve = 160, temper = "warlike", regard = -10,
+        motto = "BY MOON AND KNIFE",
         leaning = { archery = 4, bronze = 4, horses = 4, iron = 4 },
         cities = { "NOCTIS", "DUSKMERE", "GLOAMING", "CINDERFALL", "SHADEHALL", "EVENFORD", "MIRKWALL" } },
-    { name = "VARRO", leader = "KING TESS", look = "stripe", reserve = 40,
+    { name = "VARRO", leader = "KING TESS", look = "stripe", reserve = 40, temper = "builder", regard = 5,
+        motto = "STONE UPON STONE",
         leaning = { pottery = 4, mining = 3, masonry = 4, writing = 4, currency = 3, sailing = 3, irrigation = 3 },
         cities = { "TESSERA", "BANDHOLM", "STRIATA", "LATTICE", "GRATEFORD", "CHEVRON", "ZIGRATH" } },
+}
+
+-- Diplomacy (src/diplomacy.lua). Two civilizations that have met are at
+-- peace or at war; at peace, neither may set foot on the other's land unless
+-- their borders are open, and allies open them and share what they see.
+-- What a leader thinks of another (its regard, -100 to 100) is what it
+-- remembers of them, each memory fading `fade` a turn, and how things stand
+-- between them now.
+D.DIPLO = {
+    truce = 10,         -- turns after a peace before either may make war again
+    answer = 5,         -- turns a letter waits for its answer
+    gift = 25,          -- the gold a gift carries
+    aid = 30,           -- the gold a plea for aid asks
+    cooldown = 12,      -- turns before a leader asks the same thing again
+    warFrom = 20,       -- no one starts a war before this turn
+    keep = 40,          -- letters kept to be read again
+    fade = 0.5,         -- a memory's fading a turn
+    most = 25,          -- what one kind of memory comes to at most, either way
+    friendsFrom = 12,   -- no one asks for open borders before this turn
+    -- The words for a regard, from the worst: each up to its number.
+    WORDS = { { -40, "HOSTILE" }, { -10, "WARY" }, { 15, "NEUTRAL" }, { 45, "FRIENDLY" }, { math.huge, "DEVOTED" } },
+    -- How things stand, counted afresh each turn.
+    NOW = {
+        war = -30,      -- at war
+        borders = 5,    -- borders open between them
+        ally = 20,      -- allies
+        enemy = 15,     -- at war with the same civilization
+        doom = 10,      -- the cataclysm foretold, and at peace
+        press = 12,     -- at most, for land of theirs pressing on land of ours (one a hex)
+        crowd = 4,      -- for each city of theirs within `crowdReach` of one of ours
+        crowdMost = 12, crowdReach = 7,
+        weak = 15,      -- a warlike leader's scorn for one it is half again as strong as
+    },
+    -- What is remembered, by what was done.
+    MEMORY = {
+        welcomed = 8, sentAway = -12, gift = 0.4, paid = 10, refused = -15, demanded = -10,
+        aided = 15, deniedAid = -10, sheltered = 12, turnedAway = -10, joined = 20, stayedOut = -15,
+        withdrew = 5, ignored = -12, betrayed = -35, warmonger = -10, attacked = -15, tookCity = -25,
+        stirred = -20, rebuffed = -5, peace = 10,
+    },
+    -- How each kind of leader goes to war and asks for tribute: at or under
+    -- `war` regard, at least `ratio` times as strong, by `chance` a turn.
+    TEMPER = {
+        warlike = { war = -8, ratio = 1.1, chance = 0.35, tribute = true },
+        calm = { war = -35, ratio = 1.4, chance = 0.2 },
+        builder = { war = -45, ratio = 1.7, chance = 0.12 },
+    },
+}
+
+-- Loyalty (src/loyalty.lua): how much a city's people hold to their
+-- civilization, 0 to 100. People near and their own pull it up, a
+-- foreigner's cities near pull it down; a garrison, the capital near and a
+-- ward against the end steady it, hunger, the enemy at the gates and the
+-- dread of the end wear it away. Under `unrest` a city makes a quarter less
+-- of everything but food, under `uprising` half; at nothing it goes over to
+-- the civilization pulling hardest on it.
+D.LOYALTY = {
+    radius = 6,         -- how far a city's people pull
+    pull = 0.5,         -- a turn, for each citizen more (theirs or ours), weighted by nearness
+    most = 3,           -- the most it gains a turn from its people
+    least = -6,         -- the most it loses a turn to a foreigner's
+    capital = 6, nearCapital = 2, capitalReach = 8, garrison = 2,
+    starving = -3, gates = -2, occupied = -2, occupiedTurns = 20,
+    dread = -1, ward = 1, sick = -2,
+    taken = 50,         -- a city conquered starts here
+    after = 60,         -- a city that has gone over starts again here
+    calmed = 30,        -- a city whose plea to join was refused
+    unrest = 50, uprising = 25,
 }
 
 -- The calendar: a year for each turn, faster early.

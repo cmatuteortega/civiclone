@@ -3,8 +3,18 @@ local AI = require "src.ai"
 local D = require "src.defs"
 local H = require "src.hex"
 
+local Diplo = require "src.diplomacy"
+
 -- The wild (src/beasts.lua) is left off: these are the civilizations' rules.
-local function newGame(seed) return Game.new({ seed = seed or 5, wild = false }) end
+-- Everyone is at war with everyone here, so they can fight; peace and its
+-- closed borders are tests/diplomacy_test.lua's.
+local function newGame(seed)
+    local g = Game.new({ seed = seed or 5, wild = false })
+    for a = 1, #g.players do
+        for b = a + 1, #g.players do Diplo.declare(g, a, b) end
+    end
+    return g
+end
 
 -- A land hex beside the coast, and that coast hex: somewhere to sail from.
 local function shore(g)

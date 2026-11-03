@@ -38,6 +38,7 @@ local Audio = require "src.ui.audio"
 local Win = require "src.ui.windows"
 local Menu = require "src.ui.menu"
 local Help = require "src.ui.help"
+local Letters = require "src.ui.letters"
 local Cursor = require "src.ui.cursor"
 local Settings = require "src.settings"
 local Save = require "src.save"
@@ -90,6 +91,7 @@ function S.newGame(seed)
     S.selected, S.panel, S.over, S.hover = nil, nil, nil, nil
     S.pause, S.ask = false, nil
     O.resetLog()
+    Letters.reset()
     S.progress = 0
     S.mode = "loading"
     S.painter = coroutine.create(function() S.world:paint(coroutine.yield) end)
@@ -112,6 +114,7 @@ function S.resume()
     S.pause, S.ask = false, nil
     -- The news already read when it was saved stays read.
     O.resetLog(#g.log)
+    Letters.reset()
     S.progress = 0
     S.mode = "loading"
     S.painter = coroutine.create(function() S.world:paint(coroutine.yield) end)
@@ -1014,6 +1017,27 @@ local function followPlan()
         if what == "help" or page then Help.open(page) end
         local hint = plan.open:match("^hint:(.+)$")
         if hint then Help.show(hint) end
+        -- `--open diplomacy`; `--open letter` for the first letter waiting,
+        -- or `letter:peace` (any kind of src/diplomacy.lua's) for one of
+        -- that kind from the first rival, sent to be seen.
+        if what == "diplomacy" then S.panel = "diplomacy" end
+        if what == "letter" then
+            local Diplo = require "src.diplomacy"
+            local g = S.game
+            local l = Diplo.waiting(g, 1)[1]
+            if tab ~= "" then
+                Diplo.meet(g, 1, 2)
+                local city = g:citiesOf(2)[1] or g:citiesOf(1)[1]
+                local args = ({ war = { why = "land" }, tribute = { gold = 40 }, gift = { gold = 25 }, aid = { gold = 30 },
+                    arms = { against = 3 }, refugees = { city = city and city.name or "?", n = 2, cell = city and city.cell },
+                    defect = { city = city and city.name or "?", id = city and city.id },
+                    revolt = { city = city and city.name or "?" } })[tab]
+                if tab == "peace" or tab == "arms" then Diplo.declare(g, 2, 1, "land") end
+                if tab == "arms" then Diplo.ally(g, 1, 2) Diplo.rel(g, 2, 3).met = g.turn end
+                l = Diplo.send(g, 2, 1, tab, args)
+            end
+            if l then Letters.open(l) end
+        end
 
     end
     if plan.next and plan.frames == 26 then

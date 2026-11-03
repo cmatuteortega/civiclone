@@ -213,6 +213,7 @@ function Input.keypressed(key)
         if Menu.back() then return end
         if S.mode ~= "play" then love.event.quit() return end
         if S.placing then S.placing = nil
+        elseif S.letter then S.letter = nil
         elseif S.panel then S.panel = nil
         elseif S.selected then O.select(nil)
         else Menu.openPause() end
@@ -241,6 +242,7 @@ function Input.keypressed(key)
     end
     if is("grid", key) then O.toggleGrid() return end
     if is("research", key) then S.panel = S.panel == "research" and nil or "research" return end
+    if is("diplomacy", key) then S.panel = S.panel == "diplomacy" and nil or "diplomacy" return end
     if is("capital", key) then
         local cap = S.game:citiesOf(1)[1]
         if cap then O.select(cap, true) end

@@ -29,6 +29,9 @@ local Plague = require "src.plague"
 local Q = require "src.quarters"
 local Glossary = require "src.glossary"
 local Help = require "src.ui.help"
+local Letters = require "src.ui.letters"
+local Diplo = require "src.diplomacy"
+local Loyalty = require "src.loyalty"
 
 local floor, max, min = math.floor, math.max, math.min
 local text, rect, button, icon = Draw.text, Draw.rect, Draw.button, Draw.icon
@@ -160,13 +163,25 @@ local function topBar()
     if sky then
         rect("o", dx, 1, Font.width(sky) + 6, 9)
         text("w", sky, dx + 3, 3)
+        dx = dx + Font.width(sky) + 14
     end
     -- The menu, at the far right.
     button("MENU", S.vw - 25, 1, 24, 9, Menu.openPause)
     local right = L("TURN {1}", g.turn) .. "  " .. D.year(g.turn)
-    text("c", right, S.vw - Font.width(right) - 29, 3)
+    local rx = S.vw - Font.width(right) - 29
+    text("c", right, rx, 3)
+    -- Diplomacy, left of the turn: lit while letters wait on an answer
+    -- (src/ui/letters.lua).
+    local dl, waiting = Letters.barLabel()
+    local bw = Font.width(dl) + 14
+    local bx = rx - bw - 6
+    if bx > dx + 4 then
+        button(dl, bx, 1, bw, 9, function() S.panel = S.panel == "diplomacy" and nil or "diplomacy" end,
+            { strong = waiting, icon = "letter" })
+        rx = bx
+    end
     -- The clock's strip, if that is its look, left of the turn.
-    Clock.inBar(S.vw - Font.width(right) - 33)
+    Clock.inBar(rx - 4)
 end
 
 --- news ----------------------------------------------------------------------------
@@ -327,7 +342,7 @@ local function cityPanel(c)
     local mine = c.owner == 1
     local w = 150
     local items = mine and g:buildable(c) or {}
-    local h = 62 + (mine and (#items * 10 + sectionCount(items) * 9 + 14 + 11) or 0) + (Cat.is(g, "plague") and Cat.stage(g) and 11 or 0)
+    local h = 70 + (mine and (#items * 10 + sectionCount(items) * 9 + 14 + 11) or 0) + (Cat.is(g, "plague") and Cat.stage(g) and 11 or 0)
         + (mine and gearChoices(c) and 12 or 0)
     h = min(h, S.vh - 13 - 24)
     local cap = c.capital and L" (CAPITAL)" or ""
@@ -388,8 +403,23 @@ function cityBody(c, x, y, w, h, mine, items)
     end
     local line2 = table.concat(long, " ")
     if Font.width(line2) > w - 8 then line2 = table.concat(short, " ") end
-    text("s", #ids > 0 and line2 or "NO BUILDINGS", x + 4, y + 36)
-    local yy = y + 45
+    -- Its loyalty (src/loyalty.lua): a bar, how it moves, and why.
+    local tipLines, delta = Letters.loyaltyTip(c)
+    local loyal = floor(Loyalty.of(c))
+    local state = Loyalty.state(c)
+    local ls = L("LOYALTY {1}", loyal) .. " (" .. signed(delta) .. ")"
+    text(state and "w" or "c", ls, x + 4, y + 36)
+    local lbx = x + 8 + Font.width(ls)
+    local lbw = w - (lbx - x) - 6 - (state and Font.width(L(state)) + 4 or 0)
+    rect("o", lbx, y + 37, lbw, 3)
+    rect(state == "UPRISING" and "s" or (state and "c" or "w"), lbx, y + 38, max(1, floor(lbw * loyal / 100)), 1)
+    if state then
+        local on = state ~= "UPRISING" or floor(S.clock * 2) % 2 == 0
+        text(on and "w" or "s", state, x + w - 4 - Font.width(L(state)), y + 36)
+    end
+    yieldTip(x + 3, y + 35, w - 6, 7, tipLines, "city", "idea.loyalty")
+    text("s", #ids > 0 and line2 or "NO BUILDINGS", x + 4, y + 44)
+    local yy = y + 53
     -- What the city weighs first in working its land (D.FOCUS).
     if mine then
         text("s", L"FOCUS", x + 4, yy)
@@ -767,7 +797,17 @@ local function tooltip()
     end
     if cell.owner then
         local owner = g.players[cell.owner]
-        lines[#lines + 1] = (cell.city and cell.city.name or (cell.ownerCity and cell.ownerCity.name or "")) .. " - " .. owner.name
+        local line = (cell.city and cell.city.name or (cell.ownerCity and cell.ownerCity.name or "")) .. " - " .. owner.name
+        -- How we stand with them (src/diplomacy.lua).
+        if cell.owner ~= 1 and Diplo.met(g, 1, cell.owner) then
+            line = line .. " (" .. L(Diplo.stance(g, 1, cell.owner)) .. ")"
+            if not Diplo.mayEnter(g, 1, cell.owner) then lines[#lines + 1] = line line = L"BORDERS CLOSED TO US" end
+        end
+        lines[#lines + 1] = line
+        local city = cell.city
+        if city and Loyalty.state(city) then
+            lines[#lines + 1] = L("{1}: LOYALTY {2}", L(Loyalty.state(city)), floor(Loyalty.of(city)))
+        end
     end
     if me().visible[cell.id] then
         for _, u in ipairs({ g.mil[cell.id], g.civ[cell.id] }) do
@@ -786,10 +826,15 @@ local function tooltip()
                 end
             elseif u and u.owner ~= 1 then
                 lines[#lines + 1] = L("civ|{1} {2}", g.players[u.owner].name, u.def.name) .. " " .. L("{1}HP", u.hp)
+                    .. " (" .. L(Diplo.stance(g, 1, u.owner)) .. ")"
             end
         end
     end
     local sel = S.selected and S.selected.unit
+    local peace = sel and sel.owner == 1 and not sel.def.civilian and g:atPeaceWith(1, cell)
+    if peace and g:dist(g.cells[sel.cell], cell) <= (sel.def.ranged and sel.def.range or 1) then
+        lines[#lines + 1] = L("AT PEACE WITH {1}: ATTACKING DECLARES WAR", g.players[peace].name)
+    end
     if sel and sel.owner == 1 and g:canAttack(sel, cell) then
         local dealt, taken = g:forecast(sel, cell)
         lines[#lines + 1] = L("ATTACK: DEALS ABOUT {1}, TAKES ABOUT {2}", dealt, taken)
@@ -1005,6 +1050,8 @@ function Hud.draw(dt)
     S.helpTopic = nil
     topBar()
     messages(dt)
+    Letters.announce()
+    Letters.drawStack()
     Clock.draw(S.touch and S.vw - TOUCH_W - 5 or S.vw - 3)
     local sel = S.selected
     if sel and sel.unit and not sel.unit.dead then unitPanel(sel.unit) end
@@ -1021,6 +1068,7 @@ function Hud.draw(dt)
         end
     end
     if S.panel == "research" then researchPanel() end
+    Letters.draw()
     if S.over and not S.over.hidden then gameOver() end
 end
 

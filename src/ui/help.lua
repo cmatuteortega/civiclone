@@ -342,7 +342,11 @@ Help.HINTS = {
                 if u.owner ~= p.id and not u.dead and not u.def.civilian and p.visible[u.cell] then return true end
             end
         end,
-        says = function() return "SOMEONE ELSE IS NEAR. WITH A SOLDIER SELECTED, PUT THE POINTER ON THEM TO SEE WHAT A FIGHT WOULD COST; RIGHT CLICK TO ATTACK." end },
+        says = function() return "SOMEONE ELSE IS NEAR. WITH A SOLDIER SELECTED, PUT THE POINTER ON THEM TO SEE WHAT A FIGHT WOULD COST; RIGHT CLICK TO ATTACK. ANOTHER CIVILIZATION MUST BE AT WAR WITH YOU FIRST." end },
+    { id = "letter",
+        when = function(g, p) return #require("src.diplomacy").waiting(g, p.id) > 0 end,
+        done = function() return S.letter ~= nil end,
+        says = function() return L("A LETTER HAS COME. CLICK THE ENVELOPE AT THE LEFT TO READ IT AND ANSWER. {1} OPENS DIPLOMACY.", k("diplomacy")) end },
     { id = "doom",
         when = function(g) return require("src.cataclysm").label(g) ~= nil end,
         says = function() return "THE END IS FORETOLD: THE TOP BAR SAYS ITS STAGE AND THE TURNS LEFT. RESEARCH AND BUILD ITS WARDS TO SPARE YOUR CITIES THE WORST." end },

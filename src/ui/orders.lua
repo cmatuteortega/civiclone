@@ -13,6 +13,7 @@ local AI = require "src.ai"
 local Audio = require "src.ui.audio"
 local Settings = require "src.settings"
 local L = require "src.lang"
+local Diplo = require "src.diplomacy"
 
 local max = math.max
 
@@ -117,6 +118,30 @@ function O.command(cell)
     if not u or u.dead or u.owner ~= 1 or g.current ~= 1 or not cell then return false end
     if Anim.busy() then return false end
     local enemy = g:foreignAt(cell, 1)
+    -- Someone we are at peace with: striking them is war, so ask first
+    -- (src/diplomacy.lua).
+    local peace = enemy and not u.def.civilian and g:atPeaceWith(1, cell)
+    if peace then
+        local truce = Diplo.rel(g, 1, peace).truce
+        if truce and g.turn < truce then
+            table.insert(S.msgs, 1, { text = L("A TRUCE WITH {1} HOLDS {2} TURNS MORE", g.players[peace].name, truce - g.turn), t = 0 })
+            Audio.play("deny")
+            return false
+        end
+        local Menu = require "src.ui.menu"
+        local r = Diplo.rel(g, 1, peace)
+        local name = g.players[peace].name
+        Menu.ask((r.alliance or r.borders) and L("BREAK YOUR WORD AND DECLARE WAR ON {1}? EVERYONE WILL REMEMBER IT.", name)
+            or L("DECLARE WAR ON {1}?", name), "DECLARE WAR", function()
+            Diplo.propose(g, 1, peace, "war")
+            Audio.play("horn")
+            if not u.dead and g:canAttack(u, cell) then
+                g:attack(u, cell)
+                after(u)
+            end
+        end)
+        return true
+    end
     if enemy and g:canAttack(u, cell) then
         g:attack(u, cell)
         after(u)
@@ -183,7 +208,8 @@ function O.click(cell)
     if u and u.owner == 1 and #mine == 0 and u.moves > 0 then
         local reach = g:reach(u)
         local r = reach[cell.id]
-        if g:canAttack(u, cell) or (r and not r.through) then
+        if g:canAttack(u, cell) or (r and not r.through)
+            or (not u.def.civilian and g:atPeaceWith(1, cell) and g:dist(g.cells[u.cell], cell) <= (u.def.ranged and u.def.range or 1)) then
             O.command(cell)
             return
         end
@@ -289,6 +315,16 @@ function O.mainAction()
     end
     if not me().researching and #g:researchable(me()) > 0 then
         return "CHOOSE RESEARCH", function() S.panel = "research" end
+    end
+    -- A letter that wants an answer (src/ui/letters.lua).
+    for _, l in ipairs(Diplo.waiting(g, 1)) do
+        if #Diplo.KINDS[l.kind].choices(g, l) > 1 and l.turn >= g.turn - 1 then
+            return "READ LETTER", function()
+                S.letter = l.id
+                l.read = true
+                Audio.play("page")
+            end
+        end
     end
     local u = g:idleUnit(1)
     if u then return "UNIT NEEDS ORDERS", function() O.select(u, true) end end

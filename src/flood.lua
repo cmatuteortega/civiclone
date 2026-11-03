@@ -336,6 +336,8 @@ function F.sink(game, city)
     city.dead = true
     game:emit({ kind = "sunk", cell = cell.id, city = city })
     game:tell(nil, "{1} HAS SUNK BENEATH THE SEA", city.name)
+    -- Who got out go looking for a home abroad (src/diplomacy.lua).
+    require("src.diplomacy").homeless(game, city.owner, city, math.min(3, math.max(1, math.floor(city.pop / 2))))
 end
 
 -- Unit u, on a hex the great flood has taken: rowing, if it can be on the
