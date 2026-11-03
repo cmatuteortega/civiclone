@@ -125,13 +125,19 @@ function Letters.open(l)
 end
 
 local function tip(lines, x, y)
-    local bw, bh = 0, #lines * 8 + 3
-    for _, l in ipairs(lines) do bw = max(bw, Font.width(l)) end
+    -- A long line folded to the screen's width, at most 56 letters.
+    local n = max(20, min(56, floor((S.vw - 10) / 4)))
+    local rows = {}
+    for k, l in ipairs(lines) do
+        for _, piece in ipairs(Font.wrap(l, n)) do rows[#rows + 1] = { piece, k == 1 } end
+    end
+    local bw, bh = 0, #rows * 8 + 3
+    for _, r in ipairs(rows) do bw = max(bw, Font.width(r[1])) end
     bw = bw + 6
     x = max(2, min(x, S.vw - bw - 2))
     y = max(12, min(y, S.vh - bh - 2))
     rect("o", x, y, bw, bh)
-    for k, l in ipairs(lines) do text(k == 1 and "w" or "c", l, x + 3, y + 2 + (k - 1) * 8) end
+    for k, r in ipairs(rows) do text(r[2] and "w" or "c", r[1], x + 3, y + 2 + (k - 1) * 8) end
 end
 
 -- Hovering over (x, y, w, h), with nothing in front: lines in a box.
@@ -334,6 +340,80 @@ local function ask(b, a)
     Audio.play(ok and "city" or "deny")
 end
 
+--- what the window's parts mean, under the pointer -------------------------------------
+
+-- How each kind of leader deals with the others (D.DIPLO.TEMPER).
+local TEMPERS = {
+    warlike = "WARLIKE: QUICK TO MAKE WAR, AND DEMANDS TRIBUTE OF THE WEAK",
+    calm = "CALM: MAKES WAR ONLY ON A GRUDGE, AND WHEN FAR THE STRONGER",
+    builder = "A BUILDER: WOULD RATHER BUILD THAN FIGHT",
+    kindly = "KINDLY: GIVES FREELY, OPENS BORDERS EARLY, SLOWEST TO ANGER",
+    isolationist = "KEEPS TO THEMSELVES: OPENS BORDERS AND ALLIES ONLY WITH CLOSE FRIENDS",
+    opportunist = "AN OPPORTUNIST: FALLS ON WHOEVER IS ALREADY AT WAR, AND DEMANDS TRIBUTE OF THE WEAK",
+}
+
+-- How things stand between you.
+local STANCES = {
+    ["AT WAR"] = { "AT WAR", "YOUR SOLDIERS MAY FIGHT, AND TAKE EACH OTHER'S CITIES" },
+    ["AT PEACE"] = { "AT PEACE", "NEITHER MAY SET FOOT ON THE OTHER'S LAND" },
+    ["OPEN BORDERS"] = { "OPEN BORDERS", "EACH MAY CROSS THE OTHER'S LAND" },
+    ["ALLIES"] = { "ALLIES", "BORDERS OPEN, WHAT EACH SEES THE OTHER SEES, AND EACH CALLED TO THE OTHER'S WARS" },
+}
+
+-- The leader `b`: who they are and how they deal.
+local function leaderLines(b)
+    local c = g().players[b].civ
+    return { L("{1} OF {2}", c.leader, g().players[b].name), L(TEMPERS[c.temper or "calm"] or TEMPERS.calm),
+        L(c.motto or "") }
+end
+
+-- What asking `a` of leader `b` does, and whether they would agree now.
+local function askLines(b, a)
+    local game = g()
+    local M, r = D.DIPLO.MEMORY, Diplo.rel(game, 1, b)
+    local att = Diplo.regard(game, b, 1)
+    local ease = Diplo.sharedRival(game, b, 1) and D.DIPLO.runaway.ease or 0
+    local closed = Diplo.temper(game, b).closed
+    local out = {}
+    if a.why then out[#out + 1] = a.why end
+    if a.kind == "war" then
+        out[#out + 1] = L"WAR AT ONCE: YOUR SOLDIERS MAY FIGHT THEIRS AND TAKE THEIR CITIES"
+        out[#out + 1] = L("THEY WILL REMEMBER IT ({1})", M.attacked)
+        if r.borders or r.alliance then
+            out[#out + 1] = L("BREAKING OPEN BORDERS OR AN ALLIANCE IS BETRAYAL ({1}); EVERYONE WHO KNOWS YOU REMEMBERS IT ({2})",
+                M.betrayed, M.warmonger)
+        end
+    elseif a.kind == "peace" then
+        out[#out + 1] = L"AN END TO THE WAR, AND A TRUCE"
+        out[#out + 1] = L("THEY AGREE IF THEY ARE THE WEAKER, THINK BETTER THAN -30 OF YOU, OR THE END IS NEAR; NOT IN A WAR'S FIRST 5 TURNS")
+        out[#out + 1] = L("NEITHER MAY MAKE WAR AGAIN FOR {1} TURNS", D.DIPLO.truce)
+    elseif a.kind == "borders" then
+        out[#out + 1] = L"EACH MAY CROSS THE OTHER'S LAND"
+        out[#out + 1] = L("THEY AGREE AT A REGARD OF {1} OR MORE; THEY ARE AT {2}", (closed or 5) - ease, att)
+    elseif a.kind == "alliance" then
+        out[#out + 1] = L"WHAT EACH SEES THE OTHER SEES, AND EACH IS CALLED TO THE OTHER'S WARS"
+        if not (r.borders or r.alliance) and ease == 0 then out[#out + 1] = L"OPEN BORDERS FIRST" end
+        out[#out + 1] = L("THEY AGREE AT A REGARD OF {1} OR MORE; THEY ARE AT {2}", max(35, closed or 0) - ease, att)
+    elseif a.kind == "gift" then
+        out[#out + 1] = L("{1} GOLD OF YOURS TO THEM", D.DIPLO.gift)
+        out[#out + 1] = L("THEY THINK BETTER OF YOU FOR IT (+{1}), FADING IN TIME", floor(D.DIPLO.gift * M.gift))
+    elseif a.kind == "tribute" then
+        out[#out + 1] = L("ASK {1} GOLD OF THEM", Diplo.tributeOf(game, b))
+        out[#out + 1] = L("THEY PAY IF YOU ARE HALF AGAIN AS MIGHTY: YOU {1}, THEY {2}", Diplo.army(game, 1), Diplo.army(game, b))
+        out[#out + 1] = L("PAID OR NOT, THEY REMEMBER BEING ASKED ({1})", M.demanded)
+    end
+    return out
+end
+
+-- The numbers on a leader's row.
+local function mightLines(b)
+    local game = g()
+    return { L"MIGHT",
+        L"THE STRENGTH OF ALL THEIR SOLDIERS AND SHIPS, AND 4 FOR EACH CITY",
+        L("THEY {1}, YOU {2}: THE ONE HALF AGAIN AS MIGHTY MAY DEMAND TRIBUTE, AND IS FEARED", Diplo.army(game, b),
+            Diplo.army(game, 1)) }
+end
+
 local ROW, SHORT = 50, 22
 
 -- The page of leaders shown, when they will not all go in.
@@ -408,9 +488,14 @@ local function diplomacyWindow()
                     text("s", "DESTROYED", x + 22, yy + 10)
                 else
                     bigSeal(x + 4, yy + 1, teamOf(b))
-                    text("w", L("{1} OF {2}", p.civ.leader, p.name), x + 22, yy + 2)
+                    local who = L("{1} OF {2}", p.civ.leader, p.name)
+                    text("w", who, x + 22, yy + 2)
+                    hoverTip(x + 4, yy, Font.width(who) + 20, 9, leaderLines(b), "diplomacy")
                     local st = Diplo.stance(game, 1, b)
-                    badge(st, x + ww - 6 - Font.width(L(st)) - 6, yy + 1)
+                    local bw = badge(st, x + ww - 6 - Font.width(L(st)) - 6, yy + 1)
+                    if STANCES[st] then
+                        hoverTip(x + ww - 6 - Font.width(L(st)) - 6, yy, bw, 9, { L(STANCES[st][1]), L(STANCES[st][2]) }, "diplomacy")
+                    end
                     -- What they think of us, and why, under the pointer.
                     local v = Diplo.regard(game, b, 1)
                     local word = L(Diplo.word(v)) .. " " .. ((v > 0 and "+" or "") .. v)
@@ -419,6 +504,7 @@ local function diplomacyWindow()
                     hoverTip(x + 20, yy + 9, Font.width(word) + 60, 7, regardLines(b, 1), "diplomacy")
                     local might = L("CITIES {1}  MIGHT {2}  YOURS {3}", #game:citiesOf(b), Diplo.army(game, b), Diplo.army(game, 1))
                     text("s", might, x + ww - 6 - Font.width(might), yy + 10)
+                    hoverTip(x + ww - 6 - Font.width(might), yy + 9, Font.width(might), 8, mightLines(b), "diplomacy")
                     -- What can be asked of them, in a second row if it
                     -- will not go in one.
                     local bx, by = x + 22, yy + 19
@@ -428,11 +514,7 @@ local function diplomacyWindow()
                         if bx + bw > x + ww - 4 and bx > x + 22 then bx, by = x + 22, by + 12 end
                         button(label, bx, by, bw, 10, function() ask(b, a) end,
                             { off = a.off, strong = a.kind == "peace" })
-                        if a.why then hoverTip(bx, by, bw, 10, { a.why }, "diplomacy") end
-                        if a.kind == "tribute" and not a.off then
-                            hoverTip(bx, by, bw, 10, { L("ASK {1} GOLD OF THEM", Diplo.tributeOf(game, b)),
-                                L"THE WEAK PAY; THE STRONG REMEMBER IT" }, "diplomacy")
-                        end
+                        hoverTip(bx, by, bw, 10, askLines(b, a), "diplomacy")
                         bx = bx + bw + 2
                     end
                     -- What they said last, at the end of the buttons' row
@@ -449,6 +531,9 @@ local function diplomacyWindow()
             end
             if #pages > 1 then yy = y + 3 + 14 + rows end
             text("s", "LETTERS", x + 5, yy)
+            hoverTip(x + 5, yy, Font.width(L"LETTERS"), 8, { L"LETTERS",
+                L"WHAT THE LEADERS HAVE WRITTEN TO YOU: CLICK ONE TO READ IT AGAIN",
+                L("ONE MARKED ! WAITS FOR YOUR ANSWER, {1} TURNS AT MOST", D.DIPLO.answer) }, "diplomacy")
             yy = yy + 9
             if #mail == 0 then text("n", "NONE YET", x + 5, yy) end
             for _, l in ipairs(mail) do

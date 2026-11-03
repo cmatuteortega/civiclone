@@ -1000,6 +1000,15 @@ or of a den or cave.
 
 `src/diplomacy.lua`; the numbers are `D.DIPLO` in `src/defs.lua`.
 
+The **diplomacy** window (P) lists every leader you have met, pages of them
+when they will not all fit. Under the pointer, each part says what it
+means: a leader's name gives their temper and motto; the stance badge what
+peace, open borders, an alliance or war allow; the regard word and bar the
+reasons behind it; MIGHT how it is counted, theirs against yours; and each
+button what it does, what it costs in regard, and the regard (or might) at
+which that leader would agree now. Help's HOW TO PLAY has a **Diplomacy**
+chapter with the same in short.
+
 ### Meeting
 
 You meet another civilization the first time you see a unit of theirs, a
