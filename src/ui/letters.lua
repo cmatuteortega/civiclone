@@ -140,10 +140,23 @@ local function tip(lines, x, y)
     for k, r in ipairs(rows) do text(r[2] and "w" or "c", r[1], x + 3, y + 2 + (k - 1) * 8) end
 end
 
+-- In the diplomacy window a tip waits until the pointer has rested this
+-- long (seconds) on the same thing, so it does not cover the buttons as the
+-- pointer passes over them.
+Letters.TIP_DELAY = 2
+local resting, restSince, restSeen
+
 -- Hovering over (x, y, w, h), with nothing in front: lines in a box.
 local function hoverTip(x, y, w, h, lines, win)
     local mx, my = S.mouse.x, S.mouse.y
     if not Draw.inside({ x = x, y = y, w = w, h = h }, mx, my) then return end
+    if win == "diplomacy" then
+        local key = x .. "," .. y .. "," .. w .. "," .. h
+        -- Another thing, or the same one come back to: the wait starts again.
+        if key ~= resting or S.clock - (restSeen or 0) > 0.2 then resting, restSince = key, S.clock end
+        restSeen = S.clock
+        if S.clock - restSince < Letters.TIP_DELAY then return end
+    end
     Win.over(function()
         if Win.modal() or Win.dragging() then return end
         local front = Win.at(mx, my)
