@@ -355,9 +355,13 @@ workflow.
 
 **[GUIDE.md](GUIDE.md)** explains every mechanic and number in full.
 
-You lead Aurelia, in light cloth. Two rivals share the continent: Umbra, in
-dark cloth, and Varro, in light cloth banded with dark. Their borders are
-drawn the same way: light, dark, or dashed.
+You lead Aurelia, in light cloth. From one to five rivals share the
+continent, as many as the new game window says (two by default), drawn
+from five leaders: Queen Nocta of Umbra, in dark cloth; King Tess of
+Varro, light banded with dark; Elder Brannoch of Thistle, light checked
+with dark; Mother Sedge of Reedholm, the middle shades with a pale hem; and
+Khan Orrin of Driftland, dark banded with light. Their banners and borders
+are marked the same way, and the map grows to hold them.
 
 | Input | Does |
 | --- | --- |
@@ -432,7 +436,7 @@ do: zoom in and out, next unit, go to the capital, the hex grid and sound.
   strength and HP, and walls let a city shoot. A melee unit takes a city
   brought down to 0 HP.
 - **Science.** Fourteen technologies in a tree of three branches unlock mines, buildings, gear and wards. Pick one far off and the way to it is queued.
-- **Winning.** Destroy both rivals or hold every capital (domination). If
+- **Winning.** Destroy every rival or hold every capital (domination). If
   you reach the last turn, the higher score wins. The score counts what
   lasted: people kept, land still good, cities standing with their wards. You lose if you have no cities
   and no settler.
@@ -471,8 +475,13 @@ The rivals are simple and greedy. They expand to the best free sites, build
 on their worked hexes, guard their cities and explore. Each leader keeps a
 regard for every other: what they remember of them (a gift, a refusal, a
 betrayal, each fading) and how things stand now (crowded borders, a shared
-enemy, the end coming for all). Queen Nocta despises the weak and makes war
-and demands readily; King Tess would rather build. Once at war, with an
+enemy, the end coming for all). Each plays their own way: Queen Nocta
+keeps a standing army and a war chest, despises the weak and makes war and
+demands readily; King Tess walls a few towns on the hills and would rather
+build; Elder Brannoch settles widest and close, gives freely and is slow to
+anger; Mother Sedge takes to the coasts and the rivers, puts to sea early
+and keeps to herself; Khan Orrin rides, and falls on whoever is already
+fighting someone else. Once at war, with an
 army, they march on the nearest enemy city they know; when the war goes
 badly, or the end is near, they offer peace.
 

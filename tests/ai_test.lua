@@ -58,7 +58,7 @@ return {
         assert(not city.buildings.cistern and (not city.build or city.build.id ~= "cistern"))
     end },
     { "Nocta leans to war in research, Tess to building", function()
-        local g = Game.new({ seed = 5, wild = false, cataclysm = false, allAI = true })
+        local g = Game.new({ seed = 5, wild = false, cataclysm = false, allAI = true, rivals = { "umbra", "varro" } })
         local war, build = 0, 0
         for _ = 1, 300 do
             if AI.research(g, g.players[2]) == "archery" then war = war + 1 end

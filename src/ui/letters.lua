@@ -39,7 +39,7 @@ local function seal(x, y, team)
     rect("o", x + 1, y, 3, 5)
     rect("o", x, y + 1, 5, 3)
     rect(team.fill, x + 1, y + 1, 3, 3)
-    if team.band then rect(team.band, x + 1, y + 2, 3, 1) end
+    Board.band(team, x + 1, y + 2, 3)
 end
 
 -- A big seal for the letter's head, 13 across, with the banner's mark.
@@ -50,7 +50,8 @@ local function bigSeal(x, y, team)
     rect(team.fill, x + 3, y + 1, 7, 11)
     rect(team.fill, x + 2, y + 2, 9, 9)
     rect(team.fill, x + 1, y + 3, 11, 7)
-    if team.band then rect(team.band, x + 1, y + 3, 11, 1) rect(team.band, x + 1, y + 9, 11, 1) end
+    Board.band(team, x + 1, y + 3, 11)
+    Board.band(team, x + 1, y + 9, 11)
     Draw.icon("city", x + 4, y + 4, team.ink)
 end
 
@@ -333,13 +334,20 @@ local function ask(b, a)
     Audio.play(ok and "city" or "deny")
 end
 
-local ROW = 50
+local ROW, SHORT = 50, 22
+
+-- The page of leaders shown, when they will not all go in.
+local page = 1
 
 local function diplomacyWindow()
     local game = g()
-    local others = {}
+    local leaders = {}
     for k = 2, #game.players do
-        if game.players[k].alive or Diplo.met(game, 1, k) then others[#others + 1] = k end
+        if game.players[k].alive or Diplo.met(game, 1, k) then leaders[#leaders + 1] = k end
+    end
+    -- One not met, or destroyed, takes a short row.
+    local function rowOf(b)
+        return (Diplo.met(game, 1, b) and game.players[b].alive) and ROW or SHORT
     end
     local mail = {}
     local all = game.diplo and game.diplo.mail or {}
@@ -347,12 +355,43 @@ local function diplomacyWindow()
         if all[k].to == 1 and #mail < 5 then mail[#mail + 1] = all[k] end
     end
     local w = min(248, S.vw - 6)
-    local h = Win.BAR + 1 + #others * ROW + 14 + max(1, #mail) * 9 + 6
+    local rest = Win.BAR + 1 + 14 + max(1, #mail) * 9 + 6
+    -- As many leaders as go in the screen's height a page, a row of
+    -- buttons to turn the pages if they will not all go in.
+    local pages, room = { {} }, S.vh - 24 - rest
+    local used = 0
+    for _, b in ipairs(leaders) do
+        local rh = rowOf(b)
+        if used + rh > room and #pages[#pages] > 0 then pages[#pages + 1], used = {}, 0 end
+        local pg = pages[#pages]
+        pg[#pg + 1] = b
+        used = used + rh
+    end
+    if #pages > 1 then rest = rest + 14 end
+    page = min(page, #pages)
+    local others = pages[page]
+    local rows = 0
+    for _, b in ipairs(others) do rows = rows + rowOf(b) end
+    if #pages > 1 then
+        for _, pg in ipairs(pages) do
+            local n = 0
+            for _, b in ipairs(pg) do n = n + rowOf(b) end
+            rows = max(rows, n)
+        end
+    end
+    local h = rest + rows
     Win.add({ id = "diplomacy", title = "DIPLOMACY", w = w, h = h,
         x = floor((S.vw - w) / 2), y = max(14, floor((S.vh - h) / 2) - 10),
         close = function() S.panel = nil end,
         draw = function(x, y, ww)
             local yy = y + 3
+            if #pages > 1 then
+                button("<", x + 4, yy, 10, 10, function() page = (page - 2) % #pages + 1 end)
+                local label = L("LEADERS {1} OF {2}", page, #pages)
+                text("s", label, x + floor(ww / 2) - floor(Font.width(label) / 2), yy + 2)
+                button(">", x + ww - 14, yy, 10, 10, function() page = page % #pages + 1 end)
+                yy = yy + 14
+            end
             for _, b in ipairs(others) do
                 local p = game.players[b]
                 local met = Diplo.met(game, 1, b)
@@ -405,9 +444,10 @@ local function diplomacyWindow()
                         else text(said.ok and "w" or "c", q, x + 22, by + 13) end
                     end
                 end
-                yy = yy + ROW
+                yy = yy + rowOf(b)
                 rect("n", x + 3, yy - 5, ww - 6, 1)
             end
+            if #pages > 1 then yy = y + 3 + 14 + rows end
             text("s", "LETTERS", x + 5, yy)
             yy = yy + 9
             if #mail == 0 then text("n", "NONE YET", x + 5, yy) end

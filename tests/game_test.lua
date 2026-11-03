@@ -525,7 +525,7 @@ return {
     { "the map is made with a frozen north and south: tundra, snow on the coldest, no city starting there", function()
         local Mapgen = require "src.mapgen"
         for _, seed in ipairs({ 3, 5, 8, 21 }) do
-            local map = Mapgen.generate(D.COLS, D.ROWS, seed, #D.CIVS)
+            local map = Mapgen.generate(D.COLS, D.ROWS, seed, D.CIV_COUNTS.default)
             local tundra, snow, mid = 0, 0, 0
             for _, cell in ipairs(map.cells) do
                 if D.TERRAIN[cell.terrain].frozen then

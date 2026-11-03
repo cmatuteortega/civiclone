@@ -11,9 +11,11 @@
 -- wagon's canvas ribs and a civilization's stripes are printed on the part at
 -- the hit point, not built.
 --
--- With eight sepia tones and three civilizations, a side is told by value
--- and pattern: the player's people wear light cloth, Umbra's dark, and
--- Varro's light cloth banded with dark. A city's roofs carry the same.
+-- With eight sepia tones and up to six civilizations, a side is told by
+-- value and pattern: the player's people wear light cloth, Umbra's dark,
+-- Varro's light cloth banded with dark, Thistle's light checked with dark,
+-- Reedholm's the middle shades with a pale hem, and Driftland's dark banded
+-- with light. A city's roofs carry the same.
 
 local T = require "src.tracer"
 local Sh = require "src.shapes"
@@ -67,19 +69,41 @@ local R = {
 local GLOW = ramp("w", "w", "w", "c")
 
 -- A civilization's colours: its cloth and roofs, and what to print on them.
+-- `bands`, the trim in bands across the cloth; `checks`, in squares; `hem`,
+-- along its foot. `dark`: what is daubed on its roofs is pale.
 local LOOK = {
     light = { cloth = ramp("w", "c", "s", "t"), trim = ramp("s", "t", "n", "u"), roof = ramp("w", "c", "s", "t") },
-    dark = { cloth = ramp("k", "n", "u", "o"), trim = ramp("t", "k", "n", "u"), roof = ramp("t", "n", "u", "o") },
+    dark = { cloth = ramp("k", "n", "u", "o"), trim = ramp("t", "k", "n", "u"), roof = ramp("t", "n", "u", "o"),
+        dark = true },
     stripe = { cloth = ramp("w", "c", "s", "t"), trim = ramp("k", "n", "u", "o"), roof = ramp("w", "c", "s", "t"),
         bands = true },
+    -- Thistle's: light cloth checked with dark.
+    check = { cloth = ramp("w", "c", "s", "t"), trim = ramp("n", "u", "u", "o"), roof = ramp("c", "s", "t", "k"),
+        checks = true },
+    -- Reedholm's: cloth of the middle shades, a pale hem.
+    hem = { cloth = ramp("s", "t", "k", "n"), trim = ramp("w", "w", "c", "s"), roof = ramp("s", "t", "k", "n"),
+        hem = true },
+    -- Driftland's: Varro's turned over, dark cloth banded with light.
+    barred = { cloth = ramp("k", "n", "u", "o"), trim = ramp("w", "c", "s", "t"), roof = ramp("k", "n", "u", "o"),
+        bands = true, dark = true },
 }
 M.LOOK = LOOK
 
--- Bands of the darker trim across whatever the cloth covers.
+-- The trim printed on whatever the cloth covers: in bands across it, in
+-- squares, or along its foot. Nil for plain cloth.
 local function banded(look)
-    if not look.bands then return nil end
-    return function(ux, uy, uz)
-        if floor((uy + 1) * 2.5) % 2 == 1 then return look.trim end
+    if look.bands then
+        return function(ux, uy, uz)
+            if floor((uy + 1) * 2.5) % 2 == 1 then return look.trim end
+        end
+    elseif look.checks then
+        return function(ux, uy, uz)
+            if (floor((ux + 1) * 2.5) + floor((uy + 1) * 2.5) + floor((uz + 1) * 2.5)) % 2 == 1 then return look.trim end
+        end
+    elseif look.hem then
+        return function(ux, uy, uz)
+            if uy < -0.2 then return look.trim end
+        end
     end
 end
 
@@ -435,6 +459,7 @@ end
 
 local function sail(parts, look, x, y, w, ht, id, face)
     local L = look
+    local print = (L.checks or L.hem) and banded(L)
     -- Braced round on the yard, as on a reach, so it shows from either side.
     local brace = braceFor(face)
     local bx, bz = math.sin(brace), math.cos(brace)
@@ -443,6 +468,7 @@ local function sail(parts, look, x, y, w, ht, id, face)
             if floor((uy + 1) * 3) % 2 == 1 then return L.trim end
             return
         end
+        if print then return print(ux, uy, uz) end
         local d = uy * uy + uz * uz
         if L == LOOK.light and d < 0.16 and d > 0.05 then return L.trim end
         if L == LOOK.dark and d < 0.2 and (uy - 0.18) ^ 2 + (uz - 0.12) ^ 2 > 0.1 then return IDX.c end
@@ -903,7 +929,7 @@ local function house(parts, x, y, z, L, id, size, storeys, turn, biome, snow, ma
             cone = function(ux, uy, uz, lev, ...)
                 if uz > 0.15 then
                     local a, b = ux / 0.55, (uy - 0.4) / 0.32
-                    if abs(a) < 1 and abs(b) < 1 and abs(abs(a) - abs(b)) < 0.22 then return L == LOOK.dark and IDX.w or IDX.o end
+                    if abs(a) < 1 and abs(b) < 1 and abs(abs(a) - abs(b)) < 0.22 then return L.dark and IDX.w or IDX.o end
                 end
                 return thatch(ux, uy, uz, lev, ...)
             end
@@ -971,7 +997,7 @@ local function house(parts, x, y, z, L, id, size, storeys, turn, biome, snow, ma
     end
     local roofHt = (biome == "plains" and 3.2 or 2.6) * size
     local roofPrint = snow and snowed or (biome == "plains" and thatched(L, 6) or banded(L))
-    if marked then roofPrint = crossedRoof(roofPrint, L == LOOK.dark) end
+    if marked then roofPrint = crossedRoof(roofPrint, L.dark) end
     parts[#parts + 1] = part(Sh.roof(x, yy, z, w + 1, d + 1.2, roofHt, h), L.roof, id + 1, roofPrint)
 end
 

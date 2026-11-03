@@ -206,7 +206,9 @@ function Save.relink(g)
     g.events = {}
     g.log = g.log or {}
     for _, p in pairs(g.players or {}) do
-        p.civ = p.wild and Beasts.player().civ or D.CIVS[p.id]
+        -- By its key; a game kept before there were more rivals to draw
+        -- from has none, and its civilizations are the first in the list.
+        p.civ = p.wild and Beasts.player().civ or (p.civKey and D.CIV[p.civKey]) or D.CIVS[p.id]
         if not p.civ then error("a game of a kind this one does not know") end
     end
     for _, u in ipairs(g.units or {}) do

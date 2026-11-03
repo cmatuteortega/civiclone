@@ -997,31 +997,89 @@ D.COMBAT = {
     healField = 10, healHome = 15, healCity = 20,
 }
 
--- Civilizations: the player first. `look` is how their people are painted
--- (src/models.lua): light cloth, dark cloth, or striped.
--- How a civilization leans when the computer plays it (src/ai.lua): the
--- technologies it is the likelier to pick, each so many times as likely as
--- one not named, and the gold it keeps back once the cataclysm is foretold,
--- buying its wards with the rest. Nocta is for war and keeps a war chest;
--- Tess is a builder and spends it on walls against the end.
+-- Civilizations: the player first, then every rival a game may draw its
+-- others from (Game.new takes them in an order of the seed's). `key` is how
+-- a save names one. `look` is how their people are painted (src/models.lua)
+-- and their banners and borders drawn (src/ui/board.lua): each has its own,
+-- told by value and pattern, never hue.
+--
+-- How a civilization leans when the computer plays it (src/ai.lua), each
+-- with a default for one that does not say:
+--   leaning   technologies it is the likelier to pick, each so many times
+--             as likely as one not named
+--   reserve   the gold it keeps back once the cataclysm is foretold, buying
+--             its wards with the rest (80)
+--   expand    how many cities it means to have (5), and `settlers` how
+--             many it sends out at once (1)
+--   army      its soldiers, as so many times the usual (1)
+--   site      what it looks for in a place to settle, over what the land
+--             yields: so much more for the coast, a river, the hills (2, 0,
+--             0), and so much less for each hex of the walk there (1.6)
+--   ships     the most ships it keeps, and from what turn (3, 15)
+--   builds    the buildings it puts up, in the order it wants them, and
+--             walls only from turn `wallsFrom` (30)
 --
 -- How each leader deals with the others (src/diplomacy.lua): `temper` is
 -- the row of D.DIPLO.TEMPER they decide war and tribute by, `regard` what
 -- they think of everyone before anything happens, and `motto` how they sign
 -- their letters.
 D.CIVS = {
-    { name = "AURELIA", leader = "YOU", look = "light", reserve = 80, temper = "calm", regard = 0,
+    { key = "aurelia", name = "AURELIA", leader = "YOU", look = "light", reserve = 80, temper = "calm", regard = 0,
         motto = "LIGHT KEEPS",
         cities = { "AURUM", "SOLACE", "BRIGHTWATER", "ASHFORD", "LUMEN", "HALCYON", "MERIDIAN", "DAWNHOLD" } },
-    { name = "UMBRA", leader = "QUEEN NOCTA", look = "dark", reserve = 160, temper = "warlike", regard = -10,
+    -- War: a war chest, a big army, and tribute from the weak.
+    { key = "umbra", name = "UMBRA", leader = "QUEEN NOCTA", look = "dark", reserve = 160, temper = "warlike", regard = -10,
         motto = "BY MOON AND KNIFE",
         leaning = { archery = 4, bronze = 4, horses = 4, iron = 4 },
+        army = 1.4,
         cities = { "NOCTIS", "DUSKMERE", "GLOAMING", "CINDERFALL", "SHADEHALL", "EVENFORD", "MIRKWALL" } },
-    { name = "VARRO", leader = "KING TESS", look = "stripe", reserve = 40, temper = "builder", regard = 5,
+    -- Building: few cities, high on the hills, walled early, and its gold
+    -- spent on wards against the end.
+    { key = "varro", name = "VARRO", leader = "KING TESS", look = "stripe", reserve = 40, temper = "builder", regard = 5,
         motto = "STONE UPON STONE",
         leaning = { pottery = 4, mining = 3, masonry = 4, writing = 4, currency = 3, sailing = 3, irrigation = 3 },
+        expand = 4, army = 0.8, site = { hills = 4 }, wallsFrom = 12,
+        builds = { "monument", "walls", "granary", "library", "market", "harbour", "lighthouse" },
         cities = { "TESSERA", "BANDHOLM", "STRIATA", "LATTICE", "GRATEFORD", "CHEVRON", "ZIGRATH" } },
+    -- Growth: settles widest, a small army, granaries first, generous with
+    -- friends.
+    { key = "thistle", name = "THISTLE", leader = "ELDER BRANNOCH", look = "check", reserve = 80, temper = "kindly", regard = 10,
+        motto = "EVERY FIELD A HEARTH",
+        leaning = { pottery = 4, irrigation = 4, currency = 3 },
+        expand = 8, settlers = 2, army = 0.8, site = { river = 2, walk = 3 },
+        builds = { "granary", "monument", "market", "library", "harbour", "walls", "lighthouse" },
+        cities = { "THISTLEDOWN", "BRAMBLEHURST", "OATHAVEN", "HEDGEROW", "MEADOWMOOT", "BARLEYCROFT", "COTTERSBY",
+            "FURROWEND" } },
+    -- Water: the coast and the rivers first, ships early and many, and
+    -- keeps to herself.
+    { key = "reedholm", name = "REEDHOLM", leader = "MOTHER SEDGE", look = "hem", reserve = 80, temper = "isolationist",
+        regard = 0, motto = "THE WATER REMEMBERS",
+        leaning = { sailing = 5, shipbuilding = 4, irrigation = 3, cartography = 3 },
+        expand = 6, army = 0.9, site = { coast = 6, river = 4 }, ships = 6, shipsFrom = 8,
+        builds = { "harbour", "lighthouse", "granary", "monument", "market", "library", "walls" },
+        cities = { "REEDHOLM", "SEDGEMOOR", "WILLOWMERE", "MARSHGATE", "TIDEWICK", "FENHALLOW", "SALTRUSH" } },
+    -- The opportunist: horses and gold, and war on whoever is weak or
+    -- already fighting someone else.
+    { key = "drift", name = "DRIFTLAND", leader = "KHAN ORRIN", look = "barred", reserve = 100, temper = "opportunist",
+        regard = -5, motto = "WHERE THE GRASS LEADS",
+        leaning = { horses = 5, currency = 3, bronze = 3 },
+        expand = 6, army = 1.2,
+        cities = { "ORRINSTEAD", "WINDROVE", "FARSTEPPE", "HOOFMARK", "DUSTGATHER", "LONGRIDE", "YURTMOOT" } },
 }
+
+-- Each civilization by its key.
+D.CIV = {}
+for _, c in ipairs(D.CIVS) do D.CIV[c.key] = c end
+
+-- How many civilizations a game may have, the player's among them, and the
+-- map for each count: room enough for every one to start 8 hexes from the
+-- next, and not much more, so a small game stays a short one.
+D.CIV_COUNTS = { min = 2, max = #D.CIVS, default = 3 }
+D.MAP_FOR = { [2] = { 34, 22 }, [3] = { 34, 22 }, [4] = { 38, 24 }, [5] = { 42, 26 }, [6] = { 46, 28 } }
+function D.mapFor(civs)
+    local m = D.MAP_FOR[civs] or { D.COLS, D.ROWS }
+    return m[1], m[2]
+end
 
 -- Diplomacy (src/diplomacy.lua). Two civilizations that have met are at
 -- peace or at war; at peace, neither may set foot on the other's land unless
@@ -1081,10 +1139,18 @@ D.DIPLO = {
     },
     -- How each kind of leader goes to war and asks for tribute: at or under
     -- `war` regard, at least `ratio` times as strong, by `chance` a turn.
+    -- `friends` is the regard it asks for open borders at (20), `gift` the
+    -- regard it sends gifts at (30); `closed`, it asks no one for open
+    -- borders or an alliance but against the runaway, and grants them only
+    -- at `closed` regard; `pounce`, a rival at war with another, or stricken
+    -- by the cataclysm, counts as half again weaker and `pounce` more hated.
     TEMPER = {
         warlike = { war = -8, ratio = 1.1, chance = 0.35, tribute = true },
         calm = { war = -35, ratio = 1.4, chance = 0.2 },
         builder = { war = -45, ratio = 1.7, chance = 0.12 },
+        kindly = { war = -50, ratio = 1.6, chance = 0.1, friends = 10, gift = 15 },
+        isolationist = { war = -40, ratio = 1.5, chance = 0.15, closed = 50 },
+        opportunist = { war = -15, ratio = 1.2, chance = 0.3, tribute = true, pounce = 20 },
     },
 }
 

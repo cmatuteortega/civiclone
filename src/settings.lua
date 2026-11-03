@@ -72,6 +72,8 @@ Settings.LIST = {
     -- by id, a comma between each.
     { id = "hintsSeen", tab = "hidden", name = "HINTS SEEN", default = "" },
     { id = "cataclysm", tab = "newgame", name = "CATACLYSM", values = { "heat", "flood", "sky", "demons", "sun", "plague", "quake", "none" }, default = "heat" },
+    -- And how many civilizations, the player's among them (D.CIV_COUNTS).
+    { id = "civs", tab = "newgame", name = "CIVILIZATIONS", values = { 2, 3, 4, 5, 6 }, default = 3 },
 }
 Settings.BY = {}
 for _, s in ipairs(Settings.LIST) do Settings.BY[s.id] = s end

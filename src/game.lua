@@ -35,11 +35,36 @@ Game.WILD = Beasts.WILD
 
 --- making one --------------------------------------------------------------------
 
+-- Who plays: the player's civilization, then `n - 1` rivals: those named in
+-- `rivals` (by key), and the rest drawn from the others in an order the
+-- seed gives, so a seed always brings the same leaders.
+function Game.civsFor(n, seed, rivals)
+    local out, taken = { D.CIVS[1] }, { [D.CIVS[1].key] = true }
+    for _, key in ipairs(rivals or {}) do
+        local c = D.CIV[key]
+        if c and not taken[key] and #out < n then out[#out + 1], taken[key] = c, true end
+    end
+    local pool = {}
+    for k = 2, #D.CIVS do
+        if not taken[D.CIVS[k].key] then pool[#pool + 1] = D.CIVS[k] end
+    end
+    local rng = Rng.new(seed + 4099)
+    -- Seeds side by side start the generator side by side: a few draws
+    -- apart, they are not.
+    for _ = 1, 3 do rng:random() end
+    while #out < n and #pool > 0 do out[#out + 1] = table.remove(pool, rng:random(#pool)) end
+    return out
+end
+
 function Game.new(opts)
     opts = opts or {}
     local self = setmetatable({}, Game)
-    self.cols, self.rows = opts.cols or D.COLS, opts.rows or D.ROWS
-    local map = Mapgen.generate(self.cols, self.rows, opts.seed or os.time(), opts.civs or #D.CIVS)
+    local seed = opts.seed or os.time()
+    local n = math.max(D.CIV_COUNTS.min, math.min(D.CIV_COUNTS.max, opts.civs or D.CIV_COUNTS.default))
+    local civs = Game.civsFor(n, seed, opts.rivals)
+    local cols, rows = D.mapFor(n)
+    self.cols, self.rows = opts.cols or cols, opts.rows or rows
+    local map = Mapgen.generate(self.cols, self.rows, seed, n)
     self.seed = map.seed
     self.cells = map.cells
     self.rng = Rng.new(map.seed + 17)
@@ -53,10 +78,9 @@ function Game.new(opts)
     -- Who has met whom, and how they stand (src/diplomacy.lua).
     self.diplo = nil
     Diplo.ensure(self)
-    for k = 1, opts.civs or #D.CIVS do
-        local civ = D.CIVS[k]
+    for k, civ in ipairs(civs) do
         local p = {
-            id = k, civ = civ, name = civ.name, human = k == 1 and not opts.allAI,
+            id = k, civ = civ, civKey = civ.key, name = civ.name, human = k == 1 and not opts.allAI,
             gold = 10, science = 0, researching = nil, techs = {},
             explored = {}, visible = {}, cityNames = 0, alive = true, everCity = false,
         }

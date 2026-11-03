@@ -70,6 +70,7 @@ end
 -- How many ships a civilization wants: one for every two cities on the
 -- water, one more once it knows of a rival's city on the water, at most 3.
 local function shipsWanted(game, p)
+    local most = p.civ.ships or 3
     local coastal = 0
     for _, c in ipairs(game:citiesOf(p.id)) do
         if game:coastal(game.cells[c.cell]) then coastal = coastal + 1 end
@@ -79,7 +80,7 @@ local function shipsWanted(game, p)
     for _, c in ipairs(game.cities) do
         if c.owner ~= p.id and p.explored[c.cell] and game:coastal(game.cells[c.cell]) then want = want + 1 break end
     end
-    return math.min(3, want)
+    return math.min(most, want + (most > 3 and 1 or 0))
 end
 
 local function count(game, p, kind)
@@ -161,22 +162,31 @@ end
 
 AI.research = research
 
+-- The buildings a civilization puts up, in the order it wants them (D.CIVS).
+local BUILDS = { "monument", "granary", "walls", "library", "harbour", "market", "lighthouse" }
+
 local function chooseBuild(game, p, city)
+    local civ = p.civ
+    local army = civ.army or 1
     local soldiers = 0
     for _, u in ipairs(game:unitsOf(p.id)) do if military(u) then soldiers = soldiers + 1 end end
     local cities = #game:citiesOf(p.id)
     local guard = game.mil[city.cell]
     -- A city with no one in it, or a civilization with too few, trains a soldier.
-    if (not guard and soldiers < cities * 2) or soldiers < cities then
+    if (not guard and soldiers < cities * 2 * army) or soldiers < cities then
         return "unit", "band", bestSoldier(game, city, game.rng:random() < 0.3)
     end
-    if cities + count(game, p, "settler") < 5 and city.pop >= 2 and game.turn > 4
-        and count(game, p, "settler") == 0 then
+    if cities + count(game, p, "settler") < (civ.expand or 5) and city.pop >= 2 and game.turn > 4
+        and count(game, p, "settler") < (civ.settlers or 1) then
         return "unit", "settler"
     end
     if count(game, p, "builder") < max(1, cities - 1) and game.turn > 6 then return "unit", "builder" end
+    -- A leader for war keeps a standing army before any building.
+    if army > 1 and soldiers < (cities + math.floor(game.turn / 20)) * army then
+        return "unit", "band", bestSoldier(game, city, game.rng:random() < 0.3)
+    end
     -- A ship or two from the cities on the water.
-    if game.turn > 15 then
+    if game.turn > (civ.shipsFrom or 15) then
         local ship = bestShip(game, city)
         if ship then
             local ships = 0
@@ -225,15 +235,15 @@ local function chooseBuild(game, p, city)
         local site = Q.best(game, city)
         if site then return "quarter", site.id end
     end
-    for _, id in ipairs({ "monument", "granary", "walls", "library", "harbour", "market", "lighthouse" }) do
+    for _, id in ipairs(civ.builds or BUILDS) do
         if game:canBuild(city, "building", id) then
-            if id ~= "walls" or game.turn > 30 then return "building", id end
+            if id ~= "walls" or game.turn > (civ.wallsFrom or 30) then return "building", id end
         end
     end
     -- The guard given what its people make now.
     local old, gear = outdated(game, city)
     if old then return "refit", old, gear end
-    if soldiers < cities * 3 + math.floor(game.turn / 15) then
+    if soldiers < (cities * 3 + math.floor(game.turn / 15)) * army then
         return "unit", "band", bestSoldier(game, city, game.rng:random() < 0.35)
     end
     return "unit", "builder"
@@ -241,11 +251,42 @@ end
 
 --- settlers ----------------------------------------------------------------------
 
+-- How long a site a settler was lost on the way to is left alone.
+local SHUN = 25
+
+-- Settlers sent out last turn that are gone, and founded nothing where they
+-- were going: their sites are shunned a while. `p.going` is each settler's
+-- id and where it was going.
+local function lost(game, p)
+    local alive = {}
+    for _, u in ipairs(game:unitsOf(p.id)) do alive[u.id] = true end
+    for id, site in pairs(p.going or {}) do
+        local cell = game.cells[site]
+        if not alive[id] and not (cell.city and cell.city.owner == p.id) then
+            p.shunned = p.shunned or {}
+            p.shunned[site] = game.turn
+        end
+    end
+    for site, turn in pairs(p.shunned or {}) do
+        if game.turn - turn >= SHUN then p.shunned[site] = nil end
+    end
+end
+
+local function going(game, p)
+    p.going = {}
+    for _, u in ipairs(game:unitsOf(p.id)) do
+        if u.kind == "settler" and u.site then p.going[u.id] = u.site end
+    end
+end
+
 -- The best free place to found a city that u can walk to, by what the land
 -- round it yields, less the walk.
 local function siteFor(game, u)
     local here = game.cells[u.cell]
     local best, bv
+    local taste = game.players[u.owner].civ.site or {}
+    local shunned = game.players[u.owner].shunned or {}
+    local coast, river, hills, walk = taste.coast or 2, taste.river or 0, taste.hills or 0, taste.walk or 1.6
     -- Under the still sun they will go further, to the twilight.
     local still = Sun.line(game)
     -- Before the deluge they look further, for the hills.
@@ -257,12 +298,22 @@ local function siteFor(game, u)
             for _, c in ipairs(game.cities) do
                 if game:dist(game.cells[c.cell], cell) < 4 then ok = false break end
             end
+            -- Not where another settler of ours is already going, nor
+            -- where one was lost of late.
+            for _, v in ipairs(game:unitsOf(u.owner)) do
+                if ok and v ~= u and v.site and game:dist(game.cells[v.site], cell) < 4 then ok = false end
+            end
+            for at, turn in pairs(shunned) do
+                if ok and game.turn - turn < SHUN and game:dist(game.cells[at], cell) < 3 then ok = false end
+            end
             if ok then
-                local v = Mapgen.siteScore(game.cells, game.cols, game.rows, cell) - game:dist(here, cell) * 1.6
+                local v = Mapgen.siteScore(game.cells, game.cols, game.rows, cell) - game:dist(here, cell) * walk
                 if game:isWater(cell) then v = -1 end
                 for _, n in ipairs(game:neighbours(cell)) do
-                    if n.terrain == "coast" then v = v + 2 break end
+                    if n.terrain == "coast" then v = v + coast break end
                 end
+                if river ~= 0 and cell.river and next(cell.river) then v = v + river end
+                if hills ~= 0 and cell.elev == "hills" then v = v + hills end
                 if deluge then
                     -- High ground, out of the sea's reach (src/flood.lua).
                     if cell.elev == "hills" then v = v + 10
@@ -281,6 +332,8 @@ local function siteFor(game, u)
     end
     return best
 end
+
+AI.siteFor = siteFor
 
 local function settle(game, u)
     -- The first city where it stands, at once.
@@ -724,6 +777,8 @@ function AI.play(game, p)
     if p.human then Diplo.answerFor(game, p.id) end
     Diplo.think(game, p)
     if not p.researching then p.researching = research(game, p) end
+    lost(game, p)
+    local war = Diplo.atWarWithAny(game, p.id)
     for _, city in ipairs(game:citiesOf(p.id)) do
         local due = wardDue(game, city)
         if due and city.build and city.build.id ~= due and putBy(game, p, city, due) then
@@ -737,8 +792,14 @@ function AI.play(game, p)
             if not done then game:setBuild(city, "unit", "band") end
         end
         focus(game, city)
-        -- Buy a soldier when an enemy is at the gates.
+        -- Buy a soldier when an enemy is at the gates; and at war, with the
+        -- war chest, what is over the reserve.
         if city.hp < game:maxHp(city) and city.build and city.build.kind == "unit" then game:buy(city) end
+        local b = city.build
+        if war and b and b.kind == "unit" and not city.bought and D.UNITS[b.id] and not D.UNITS[b.id].civilian then
+            local cost = game:buyCost(city)
+            if cost and p.gold - cost >= (p.civ.reserve or 80) then game:buy(city) end
+        end
         -- Once the cataclysm is foretold, gold is for wards: what is left
         -- over the civilization's reserve buys the one this city is making.
         if due and city.build and city.build.id == due and not city.bought then
@@ -766,6 +827,7 @@ function AI.play(game, p)
             dodge(game, u)
         end
     end
+    going(game, p)
 end
 
 return AI

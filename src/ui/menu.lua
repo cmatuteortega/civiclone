@@ -605,7 +605,7 @@ end
 local function newGameWindow()
     local w = min(300, S.vw - 4)
     local top = S.mode == "play" and 11 or 0
-    local h = min(154, S.vh - top - 4)
+    local h = min(168, S.vh - top - 4)
     Win.add({
         id = "newgame", title = "NEW GAME", w = w, h = h, modal = true,
         x = floor((S.vw - w) / 2), y = top + floor((S.vh - top - h) / 2),
@@ -663,6 +663,15 @@ local function newGameWindow()
             else
                 rect("n", sx, body, sw, sh)
             end
+
+            -- How many civilizations: you and so many rivals.
+            local cy = y + hh - 31
+            rect("o", x + 2, cy - 3, ww - 4, 1)
+            text("s", "CIVILIZATIONS", x + 7, cy + 3)
+            local cx = x + 12 + Font.width(L"CIVILIZATIONS")
+            chooser("civs", cx, cy, 44)
+            local rivals = Settings.get("civs") - 1
+            text("s", rivals == 1 and L"YOU AND 1 RIVAL" or L("YOU AND {1} RIVALS", rivals), cx + 50, cy + 3)
 
             local bbw = 60
             button("START", x + floor(ww / 2) - bbw - 2, y + hh - 16, bbw, 12, function()

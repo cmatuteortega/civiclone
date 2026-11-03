@@ -47,7 +47,7 @@ return {
             end
         end
         -- The wild is no civilization: not counted, never out.
-        assert(#g.players == #D.CIVS and g.players[Game.WILD].wild)
+        assert(#g.players == D.CIV_COUNTS.default and g.players[Game.WILD].wild)
     end },
     { "beasts keep to their ground: serpents the ocean, crocodiles their rivers", function()
         local g = Game.new({ seed = 8 })

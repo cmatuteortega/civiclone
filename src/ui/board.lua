@@ -47,12 +47,26 @@ Board.TEAM = {
     dark = { fill = "u", ink = "w", line = function() return IDX.o end },
     stripe = { fill = "t", ink = "o", band = "u",
         line = function(f) return floor(f * 6) % 2 == 0 and IDX.w or IDX.o end },
+    check = { fill = "c", ink = "o", band = "o", dash = true,
+        line = function(f) return floor(f * 10) % 2 == 0 and IDX.w or IDX.n end },
+    hem = { fill = "s", ink = "o", band = "w",
+        line = function(f) return floor(f * 3) == 1 and IDX.c or IDX.o end },
+    barred = { fill = "n", ink = "w", band = "c",
+        line = function(f) return floor(f * 6) % 2 == 0 and IDX.c or IDX.u end },
     -- The wild: what goes for people under ink, the rest on khaki.
     wild = { fill = "k", ink = "o", line = function() return IDX.n end },
     hostile = { fill = "o", ink = "s", line = function() return IDX.n end },
     -- The demons (src/demons.lua): pale on ink, banded pale, never the wild's.
     demon = { fill = "o", ink = "w", band = "c", line = function() return IDX.w end },
 }
+
+-- A banner's band, `w` wide at (x, y), in `team`'s colours: whole, or in
+-- dashes for a checked look.
+function Board.band(team, x, y, w)
+    if not team.band then return end
+    if not team.dash then return Draw.rect(team.band, x, y, w, 1) end
+    for i = (y % 2), w - 1, 2 do Draw.rect(team.band, x + i, y, 1, 1) end
+end
 
 local function lookOf(owner) return S.game.players[owner].civ.look end
 
@@ -890,7 +904,8 @@ local function unitBanner(u)
     local sel = selectedUnit() == u
     Draw.rect(sel and "w" or "o", bx - 1, by - 1, 9, 9)
     Draw.rect(team.fill, bx, by, 7, 7)
-    if team.band then Draw.rect(team.band, bx, by, 7, 1) Draw.rect(team.band, bx, by + 6, 7, 1) end
+    Board.band(team, bx, by, 7)
+    Board.band(team, bx, by + 6, 7)
     Draw.icon(u.kind, bx + 1, by + 1, team.ink)
     -- Carrying the plague (src/plague.lua): a speck of ink on a pale corner.
     if u.sick then Draw.rect("w", bx + 5, by, 2, 2) Draw.rect("o", bx + 6, by, 1, 1) end
@@ -911,7 +926,8 @@ local function cityBanner(c)
     local x, y = sx - floor(w / 2), sy - 12
     Draw.rect("o", x - 1, y - 1, w + 2, 11)
     Draw.rect(team.fill, x, y, w, 9)
-    if team.band then Draw.rect(team.band, x, y, w, 1) Draw.rect(team.band, x, y + 8, w, 1) end
+    Board.band(team, x, y, w)
+    Board.band(team, x, y + 8, w)
     -- The population in a box of its own.
     Draw.rect("o", x, y, 9, 9)
     local pop = tostring(c.pop)

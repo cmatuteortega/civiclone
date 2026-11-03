@@ -39,7 +39,8 @@ there is one, and otherwise opens the new game window.
 The **new game** window asks how the world ends. The endings come under four
 kinds, across the top of the window; choosing a kind shows its endings, what
 to expect of the one in hand, and a close picture of something only that one
-does. **START** (or Enter) begins.
+does. Under them, **CIVILIZATIONS** sets how many play, yours among them
+(2 to 6; see below). **START** (or Enter) begins.
 
 | Kind | Ending | What it means |
 | --- | --- | --- |
@@ -89,13 +90,24 @@ Every game makes a new map from a seed: random by default, or chosen with
 `love . --seed 1234`. The same seed always makes the same map. While the map
 is traced (about half a second), a "SURVEYING THE LAND" bar fills.
 
-Three civilizations play:
+From 2 to 6 civilizations play, 3 by default: you, and as many rivals as
+the new game window's **CIVILIZATIONS** row says (or `love . --civs 5`),
+drawn from the five below in an order the seed gives, so the same seed
+brings the same leaders. The map grows with them so that every one starts 8
+hexes or more from the next: 34×22 for 2 or 3, 38×24 for 4, 42×26 for 5 and
+46×28 for 6. Each has a look of its own, told by value and pattern, never
+hue:
 
-| Civilization | Who | Their people and roofs | Their borders |
-| --- | --- | --- | --- |
-| **Aurelia** | You | Light cloth | Solid light line |
-| **Umbra** | Queen Nocta (AI) | Dark cloth | Solid dark line |
-| **Varro** | King Tess (AI) | Light cloth banded with dark | Dashed light and dark |
+| Civilization | Who | Their people and roofs | Their banners | Their borders |
+| --- | --- | --- | --- | --- |
+| **Aurelia** | You | Light cloth | Pale | Solid light line |
+| **Umbra** | Queen Nocta (AI) | Dark cloth | Dark, pale letters | Solid dark line |
+| **Varro** | King Tess (AI) | Light cloth banded with dark | Tan, dark bands | Dashed light and dark |
+| **Thistle** | Elder Brannoch (AI) | Light cloth checked with dark | Cream, checked edges | Fine dashes, light and brown |
+| **Reedholm** | Mother Sedge (AI) | Middle shades, a pale hem | Sand, pale bands | Dark, pale in the middle |
+| **Driftland** | Khan Orrin (AI) | Dark cloth banded with light | Brown, pale bands and letters | Dashed cream and umber |
+
+`luajit tools/designs.lua dir` draws each look into `dir/looks.ppm`.
 
 Each starts with a **settler** and a **warrior** (a band with a club) on its
 starting hex and a **scout** (a band with nothing) next to it, plus **10 gold**. The game opens on turn 1, 4000 BC,
@@ -878,14 +890,28 @@ builds them (N).
 
 ## The rival civilizations
 
-The two rivals follow the same rules as you, with no bonuses. Each turn,
-each rival does the following.
+The rivals follow the same rules as you, with no bonuses, but each leader
+plays their own way (`D.CIVS` in `src/defs.lua`; a leader who does not say
+plays as the defaults in the list below):
+
+| Leader | Temper | Leans to | Cities | Army | Settles | Builds first | Reserve |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **Queen Nocta** | Warlike | Archery, Bronze, Horses, Iron (×4) | 5 | ×1.4, standing | Anywhere | Soldiers | 160, a war chest |
+| **King Tess** | Builder | Pottery, Masonry, Writing (×4); Mining, Currency, Sailing, Irrigation (×3) | 4 | ×0.8 | The hills (+4) | Monument, walls from turn 12 | 40 |
+| **Elder Brannoch** | Kindly | Pottery, Irrigation (×4), Currency (×3) | 8, two settlers at once | ×0.8 | Near (−3 a hex), by rivers (+2) | Granary | 80 |
+| **Mother Sedge** | Isolationist | Sailing (×5), Shipbuilding (×4), Irrigation, Cartography (×3) | 6 | ×0.9 | The coast (+6), rivers (+4) | Harbour, lighthouse; up to 6 ships from turn 9 | 80 |
+| **Khan Orrin** | Opportunist | Horses (×5), Currency, Bronze (×3) | 6 | ×1.2, standing | Anywhere | Soldiers | 100 |
+
+A leader with an army over ×1 keeps a standing army before any building:
+(cities + 1 per 20 turns) × their army. At war, any leader buys the soldier a
+city is making with what gold it has over its reserve. A settler lost on
+the way to its site leaves that site alone for 25 turns.
+
+Each turn, each rival does the following.
 
 **Research:** if nothing is being researched, it picks an available
-technology by chance, each rival leaning its own way: Queen Nocta is four
-times as likely to pick Archery, Bronze Working, Horseback Riding or Iron
-Working as anything else; King Tess the same for Pottery, Masonry and
-Writing, and three times for Mining, Currency and Sailing. From the omen on,
+technology by chance, leaning as the table says: so many times as likely to
+pick those as anything else. From the omen on,
 it makes for the buildings that hold off the cataclysm instead: the next
 technology on the way to its own wards (Masonry for the cistern, the levee
 and the buttress; Writing for the sanctum and the lazaret; Pottery for the
@@ -897,17 +923,20 @@ hearth), then Mining for the shelter, and only then by chance again.
    2 soldiers per city, or fewer soldiers than cities (a band with its
    strongest blade, on a horse a third of the time once it has horses; or
    30% of the time its strongest shot)
-2. a settler, from turn 5, in a city of 2+ citizens, while it has fewer than
-   5 cities and settlers and no settler already planned
+2. a settler, from turn 5, in a city of 2+ citizens, while it has fewer
+   cities and settlers than it means to have (5) and no settler already
+   planned (Brannoch: fewer than two)
 3. a builder, from turn 7, while it has fewer than (cities − 1) builders (at least 1)
 4. from turn 16, a ship in a city on the water, while it has fewer than one
    for every two such cities (one more once it knows a rival's city on the
-   water, 3 at most), with a ram or a bolt thrower by chance
-5. a building: monument, granary, walls (only after turn 30), library,
-   harbour, market, then lighthouse
+   water, 3 at most; Sedge one more again, 6 at most, from turn 9), with a
+   ram or a bolt thrower by chance
+5. a building, in the leader's order: by default monument, granary, walls
+   (only after turn 30), library, harbour, market, then lighthouse
 6. a refit of the band guarding it, if its weapon has been left behind (a
    club once it has spears)
-7. more soldiers, up to 3 per city plus 1 per 15 turns
+7. more soldiers, up to 3 per city plus 1 per 15 turns, times the leader's
+   army
 8. otherwise a builder
 
 **Buying:** a damaged city building a unit buys it at once if it can afford it.
@@ -1008,7 +1037,7 @@ the sum of:
 
 | How things stand | |
 | --- | --- |
-| Their nature | Nocta −10, Tess +5 |
+| Their nature | Nocta −10, Orrin −5, Tess +5, Brannoch +10 |
 | At war | −30 |
 | Allies / open borders | +20 / +5 |
 | At war with the same civilization | +15 |
@@ -1127,11 +1156,19 @@ Each turn, each leader looks at every civilization it knows:
   foretold.
 - **At peace**, from turn 20, out of truce, not allied, at war with no one
   else, with an army: declares war at a regard of −8 or less and 1.1 times
-  as strong (Nocta, 35% a turn), −35 and 1.4 (calm, 20%), −45 and 1.7
-  (Tess, 12%); 15 lower once the end is foretold.
-- Otherwise, the first of: Nocta demands tribute; asks for open borders;
-  proposes an alliance; sends a gift; pleads for aid; complains of soldiers
-  on its land.
+  as strong (warlike: Nocta, 35% a turn), −15 and 1.2 (opportunist: Orrin,
+  30%), −35 and 1.4 (calm, 20%), −40 and 1.5 (isolationist: Sedge, 15%),
+  −45 and 1.7 (builder: Tess, 12%), −50 and 1.6 (kindly: Brannoch, 10%);
+  15 lower once the end is foretold.
+- Otherwise, the first of: Nocta or Orrin demands tribute; asks for open
+  borders (Brannoch from a regard of 10, the others 20); proposes an
+  alliance; sends a gift (Brannoch from 15, the others 30); pleads for aid;
+  complains of soldiers on its land.
+- **The opportunist** (Orrin) thinks 20 worse of anyone at war with someone
+  else ("they are beset"), and counts them half again weaker.
+- **The isolationist** (Sedge) asks no one for open borders or an alliance
+  but against a runaway, and grants them only at a regard of 50 ("we keep
+  to ourselves").
 
 Over all-AI games (seeds 3, 5, 8 and 21, with the heat, the deluge and no
 cataclysm) there are 1–3 wars a game, the first between turns 50 and 85,
@@ -2276,7 +2313,7 @@ and picks up where it left off.
 
 | Command | Does |
 | --- | --- |
-| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders and their works (felling, firebreaks, dousing, mending, the AI fighting fire), 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, the rivers running dry from their springs, the great ebb and the salt flats walked on, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, the great flood over the lowland and then the upland, towns sunk to ruins and a levee holding through the first, a civilization gone with its towns, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, the great storm's cyclones formed on the line, seen coming, running along it and striking, the gales, a whole game to its end), the shattering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length, each of the first five with its dark twin), the rivals against the cataclysm (research made for the wards, buildings put by for them, wards bought over the reserve, and each rival's leaning), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
+| `luajit tests/run.lua` | Tests under plain LuaJIT, no LÖVE: hex geometry, the hours of the day, map determinism, rivers (both banks, down to the sea, never uphill), fording and bridges, fighting across a river, the wild (beasts, loot, lairs, taming, wolves at night), founding, multi-turn moves, combat, capture, growth, production, research, builders and their works (felling, firebreaks, dousing, mending, the AI fighting fire), 100-turn all-AI games, the heat death (drying, fire, baked earth, cisterns, thirst, the rivers running dry from their springs, the great ebb and the salt flats walked on, a whole game to its end), the deluge (the rains and marsh, floods and silt, the rising sea, levees, fever, the great flood over the lowland and then the upland, towns sunk to ruins and a levee holding through the first, a civilization gone with its towns, a whole game to its end), the sky's falling (stones marked the turn before, craters sinking the land, hills and mountains broken, rivers kept, great stones, the heart of the comet, the long night, the cold, shelters against every cataclysm, the AI dodging, a whole game to its end), the still sun (the line drawn as it stops, through the land and a different way each game, day, night and twilight, the twilight narrowing, drying and freezing only on their sides, tundra and snow, sea ice walked on and ships crushed, frozen rivers, thirst, cold, cisterns and hearths, the far sides hurting, the sky's long night freezing too, the great storm's cyclones formed on the line, seen coming, running along it and striking, the gales, a whole game to its end), the shattering (the rift laid from sea to sea, quakes marked the turn before, faults blocking the way, cities shaken and buttresses holding, the rift tearing to the sea, the great quake, ranges rising, volcanoes, lava, black rock and ash, waves flooding and going back down, the AI stepping off, a whole game to its end), every sound rendering (never silent, never clipping, the music's layers one length, each of the first five with its dark twin), the rivals against the cataclysm (research made for the wards, buildings put by for them, wards bought over the reserve, and each rival's leaning), the civilizations (each its own look, rivals drawn by the seed, the map grown for 2 to 6 of them, a kept game bringing back the same leaders, six computers playing a long game, each leader settling, arming and dealing their own way), and the map's picture laid again only where the land or the sight changed coming out as it would laid whole |
 | `luacheck main.lua conf.lua src tests` | Lint (CI runs both on every push) |
 | `love . --lang es` | The words in Spanish (or `en`), for this run only; with `--shot` and `--open settings:interface` (or `pause`, `newgame`, `dev`, `research`), a picture of that window in it |
 | `luajit tools/lang_keys.lua es` | The lines the Spanish table has not yet (see [Translations](#translations)); with no language, every line the game can show |

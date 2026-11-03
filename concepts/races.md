@@ -177,6 +177,13 @@ leanings, and are given the race their leaning already fits.
 New names stand in for whatever we choose; cities for each need lists like
 the ones in `D.CIVS`.
 
+**Built so far (the leaders, without their races):** Nocta, Tess,
+Brannoch (Thistle), Sedge (Reedholm) and Orrin (Driftland, not "the Drift")
+are in `D.CIVS`, each with the leaning, temper and AI traits above that
+need no race rule (Brannoch's refugees, Orrin's uprooting and the
+Houndwife's taming wait for the races). A game draws 1 to 5 of them as the
+new game window says. The Houndwife waits for taming, and for a sixth look.
+
 **Who you meet.** The player picks a race. The two rivals are drawn from the
 leaders of the *other* races, so no game has two civilizations of the same
 race until there are two leaders for each. A second leader per race (one

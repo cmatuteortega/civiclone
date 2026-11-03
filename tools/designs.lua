@@ -249,6 +249,36 @@ do
     write("cities")
 end
 
+-- Every civilization's look (src/defs.lua D.CIVS): a spearman and a
+-- settler on the land, a galley at sea, a town, each civilization a column.
+do
+    local D = require "src.defs"
+    local cw = 84
+    canvas(cw * #D.CIVS, 300)
+    local land = ground({ { 0, 0, "land" } })
+    local sea = ground(ONE)
+    local town = ground({ { 0, 0, "land" }, { -1, 0, "land" }, { 1, 0, "land" }, { 0, -1, "land" }, { 0, 1, "land" } })
+    for k, c in ipairs(D.CIVS) do
+        local px = (k - 0.5) * cw
+        reset(floor(px - cw / 2), 0, cw, 300)
+        stamp(land, px, 40, 0, 0, 0)
+        stamp(M.unit("spearman", c.look, 1, 0, 0), px, 40, 0, 4, 0)
+        reset(floor(px - cw / 2), 0, cw, 300)
+        stamp(land, px, 90, 0, 0, 0)
+        stamp(M.unit("settler", c.look, 1, 0, 0), px, 90, 0, 4, 0)
+        reset(floor(px - cw / 2), 0, cw, 300)
+        stamp(sea, px, 145, 0, 0, 0)
+        stamp(M.unit("galley", c.look, 1, 0, 0), px, 145, 0, -2, 0)
+        reset(floor(px - cw / 2), 0, cw, 300)
+        stamp(town, px, 225, 0, 0, 0)
+        stamp(M.city(c.look, 6, k == 1, { walls = true, granary = true }), px, 225, 0, 4, 0)
+        label(c.name, px, 280)
+        label(c.look:upper(), px, 290)
+    end
+    title("THE CIVILIZATIONS' LOOKS")
+    write("looks")
+end
+
 -- A fish's leap, frame by frame, over one hex.
 do
     canvas(130, 84)

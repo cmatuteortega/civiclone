@@ -80,12 +80,14 @@ end
 
 -- A new game: a new map from a new seed, traced in slices while the loading
 -- bar fills, then the first turn. The world ends by the cataclysm chosen in
--- the new game window (or `--cataclysm heat|flood|sky|demons|sun|plague|quake|none`), or by none.
+-- the new game window (or `--cataclysm heat|flood|sky|demons|sun|plague|quake|none`), or by none,
+-- among as many civilizations as it says (or `--civs 2..6`).
 function S.newGame(seed)
     seed = seed or S.seedArg or (os.time() % 100000)
     S.seedArg = nil
     local kind = S.cataclysmArg or Settings.get("cataclysm")
-    S.game = Game.new({ seed = seed, cataclysm = kind ~= "none" and kind or false })
+    S.game = Game.new({ seed = seed, cataclysm = kind ~= "none" and kind or false,
+        civs = S.civsArg or Settings.get("civs") })
     S.world = World.new(S.game)
     S.anim, S.effects, S.msgs, S.wakes = {}, {}, {}, {}
     S.selected, S.panel, S.over, S.hover = nil, nil, nil, nil
@@ -159,6 +161,9 @@ function love.load(args)
         -- `--cataclysm heat|flood|sky|demons|sun|plague|quake|none`: how the world ends, whatever the new game
         -- window last had.
         if a == "--cataclysm" and args[n + 1] then S.cataclysmArg = args[n + 1] end
+        -- `--civs 2..6`: how many civilizations, yours among them, whatever
+        -- the new game window last had.
+        if a == "--civs" and tonumber(args[n + 1]) then S.civsArg = tonumber(args[n + 1]) end
         -- `--touch` lays out the screen as for a phone.
         if a == "--touch" then S.touch, S.phone = true, true end
         -- For checking how it looks: `--shot file.png` takes a picture of the
@@ -200,7 +205,7 @@ function love.load(args)
         if a == "--size" and args[n + 1] then S.sizeArg = { args[n + 1]:match("^(%d+)x(%d+)$") } end
         -- `--clock look`: the clock drawn so (arc, dial, strip, scene, off).
         if a == "--clock" then require("src.ui.clock").force = args[n + 1] end
-        -- `--open settings:audio` (or `pause`, `newgame`, `dev`, `research`) shows a menu in the picture.
+        -- `--open settings:audio` (or `pause`, `newgame`, `dev`, `research`, `diplomacy`) shows a menu in the picture.
         if a == "--open" and S.plan then S.plan.open = args[n + 1] end
         -- `--bare`: the map alone, with no HUD, banners or windows over it.
         -- The new game window's pictures (assets/menu/) are taken so.
@@ -1048,6 +1053,7 @@ local function followPlan()
         if what == "newgame" then Menu.openNewGame() end
         if what == "dev" then Menu.openDev() end
         if what == "research" then S.panel = "research" end
+        if what == "diplomacy" then S.panel = "diplomacy" end
         -- `--open help`, or `help:terrain.grass` for the glossary at a
         -- page; `--open hint:found` shows that hint.
         local page = plan.open:match("^help:(.+)$")

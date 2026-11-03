@@ -302,8 +302,10 @@ function Diplo.regard(game, a, b)
     if press > 0 then add("OUR BORDERS PRESS ON EACH OTHER", -min(N.press, press)) end
     local crowd = crowding(game, a, b)
     if crowd > 0 then add("THEY CROWD OUR LANDS", -min(N.crowdMost, crowd * N.crowd)) end
-    local T = D.DIPLO.TEMPER[game.players[a].civ.temper or "calm"]
-    if T and T.tribute and not r.war and Diplo.ratio(game, a, b) >= 1.5 then add("THEY ARE WEAK", -N.weak) end
+    local T = Diplo.temper(game, a)
+    if T.tribute and not r.war and Diplo.ratio(game, a, b) >= 1.5 then add("THEY ARE WEAK", -N.weak) end
+    -- An opportunist's eye on one already fighting someone else.
+    if T.pounce and not r.war and Diplo.atWarWithAnyBut(game, b, a) then add("THEY ARE BESET", -T.pounce) end
     -- Running away with the game: feared; and those who fear the same
     -- drawn together.
     if Diplo.runaway(game, a, b) then add("THEY GROW TOO STRONG", -N.tooStrong) end
@@ -312,6 +314,11 @@ function Diplo.regard(game, a, b)
     local total = 0
     for _, p in ipairs(parts) do total = total + p[2] end
     return max(-100, min(100, total)), parts
+end
+
+-- The row of D.DIPLO.TEMPER leader `id` decides by.
+function Diplo.temper(game, id)
+    return D.DIPLO.TEMPER[game.players[id].civ.temper or "calm"] or D.DIPLO.TEMPER.calm
 end
 
 function Diplo.word(v)
@@ -637,7 +644,7 @@ K.tribute = {
             Diplo.remember(g, l.from, l.to, "refused", M.refused)
             Diplo.remember(g, l.to, l.from, "demanded", M.demanded)
             -- A strong leader makes good on the threat.
-            local T = D.DIPLO.TEMPER[g.players[l.from].civ.temper or "calm"]
+            local T = Diplo.temper(g, l.from)
             if Diplo.ratio(g, l.from, l.to) >= T.ratio and g.turn >= D.DIPLO.warFrom
                 and g.turn >= (Diplo.rel(g, l.from, l.to).truce or 0) then
                 Diplo.declare(g, l.from, l.to, "refused")
@@ -1123,6 +1130,8 @@ function Diplo.consider(game, who, from, kind, args)
     local r = Diplo.rel(game, who, from)
     local stage = Cat.stage(game)
     local ease = Diplo.sharedRival(game, who, from) and D.DIPLO.runaway.ease or 0
+    -- A leader who keeps to themself opens up only to a close friend.
+    local closed = Diplo.temper(game, who).closed
     if kind == "peace" then
         if not r.war then return false, "WE ARE NOT AT WAR." end
         -- Not with the one running away with the world.
@@ -1135,12 +1144,14 @@ function Diplo.consider(game, who, from, kind, args)
         return false, "NOT WHILE WE ARE WINNING."
     elseif kind == "borders" then
         if r.war then return false, "NOT WHILE WE ARE AT WAR." end
-        if att >= 5 - ease then return true, "OUR ROADS ARE OPEN TO YOU." end
+        if att >= (closed or 5) - ease then return true, "OUR ROADS ARE OPEN TO YOU." end
+        if closed then return false, "WE KEEP TO OURSELVES." end
         return false, "WE DO NOT WANT YOUR SOLDIERS ON OUR LAND."
     elseif kind == "alliance" then
         if r.war then return false, "NOT WHILE WE ARE AT WAR." end
         if not (r.borders or r.alliance) and ease == 0 then return false, "OPEN YOUR BORDERS TO US FIRST." end
-        if att >= 35 - ease then return true, "WE ARE ONE. WHAT YOU SEE, WE SEE." end
+        if att >= max(35, closed or 0) - ease then return true, "WE ARE ONE. WHAT YOU SEE, WE SEE." end
+        if closed then return false, "WE KEEP TO OURSELVES." end
         return false, "WE DO NOT TRUST YOU ENOUGH FOR THAT."
     elseif kind == "tribute" then
         local gold = args and args.gold or 0
@@ -1258,7 +1269,7 @@ end
 -- or peace, ask for open borders or an alliance, give, demand, plead.
 function Diplo.think(game, p)
     local a = p.id
-    local T = D.DIPLO.TEMPER[p.civ.temper or "calm"] or D.DIPLO.TEMPER.calm
+    local T = Diplo.temper(game, a)
     local rng = game.rng
     local soldiers, cities = 0, #game:citiesOf(a)
     for _, u in ipairs(game.units) do
@@ -1304,6 +1315,8 @@ function Diplo.think(game, p)
                 end
                 ratio = (might + 5) / (Diplo.army(game, b) + 5)
             end
+            -- To an opportunist, one already at war is half again weaker.
+            if T.pounce and Diplo.atWarWithAnyBut(game, b, a) then ratio = ratio * 1.5 end
             if game.turn >= D.DIPLO.warFrom and game.turn >= (r.truce or 0) and not r.alliance
                 and att <= war and ratio >= T.ratio and soldiers >= 2 + cities
                 and not Diplo.atWarWithAny(game, a) and rng:random() < T.chance then
@@ -1312,15 +1325,17 @@ function Diplo.think(game, p)
             elseif T.tribute and ratio >= 1.5 and att < 5 and game.players[b].gold >= 40
                 and game.turn >= D.DIPLO.warFrom and not asked(game, a, b, "tribute", 20) then
                 Diplo.send(game, a, b, "tribute", { gold = Diplo.tributeOf(game, b) })
-            elseif rival and not r.alliance and att >= 40 - ease and not asked(game, a, b, "alliance", 8) then
+            elseif rival and not r.alliance and att >= max(40, T.closed or 0) - ease and not asked(game, a, b, "alliance", 8) then
                 -- Against the runaway, straight to an alliance.
                 Diplo.send(game, a, b, "alliance")
-            elseif not (r.borders or r.alliance) and att >= 20 - ease and game.turn >= D.DIPLO.friendsFrom
+            elseif not T.closed and not (r.borders or r.alliance) and att >= (T.friends or 20) - ease
+                and game.turn >= D.DIPLO.friendsFrom
                 and not asked(game, a, b, "borders") then
                 Diplo.send(game, a, b, "borders")
-            elseif r.borders and not r.alliance and att >= 40 - ease and not asked(game, a, b, "alliance", 15) then
+            elseif not T.closed and r.borders and not r.alliance and att >= 40 - ease
+                and not asked(game, a, b, "alliance", 15) then
                 Diplo.send(game, a, b, "alliance")
-            elseif att >= 30 and p.gold > (p.civ.reserve or 80) + 60 and not asked(game, a, b, "gift", 25) then
+            elseif att >= (T.gift or 30) and p.gold > (p.civ.reserve or 80) + 60 and not asked(game, a, b, "gift", 25) then
                 local gold = Diplo.pay(game, a, b, D.DIPLO.gift)
                 if gold > 0 then
                     Diplo.remember(game, b, a, "gift", gold * D.DIPLO.MEMORY.gift)
