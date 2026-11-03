@@ -1068,10 +1068,18 @@ local function followPlan()
                 local args = ({ war = { why = "land" }, tribute = { gold = 40 }, gift = { gold = 25 }, aid = { gold = 30 },
                     arms = { against = 3 }, refugees = { city = city and city.name or "?", n = 2, cell = city and city.cell },
                     defect = { city = city and city.name or "?", id = city and city.id },
-                    revolt = { city = city and city.name or "?" } })[tab]
-                if tab == "peace" or tab == "arms" then Diplo.declare(g, 2, 1, "land") end
+                    revolt = { city = city and city.name or "?" }, coalition = { with = 3 },
+                    grain = { food = 15, gold = 30, city = city and city.name or "?", id = city and city.id } })[tab]
+                if tab == "peace" or tab == "arms" or tab == "citadel" or tab == "war" then Diplo.declare(g, 2, 1, "land") end
                 if tab == "arms" then Diplo.ally(g, 1, 2) Diplo.rel(g, 2, 3).met = g.turn end
-                l = Diplo.send(g, 2, 1, tab, args)
+                if tab == "quarantine" then Diplo.openBorders(g, 1, 2) Diplo.quarantine(g, 2, 1) end
+                if tab == "rogue" then
+                    local mine = g:citiesOf(1)[1]
+                    if mine then Diplo.goRogue(g, mine) end
+                    l = Diplo.waiting(g, 1)[#Diplo.waiting(g, 1)]
+                else
+                    l = Diplo.send(g, 2, 1, tab, args)
+                end
             end
             if l then Letters.open(l) end
         end

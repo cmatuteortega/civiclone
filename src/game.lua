@@ -1232,6 +1232,7 @@ end
 -- What the city builds next: a band or a ship carrying `gear`, or the
 -- best it can if not said.
 function Game:setBuild(city, kind, id, gear)
+    if city.rogue then return false end
     if kind == "unit" and D.FORMS[id] then id, gear = D.FORMS[id].unit, D.FORMS[id].gear end
     if kind == "unit" and D.UNITS[id] and D.UNITS[id].geared and not gear then
         gear = self:bestGear(self.players[city.owner], id)
@@ -1418,7 +1419,7 @@ function Game:conquer(u, city)
     city.buildings.walls = nil
     -- Its people do not love their conquerors yet (src/loyalty.lua), nor
     -- their old leader them.
-    city.loyalty, city.taken, city.pleading = D.LOYALTY.taken, self.turn, nil
+    city.loyalty, city.taken, city.pleading, city.rogue = D.LOYALTY.taken, self.turn, nil, nil
     Diplo.remember(self, old, u.owner, "tookCity", D.DIPLO.MEMORY.tookCity)
     for _, n in ipairs(self.cells) do
         if n.ownerCity == city then n.owner = u.owner end
@@ -1442,7 +1443,7 @@ function Game:cede(city, to)
     end
     city.owner = to
     city.build, city.prod = nil, 0
-    city.loyalty, city.taken, city.pleading = D.LOYALTY.after, nil, nil
+    city.loyalty, city.taken, city.pleading, city.rogue = D.LOYALTY.after, nil, nil, nil
     for _, n in ipairs(self.cells) do
         if n.ownerCity == city then n.owner = to end
     end
@@ -1849,7 +1850,8 @@ end
 -- A city of this player that has nothing to build.
 function Game:idleCity(owner)
     for _, c in ipairs(self:citiesOf(owner)) do
-        if not c.build then return c end
+        -- A rogue city (src/loyalty.lua) builds nothing for anyone.
+        if not c.build and not c.rogue then return c end
     end
 end
 

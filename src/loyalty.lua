@@ -107,8 +107,9 @@ function Loyalty.parts(game, city)
     return total, parts
 end
 
--- "UNREST", "UPRISING", or nil while the city is content.
+-- "ROGUE", "UNREST", "UPRISING", or nil while the city is content.
 function Loyalty.state(city)
+    if city.rogue then return "ROGUE" end
     local v = Loyalty.of(city)
     if v < D.LOYALTY.uprising then return "UPRISING" end
     if v < D.LOYALTY.unrest then return "UNREST" end
@@ -117,6 +118,7 @@ end
 -- What the city makes of all but food, for its loyalty.
 function Loyalty.factor(city)
     local s = Loyalty.state(city)
+    if s == "ROGUE" then return 0 end
     if s == "UPRISING" then return 0.5 end
     if s == "UNREST" then return 0.75 end
     return 1
@@ -135,9 +137,27 @@ function Loyalty.turn(game, city)
     elseif was >= Y.uprising and now < Y.uprising then
         game:tell(city.owner, "{1} IS IN UPRISING", city.name)
     end
+    -- Rogue: back when its hearts turn, or asked again now and then.
+    if city.rogue then
+        if now >= Y.uprising then
+            Diplo.reclaim(game, city, now)
+            return
+        end
+        if (game.turn - city.rogue) % D.DIPLO.rogue.again == 0 and game.turn > city.rogue then
+            local waiting = false
+            for _, l in ipairs(Diplo.waiting(game, city.owner)) do
+                if l.kind == "rogue" and l.args.id == city.id then waiting = true end
+            end
+            if not waiting then Diplo.send(game, city.owner, city.owner, "rogue", { city = city.name, id = city.id }) end
+        end
+    end
     if now > 0 or city.pleading then return end
     local to = Loyalty.strongest(game, city)
-    if not to then return end
+    -- No one to go over to: it keeps to itself.
+    if not to then
+        Diplo.goRogue(game, city)
+        return
+    end
     if game.players[to].human then
         local l = Diplo.send(game, city.owner, to, "defect", { city = city.name, id = city.id })
         if l then city.pleading = l.id end

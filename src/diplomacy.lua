@@ -114,13 +114,30 @@ function Diplo.mayEnter(game, a, owner)
     if owner == nil or owner == a or a == WILD or owner == WILD then return true end
     local r = find(game, a, owner)
     if not r or not r.met then return true end
-    return r.war or r.borders or r.alliance or false
+    if r.war then return true end
+    -- Shut against the plague (Diplo.quarantine), treaties or none.
+    if r.shut and r.shut[owner] and game.turn < r.shut[owner] then return false end
+    return r.borders or r.alliance or false
+end
+
+-- Is owner's land shut to a against the plague?
+function Diplo.shutTo(game, a, owner)
+    local r = find(game, a, owner)
+    return r ~= nil and r.shut ~= nil and r.shut[owner] ~= nil and game.turn < r.shut[owner]
 end
 
 -- At war with anyone at all?
 function Diplo.atWarWithAny(game, a)
     for b, p in ipairs(game.players) do
         if b ~= a and p.alive and Diplo.atWar(game, a, b) then return true end
+    end
+    return false
+end
+
+-- At war with anyone but b?
+function Diplo.atWarWithAnyBut(game, a, b)
+    for c, p in ipairs(game.players) do
+        if c ~= a and c ~= b and p.alive and Diplo.atWar(game, a, c) then return true end
     end
     return false
 end
@@ -189,7 +206,43 @@ Diplo.MEMORIES = {
     withdrew = "WITHDREW THEIR SOLDIERS", ignored = "IGNORED OUR WARNING", betrayed = "BETRAYED US",
     warmonger = "BREAKS TREATIES", attacked = "DECLARED WAR ON US", tookCity = "TOOK OUR CITIES",
     stirred = "STIRRED OUR PEOPLE TO REVOLT", rebuffed = "REBUFFED OUR OFFER", peace = "MADE PEACE WITH US",
+    fed = "SOLD US GRAIN IN THE FAMINE", hoarded = "KEPT THEIR GRAIN FROM US", quarantined = "SHUT THE SICKNESS OUT WITH US",
 }
+
+--- the runaway --------------------------------------------------------------------------
+
+-- Each civilization's score, once a turn.
+local function scoreOf(game, id)
+    local d = game.diplo
+    if not d.scores or d.scores.turn ~= game.turn then d.scores = { turn = game.turn } end
+    local v = d.scores[id]
+    if not v then
+        v = game:score(game.players[id])
+        d.scores[id] = v
+    end
+    return v
+end
+Diplo.scoreOf = scoreOf
+
+-- Does `a` fear `b` as a runaway: the best score in the world, well ahead
+-- of a's (D.DIPLO.runaway)?
+function Diplo.runaway(game, a, b)
+    local R = D.DIPLO.runaway
+    if a == b or game.turn < R.from or not civ(game, a) or not civ(game, b) then return false end
+    if not game.players[b].alive or not game.players[a].alive then return false end
+    local sb, sa = scoreOf(game, b), scoreOf(game, a)
+    for c, p in ipairs(game.players) do
+        if c ~= b and p.alive and scoreOf(game, c) >= sb then return false end
+    end
+    return sb >= sa * R.ratio and sb >= sa + R.lead
+end
+
+-- The runaway that both a and b fear, if there is one.
+function Diplo.sharedRival(game, a, b)
+    for c, p in ipairs(game.players) do
+        if c ~= a and c ~= b and p.alive and Diplo.runaway(game, a, c) and Diplo.runaway(game, b, c) then return c end
+    end
+end
 
 -- Hexes of a's land beside b's: how hard their borders press.
 local function pressing(game, a, b)
@@ -251,6 +304,10 @@ function Diplo.regard(game, a, b)
     if crowd > 0 then add("THEY CROWD OUR LANDS", -min(N.crowdMost, crowd * N.crowd)) end
     local T = D.DIPLO.TEMPER[game.players[a].civ.temper or "calm"]
     if T and T.tribute and not r.war and Diplo.ratio(game, a, b) >= 1.5 then add("THEY ARE WEAK", -N.weak) end
+    -- Running away with the game: feared; and those who fear the same
+    -- drawn together.
+    if Diplo.runaway(game, a, b) then add("THEY GROW TOO STRONG", -N.tooStrong) end
+    if Diplo.sharedRival(game, a, b) then add("WE SHARE A RIVAL", N.rival) end
     for _, m in ipairs(r.mem[a] or {}) do add(Diplo.MEMORIES[m.what] or m.what, m.v) end
     local total = 0
     for _, p in ipairs(parts) do total = total + p[2] end
@@ -359,10 +416,15 @@ function Diplo.declare(game, a, b, why)
     tellKnown(game, a, b, "{1} HAS DECLARED WAR ON {2}", game.players[a].name, game.players[b].name)
     game:emit({ kind = "war", a = a, b = b })
     if game.players[b].human then Diplo.send(game, a, b, "war", { why = why or "grudge" }) end
-    -- b's allies are called to arms.
+    -- b's allies are called to defend it, and a's to march with it.
     for c, p in ipairs(game.players) do
-        if c ~= a and c ~= b and p.alive and Diplo.allied(game, b, c) then
+        if c ~= a and c ~= b and p.alive and Diplo.allied(game, b, c) and not Diplo.atWar(game, c, a) then
             Diplo.send(game, b, c, "arms", { against = a })
+        end
+    end
+    for c, p in ipairs(game.players) do
+        if c ~= a and c ~= b and p.alive and Diplo.allied(game, a, c) and not Diplo.atWar(game, c, b) then
+            Diplo.send(game, a, c, "arms", { against = b, ours = true })
         end
     end
     return true
@@ -395,6 +457,9 @@ function Diplo.ally(game, a, b)
     r.alliance, r.borders = true, true
     tellKnown(game, a, b, "{1} AND {2} ARE NOW ALLIES", game.players[a].name, game.players[b].name)
     game:emit({ kind = "ally", a = a, b = b })
+    -- Sworn against the runaway: it is told.
+    local c = Diplo.sharedRival(game, a, b)
+    if c and game.players[c].human then Diplo.send(game, a, c, "coalition", { with = b }) end
     game:look(game.players[a])
     game:look(game.players[b])
     return true
@@ -632,6 +697,12 @@ K.aid = {
 K.arms = {
     title = "A CALL TO ARMS",
     lines = function(g, l)
+        if l.args.ours then
+            return {
+                { "WE HAVE MARCHED ON {1}.", g.players[l.args.against].name },
+                { "YOU SWORE TO STAND WITH US. KEEP YOUR OATH, AND MARCH WITH US." },
+            }
+        end
         return {
             { "{1} HAS MADE WAR ON US.", g.players[l.args.against].name },
             { "YOU SWORE TO STAND WITH US. KEEP YOUR OATH, AND MARCH WITH US." },
@@ -648,6 +719,7 @@ K.arms = {
         end
     end,
     ai = function(g, l)
+        if Diplo.runaway(g, l.to, l.args.against) and Diplo.regard(g, l.to, l.args.against) < 30 then return "join" end
         if Diplo.regard(g, l.to, l.from) >= 20 and Diplo.regard(g, l.to, l.args.against) < 30 then return "join" end
         return "no"
     end,
@@ -746,6 +818,209 @@ K.revolt = {
     default = "ok",
 }
 
+K.coalition = {
+    title = "A PACT AGAINST YOU",
+    lines = function(g, l)
+        return {
+            { "{1} AND {2} HAVE SWORN TO STAND TOGETHER.", g.players[l.from].name, g.players[l.args.with].name },
+            { "YOU HAVE GROWN TOO GREAT FOR THE WORLD TO BEAR. WHEN ONE OF US MARCHES ON YOU, THE OTHER WILL FOLLOW." },
+        }
+    end,
+    choices = function() return { choice("ok", "LET THEM COME") } end,
+    apply = function() end,
+    ai = function() return "ok" end,
+    default = "ok",
+}
+
+K.citadel = {
+    title = "A TRUCE AGAINST THE ABYSS",
+    lines = function()
+        return {
+            { "THE ABYSS HAS RAISED ITS CITADEL AMONG US, AND ITS DEMONS DEVOUR OUR TOWNS AND YOURS." },
+            { "WHILE IT STANDS, LET US FIGHT IT AND NOT EACH OTHER. A TRUCE OF {1} TURNS.", D.DIPLO.truce },
+        }
+    end,
+    choices = function() return { choice("yes", "AGAINST THE ABYSS"), choice("no", "WE FIGHT ON") } end,
+    apply = function(g, l, id)
+        if id == "yes" then Diplo.makePeace(g, l.from, l.to)
+        else Diplo.remember(g, l.from, l.to, "rebuffed", D.DIPLO.MEMORY.rebuffed) end
+    end,
+    ai = function(g, l)
+        return (Diplo.citadelStands(g) and Diplo.regard(g, l.to, l.from) > -60) and "yes" or "no"
+    end,
+    default = "no",
+    still = function(g, l) return Diplo.atWar(g, l.from, l.to) end,
+}
+
+-- The city of `who`'s with the most food stored, and that food.
+local function granary(g, who)
+    local best
+    for _, c in ipairs(g:citiesOf(who)) do
+        if not best or c.food > best.food then best = c end
+    end
+    return best, best and best.food or 0
+end
+Diplo.granary = granary
+
+K.grain = {
+    title = "GRAIN FOR GOLD",
+    lines = function(g, l)
+        return {
+            { "THE FAMINE HAS COME TO {1}. OUR GRANARIES ARE DUST.", l.args.city },
+            { "SELL US {1} FOOD FROM YOUR STORES, AND WE WILL PAY {2} GOLD.", l.args.food, l.args.gold },
+            { "IT IS TAKEN FROM THE CITY OF YOURS WITH THE MOST STORED." },
+        }
+    end,
+    choices = function(g, l)
+        local _, food = granary(g, l.to)
+        return { choice("sell", "SELL THE GRAIN", nil, food < l.args.food), choice("no", "KEEP IT") }
+    end,
+    apply = function(g, l, id)
+        local M = D.DIPLO.MEMORY
+        local from = g:cityById(l.args.id)
+        local store, food = granary(g, l.to)
+        if id == "sell" and store and food >= l.args.food and from and from.owner == l.from then
+            store.food = store.food - l.args.food
+            from.food = from.food + l.args.food
+            local gold = Diplo.pay(g, l.from, l.to, l.args.gold)
+            g:tell(l.to, "{1} SOLD {2} FOOD TO {3} FOR {4} GOLD", store.name, l.args.food, from.name, gold)
+            g:tell(l.from, "{1} BOUGHT {2} FOOD FROM {3}", from.name, l.args.food, g.players[l.to].name)
+            Diplo.remember(g, l.from, l.to, "fed", M.fed)
+        else
+            Diplo.remember(g, l.from, l.to, "hoarded", M.hoarded)
+        end
+    end,
+    ai = function(g, l)
+        local _, food = granary(g, l.to)
+        if food >= l.args.food + 5 and Diplo.regard(g, l.to, l.from) >= -10 and not Diplo.starving(g, l.to) then return "sell" end
+        return "no"
+    end,
+    default = "no",
+    still = function(g, l)
+        local c = g:cityById(l.args.id)
+        return c ~= nil and c.owner == l.from and not Diplo.atWar(g, l.from, l.to)
+    end,
+}
+
+K.quarantine = {
+    title = "BORDERS SHUT AGAINST THE PLAGUE",
+    lines = function(g, l)
+        return {
+            { "THE PLAGUE IS IN YOUR TOWNS. WE HAVE SHUT OUR BORDERS TO YOUR PEOPLE FOR {1} TURNS.", D.DIPLO.quarantine },
+            { "SHUT YOURS TO OURS AS WELL, AND THE SICKNESS WILL HAVE NO ROAD EITHER WAY." },
+        }
+    end,
+    choices = function() return { choice("shut", "SHUT OURS TOO"), choice("open", "KEEP OURS OPEN") } end,
+    apply = function(g, l, id)
+        if id == "shut" then
+            Diplo.quarantine(g, l.to, l.from)
+            Diplo.remember(g, l.from, l.to, "quarantined", D.DIPLO.MEMORY.quarantined)
+        end
+    end,
+    ai = function(g, l)
+        for _, c in ipairs(g:citiesOf(l.to)) do if c.sick then return "open" end end
+        return "shut"
+    end,
+    default = "open",
+}
+
+K.rogue = {
+    title = "A CITY GOES ROGUE",
+    lines = function(g, l)
+        return {
+            { "THE PEOPLE OF {1} NO LONGER HEED YOU. THEY KEEP THEIR GRAIN, THEIR GOLD AND THEIR GATES.", l.args.city },
+            { "THEIR ELDERS WILL HEAR YOU. BUY BACK THEIR GOODWILL, SEND IN SOLDIERS, OR WAIT FOR THEIR HEARTS TO TURN." },
+            { "SOLDIERS COST THE CITY A CITIZEN." },
+        }
+    end,
+    choices = function(g, l)
+        local city = g:cityById(l.args.id)
+        local cost = city and Diplo.rogueCost(city) or 0
+        return {
+            choice("pay", "PAY {1} GOLD", { cost }, g.players[l.to].gold < cost),
+            choice("force", "SEND IN SOLDIERS", nil, not (city and Diplo.soldiersAt(g, city))),
+            choice("wait", "WAIT"),
+        }
+    end,
+    apply = function(g, l, id)
+        local city = g:cityById(l.args.id)
+        if not city or not city.rogue then return end
+        local Y = D.DIPLO.rogue
+        if id == "pay" and g.players[l.to].gold >= Diplo.rogueCost(city) then
+            g.players[l.to].gold = g.players[l.to].gold - Diplo.rogueCost(city)
+            Diplo.reclaim(g, city, Y.bought)
+        elseif id == "force" and Diplo.soldiersAt(g, city) then
+            city.pop = math.max(1, city.pop - 1)
+            g:assignWork(city)
+            Diplo.reclaim(g, city, Y.forced)
+        end
+    end,
+    ai = function(g, l)
+        local city = g:cityById(l.args.id)
+        if not city then return "wait" end
+        local p = g.players[l.to]
+        if p.gold >= Diplo.rogueCost(city) + (p.civ.reserve or 80) / 2 then return "pay" end
+        if Diplo.soldiersAt(g, city) then return "force" end
+        return "wait"
+    end,
+    default = "wait",
+    still = function(g, l)
+        local c = g:cityById(l.args.id)
+        return c ~= nil and c.rogue ~= nil and c.owner == l.to
+    end,
+    signed = function(g, l) return L("THE ELDERS OF {1}", l.args.city) end,
+}
+
+--- the cataclysm's own business ----------------------------------------------------------
+
+function Diplo.citadelStands(game)
+    local lair = require("src.demons").citadel(game)
+    return lair ~= nil and (lair.hp or 0) > 0
+end
+
+-- a's land shut to b against the plague, for D.DIPLO.quarantine turns.
+function Diplo.quarantine(game, a, b)
+    local r = Diplo.rel(game, a, b)
+    r.shut = r.shut or {}
+    r.shut[a] = game.turn + D.DIPLO.quarantine
+    Diplo.expel(game, b, a)
+end
+
+--- rogue cities --------------------------------------------------------------------------
+
+function Diplo.rogueCost(city)
+    local Y = D.DIPLO.rogue
+    return Y.base + Y.perPop * city.pop
+end
+
+-- A soldier of the owner's in the city or beside it.
+function Diplo.soldiersAt(game, city)
+    for _, n in ipairs(game:within(game.cells[city.cell], 1)) do
+        local m = game.mil[n.id]
+        if m and m.owner == city.owner and not m.def.civilian then return m end
+    end
+end
+
+-- City `city` has no loyalty left and no one to go over to: it keeps to
+-- itself (src/loyalty.lua), and its elders write to its owner.
+function Diplo.goRogue(game, city)
+    if city.rogue then return end
+    city.rogue = game.turn
+    city.loyalty = 0
+    city.build, city.prod = nil, 0
+    game:tell(city.owner, "{1} HAS GONE ROGUE", city.name)
+    game:emit({ kind = "rogue", cell = city.cell, city = city })
+    Diplo.send(game, city.owner, city.owner, "rogue", { city = city.name, id = city.id })
+end
+
+-- The rogue city back in the fold, at `loyalty`.
+function Diplo.reclaim(game, city, loyalty)
+    city.rogue = nil
+    city.loyalty = math.max(city.loyalty or 0, loyalty)
+    game:tell(city.owner, "{1} HAS RETURNED TO THE FOLD", city.name)
+    game:emit({ kind = "reclaimed", cell = city.cell, city = city })
+end
+
 -- Sends a letter. To the computer it is answered at once; to the player it
 -- waits in the mail, and the answer is theirs. Answers the letter.
 function Diplo.send(game, from, to, kind, args)
@@ -754,9 +1029,13 @@ function Diplo.send(game, from, to, kind, args)
     local l = { id = d.nextMail, turn = game.turn, from = from, to = to, kind = kind, args = args or {},
         due = game.turn + D.DIPLO.answer }
     d.nextMail = d.nextMail + 1
-    local rel = Diplo.rel(game, from, to)
-    rel.asked[from] = rel.asked[from] or {}
-    rel.asked[from][kind] = game.turn
+    -- A letter from one's own people (a rogue city's elders) asks nothing
+    -- of another civilization.
+    if from ~= to then
+        local rel = Diplo.rel(game, from, to)
+        rel.asked[from] = rel.asked[from] or {}
+        rel.asked[from][kind] = game.turn
+    end
     if game.players[to].human then
         d.mail[#d.mail + 1] = l
         while #d.mail > D.DIPLO.keep do
@@ -843,19 +1122,25 @@ function Diplo.consider(game, who, from, kind, args)
     local att = Diplo.regard(game, who, from)
     local r = Diplo.rel(game, who, from)
     local stage = Cat.stage(game)
+    local ease = Diplo.sharedRival(game, who, from) and D.DIPLO.runaway.ease or 0
     if kind == "peace" then
         if not r.war then return false, "WE ARE NOT AT WAR." end
+        -- Not with the one running away with the world.
+        if Diplo.runaway(game, who, from) and Diplo.atWarWithAnyBut(game, from, who) then
+            return false, "NOT UNTIL YOU ARE BROUGHT LOW."
+        end
+        if Diplo.citadelStands(game) and att > -60 then return true, "AGAINST THE ABYSS, THEN. TOGETHER." end
         if game.turn - (r.since or 0) < 5 then return false, "IT IS TOO SOON. LET THE BLOOD DRY FIRST." end
         if Diplo.ratio(game, who, from) < 1.3 or att > -30 or stage then return true, "ENOUGH. LET THERE BE PEACE." end
         return false, "NOT WHILE WE ARE WINNING."
     elseif kind == "borders" then
         if r.war then return false, "NOT WHILE WE ARE AT WAR." end
-        if att >= 5 then return true, "OUR ROADS ARE OPEN TO YOU." end
+        if att >= 5 - ease then return true, "OUR ROADS ARE OPEN TO YOU." end
         return false, "WE DO NOT WANT YOUR SOLDIERS ON OUR LAND."
     elseif kind == "alliance" then
         if r.war then return false, "NOT WHILE WE ARE AT WAR." end
-        if not (r.borders or r.alliance) then return false, "OPEN YOUR BORDERS TO US FIRST." end
-        if att >= 35 then return true, "WE ARE ONE. WHAT YOU SEE, WE SEE." end
+        if not (r.borders or r.alliance) and ease == 0 then return false, "OPEN YOUR BORDERS TO US FIRST." end
+        if att >= 35 - ease then return true, "WE ARE ONE. WHAT YOU SEE, WE SEE." end
         return false, "WE DO NOT TRUST YOU ENOUGH FOR THAT."
     elseif kind == "tribute" then
         local gold = args and args.gold or 0
@@ -872,7 +1157,7 @@ function Diplo.asks(game, a, b)
     local p = game.players[a]
     local out = {}
     if r.war then
-        out[#out + 1] = { kind = "peace", label = "OFFER PEACE" }
+        out[#out + 1] = { kind = "peace", label = Diplo.citadelStands(game) and "TRUCE AGAINST THE ABYSS" or "OFFER PEACE" }
     else
         local truce = r.truce and game.turn < r.truce
         out[#out + 1] = { kind = "war", label = "DECLARE WAR", off = truce and true or nil,
@@ -952,11 +1237,20 @@ local function soldiersIn(game, a, b)
     return n
 end
 
+-- The hungriest city of id's that is starving, if one is.
 local function starving(game, id)
+    local worst, wv
     for _, c in ipairs(game:citiesOf(id)) do
         local f = game:cityYield(c)
-        if f < c.pop * 2 then return true end
+        local v = f - c.pop * 2
+        if v < 0 and (not wv or v < wv) then worst, wv = c, v end
     end
+    return worst
+end
+Diplo.starving = starving
+
+local function sickIn(game, id)
+    for _, c in ipairs(game:citiesOf(id)) do if c.sick then return true end end
     return false
 end
 
@@ -975,14 +1269,41 @@ function Diplo.think(game, p)
         local r = Diplo.rel(game, a, b)
         local att = Diplo.regard(game, a, b)
         local ratio = Diplo.ratio(game, a, b)
+        local rival = Diplo.sharedRival(game, a, b)
+        local ease = rival and D.DIPLO.runaway.ease or 0
+        local hungry = stage and stage ~= "omen" and starving(game, a)
         if r.war then
             local long = game.turn - (r.since or 0) >= 8
-            if long and not asked(game, a, b, "peace", 6) and (ratio < 0.9 or att > -20 or stage)
+            local runaway = Diplo.runaway(game, a, b)
+            if Diplo.citadelStands(game) and not runaway and not asked(game, a, b, "citadel", 8) then
+                -- The abyss first: a truce to raze its citadel.
+                Diplo.send(game, a, b, "citadel")
+            elseif long and not runaway and not asked(game, a, b, "peace", 6) and (ratio < 0.9 or att > -20 or stage)
                 and rng:random() < 0.4 then
                 Diplo.send(game, a, b, "peace")
             end
+        elseif hungry and att >= -10 and p.gold >= 15 and not asked(game, a, b, "grain", 6)
+            and select(2, granary(game, b)) >= D.DIPLO.grain.food then
+            -- The famine: grain bought from a neighbour with some to spare.
+            local G = D.DIPLO.grain
+            Diplo.send(game, a, b, "grain", { food = G.food, gold = min(G.gold, p.gold), city = hungry.name, id = hungry.id })
+        elseif Cat.is(game, "plague") and stage and stage ~= "omen" and Diplo.open(game, a, b)
+            and not Diplo.shutTo(game, b, a) and sickIn(game, b) and not sickIn(game, a) then
+            -- The plague: the healthy shut their land to the sick.
+            Diplo.quarantine(game, a, b)
+            Diplo.send(game, a, b, "quarantine")
         else
             local war = T.war - (stage and 15 or 0)
+            -- Against the runaway, the coalition's might counts together.
+            if Diplo.runaway(game, a, b) then
+                local might = Diplo.army(game, a)
+                for c, q in ipairs(game.players) do
+                    if c ~= a and c ~= b and q.alive and Diplo.allied(game, a, c) and Diplo.runaway(game, c, b) then
+                        might = might + Diplo.army(game, c)
+                    end
+                end
+                ratio = (might + 5) / (Diplo.army(game, b) + 5)
+            end
             if game.turn >= D.DIPLO.warFrom and game.turn >= (r.truce or 0) and not r.alliance
                 and att <= war and ratio >= T.ratio and soldiers >= 2 + cities
                 and not Diplo.atWarWithAny(game, a) and rng:random() < T.chance then
@@ -991,10 +1312,13 @@ function Diplo.think(game, p)
             elseif T.tribute and ratio >= 1.5 and att < 5 and game.players[b].gold >= 40
                 and game.turn >= D.DIPLO.warFrom and not asked(game, a, b, "tribute", 20) then
                 Diplo.send(game, a, b, "tribute", { gold = Diplo.tributeOf(game, b) })
-            elseif not (r.borders or r.alliance) and att >= 20 and game.turn >= D.DIPLO.friendsFrom
+            elseif rival and not r.alliance and att >= 40 - ease and not asked(game, a, b, "alliance", 8) then
+                -- Against the runaway, straight to an alliance.
+                Diplo.send(game, a, b, "alliance")
+            elseif not (r.borders or r.alliance) and att >= 20 - ease and game.turn >= D.DIPLO.friendsFrom
                 and not asked(game, a, b, "borders") then
                 Diplo.send(game, a, b, "borders")
-            elseif r.borders and not r.alliance and att >= 40 and not asked(game, a, b, "alliance", 15) then
+            elseif r.borders and not r.alliance and att >= 40 - ease and not asked(game, a, b, "alliance", 15) then
                 Diplo.send(game, a, b, "alliance")
             elseif att >= 30 and p.gold > (p.civ.reserve or 80) + 60 and not asked(game, a, b, "gift", 25) then
                 local gold = Diplo.pay(game, a, b, D.DIPLO.gift)

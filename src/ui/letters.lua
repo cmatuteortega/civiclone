@@ -176,9 +176,8 @@ function Letters.drawStack()
             rect("o", x + Letters.W - 2, ey - 2, 4, 4)
             rect("w", x + Letters.W - 1, ey - 1, 2, 2)
         end
-        local p = g().players[l.from]
         hoverTip(x, ey, Letters.W, Letters.H, {
-            L("A LETTER FROM {1}", L("{1} OF {2}", p.civ.leader, p.name)),
+            L("A LETTER FROM {1}", Diplo.signed(g(), l)),
             L(Diplo.KINDS[l.kind].title),
             asks and L("AN ANSWER IS WANTED IN {1} TURNS", max(0, l.due - g().turn + 1)) or L"CLICK TO READ",
         }, nil)
@@ -231,7 +230,7 @@ local function letterWindow()
             for dx = x + 5, x + ww - 6, 3 do rect("w", dx, y + 1, 1, 1) end
             -- The head: the seal, who sends it, and when.
             bigSeal(x + 7, y + 6, teamOf(l.from))
-            text("o", L("FROM {1}", L("{1} OF {2}", p.civ.leader, p.name)), x + 24, y + 7)
+            text("o", L("FROM {1}", Diplo.signed(g(), l)), x + 24, y + 7)
             text("n", L("TURN {1}", l.turn) .. "  " .. D.year(l.turn), x + 24, y + 15)
             for dx = x + 7, x + ww - 8, 2 do rect("t", dx, y + 23, 1, 1) end
             local yy = y + 27
@@ -239,6 +238,17 @@ local function letterWindow()
                 if line then text("o", line, x + 8, yy) yy = yy + 7 else yy = yy + 3 end
             end
             yy = yy + 4
+            if l.from == l.to then
+                -- From one's own people: how the city stands instead.
+                local city = l.args.id and g():cityById(l.args.id)
+                rect("t", x + 7, yy - 2, ww - 14, 20)
+                Draw.frame("s", x + 7, yy - 2, ww - 14, 20)
+                if city then
+                    text("o", L("LOYALTY {1}", floor(Loyalty.of(city))) .. "   " .. L("CITIZENS {1}", city.pop), x + 10, yy + 1)
+                    text("u", L("YOUR TREASURY {1}", g().players[l.to].gold), x + 10, yy + 9)
+                end
+                yy = yy + 22
+            else
             -- How things stand: the stance, the regard, the might of each.
             local st = Diplo.stance(g(), l.to, l.from)
             local v = Diplo.regard(g(), l.from, l.to)
@@ -252,10 +262,11 @@ local function letterWindow()
             local mine, theirs = Diplo.army(g(), l.to), Diplo.army(g(), l.from)
             text("u", L("THEIR CITIES {1}   THEIR MIGHT {2}   YOURS {3}", #g():citiesOf(l.from), theirs, mine), x + 10, yy + 9)
             yy = yy + 22
+            end
             -- The signature and motto, to the right.
             local sign = "- " .. Diplo.signed(g(), l)
             text("o", sign, x + ww - 10 - Font.width(sign), yy)
-            if not K.signed then
+            if not K.signed and l.from ~= l.to then
                 local motto = '"' .. L(p.civ.motto or "") .. '"'
                 text("n", motto, x + ww - 10 - Font.width(motto), yy + 8)
             end

@@ -140,6 +140,7 @@ local ICONS = {
     -- Diplomacy and loyalty (src/ui/letters.lua).
     letter = { "#####", "##.##", "#.#.#", "#...#", "#####" },
     unrest = { "..#..", "..#..", "..#..", ".....", "..#.." },
+    rogue = { "##.##", "#...#", ".....", "#...#", "##.##" },
 }
 Draw.ICONS = ICONS
 

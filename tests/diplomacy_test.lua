@@ -230,6 +230,115 @@ return {
         Diplo.ensure(g)
         assert(Diplo.atWar(g, 1, 2) and Diplo.atWar(g, 2, 3))
     end },
+    { "the leader running away with the game is feared, and its rivals band together against it", function()
+        local g = newGame()
+        g.turn = D.DIPLO.runaway.from + 5
+        for a = 1, 3 do for b = a + 1, 3 do Diplo.meet(g, a, b) end end
+        for _, l in ipairs(Diplo.waiting(g, 1)) do Diplo.answer(g, l, "welcome") end
+        -- The scores this turn: the player far ahead.
+        g.diplo.scores = { turn = g.turn, [1] = 300, [2] = 100, [3] = 100 }
+        assert(Diplo.runaway(g, 2, 1) and Diplo.runaway(g, 3, 1) and not Diplo.runaway(g, 1, 2))
+        local function has(a, b, words)
+            local _, parts = Diplo.regard(g, a, b)
+            for _, p in ipairs(parts) do if p[1] == words then return true end end
+        end
+        assert(has(2, 1, "THEY GROW TOO STRONG"))
+        assert(has(2, 3, "WE SHARE A RIVAL") and Diplo.sharedRival(g, 2, 3) == 1)
+        -- An alliance against it, without open borders first.
+        assert(Diplo.consider(g, 3, 2, "alliance"), "allies against the runaway")
+        Diplo.ally(g, 2, 3)
+        local told = false
+        for _, l in ipairs(Diplo.waiting(g, 1)) do if l.kind == "coalition" then told = true end end
+        assert(told, "the player is told of the pact")
+        -- One marches, the other is called and follows.
+        Diplo.declare(g, 2, 1, "weak")
+        assert(Diplo.atWar(g, 3, 1), "the ally marched too")
+        -- And no peace for the runaway while it fights the other.
+        g.turn = g.turn + 10
+        g.diplo.scores = { turn = g.turn, [1] = 300, [2] = 100, [3] = 100 }
+        assert(not Diplo.consider(g, 2, 1, "peace"))
+    end },
+    { "a truce against the abyss makes peace", function()
+        local g = newGame()
+        Diplo.meet(g, 1, 2)
+        Diplo.declare(g, 2, 1, "weak")
+        local l = Diplo.send(g, 2, 1, "citadel")
+        Diplo.answer(g, l, "yes")
+        assert(not Diplo.atWar(g, 1, 2) and Diplo.rel(g, 1, 2).truce > g.turn)
+    end },
+    { "grain sold in the famine moves food one way and gold the other", function()
+        local g = newGame()
+        local theirs = rivalCity(g)
+        local mine = g:found(find(g, 1, "settler"))
+        Diplo.meet(g, 1, 2)
+        mine.food, theirs.food = 40, 0
+        g.players[1].gold, g.players[2].gold = 0, 50
+        local G = D.DIPLO.grain
+        local l = Diplo.send(g, 2, 1, "grain", { food = G.food, gold = G.gold, city = theirs.name, id = theirs.id })
+        Diplo.answer(g, l, "sell")
+        assert(mine.food == 40 - G.food and theirs.food == G.food)
+        assert(g.players[1].gold == G.gold and g.players[2].gold == 50 - G.gold)
+        -- With nothing stored, there is nothing to sell.
+        mine.food = 0
+        local l2 = Diplo.send(g, 2, 1, "grain", { food = G.food, gold = G.gold, city = theirs.name, id = theirs.id })
+        Diplo.answer(g, l2, "sell")
+        assert(l2.answer == "no")
+    end },
+    { "under the plague a land is shut to the sick, open borders or not", function()
+        local g = newGame()
+        rivalCity(g)
+        Diplo.meet(g, 1, 2)
+        Diplo.openBorders(g, 1, 2)
+        Diplo.quarantine(g, 2, 1)
+        assert(not Diplo.mayEnter(g, 1, 2) and Diplo.mayEnter(g, 2, 1), "theirs is shut to us, ours still open")
+        local l = Diplo.send(g, 2, 1, "quarantine")
+        Diplo.answer(g, l, "shut")
+        assert(not Diplo.mayEnter(g, 2, 1), "and ours to them")
+        g.turn = g.turn + D.DIPLO.quarantine
+        assert(Diplo.mayEnter(g, 1, 2) and Diplo.mayEnter(g, 2, 1), "until it passes")
+    end },
+    { "a city with no loyalty and no one to go to goes rogue, and is won back", function()
+        local g = newGame()
+        local city = g:found(find(g, 1, "settler"))
+        city.capital = false
+        city.pop = 3
+        g:assignWork(city)
+        local f = g:cityYield(city)
+        -- Its loyalty falls to nothing with no foreigner near.
+        local parts = Loyalty.parts
+        Loyalty.parts = function() return -50, {} end
+        city.loyalty = 10
+        Loyalty.turn(g, city)
+        Loyalty.parts = parts
+        assert(city.rogue and city.owner == 1 and Loyalty.state(city) == "ROGUE")
+        local f2, p2, gold2, sci2 = g:cityYield(city)
+        assert(f2 == f and p2 == 0 and gold2 == 0 and sci2 == 0, "it keeps all but its food")
+        assert(not g:setBuild(city, "unit", "band") and g:idleCity(1) ~= city, "and builds nothing")
+        local l = Diplo.waiting(g, 1)[1]
+        assert(l and l.kind == "rogue" and l.from == 1)
+        -- Bought back.
+        local cost = Diplo.rogueCost(city)
+        g.players[1].gold = cost
+        Diplo.answer(g, l, "pay")
+        assert(not city.rogue and g.players[1].gold == 0 and Loyalty.of(city) == D.DIPLO.rogue.bought)
+        -- Rogue again, and taken back by soldiers, at a citizen's cost:
+        -- none near at first.
+        for _, u in ipairs(g:unitsOf(1)) do if not u.def.civilian then g:removeUnit(u) end end
+        Diplo.goRogue(g, city)
+        local l2 = Diplo.waiting(g, 1)[1]
+        Diplo.answer(g, l2, "force")
+        assert(city.rogue, "no soldier near, no force")
+        Diplo.goRogue(g, city)
+        g:addUnit("warrior", 1, g:freeNear(city.cell, false) or city.cell)
+        local l3 = Diplo.send(g, 1, 1, "rogue", { city = city.name, id = city.id })
+        Diplo.answer(g, l3, "force")
+        assert(not city.rogue and city.pop == 2)
+        -- Or its hearts turn by themselves.
+        Diplo.goRogue(g, city)
+        city.loyalty = D.LOYALTY.uprising + 5
+        Loyalty.turn(g, city)
+        assert(not city.rogue, "back by itself")
+    end },
     { "the computer's leaders make war and peace over a whole game", function()
         local g = Game.new({ seed = 8, allAI = true, cataclysm = "heat" })
         local wars, peaces, met = 0, 0, 0

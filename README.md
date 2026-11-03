@@ -455,7 +455,14 @@ do: zoom in and out, next unit, go to the capital, the hex grid and sound.
   capital, a garrison and a ward against the end, worn by hunger, the enemy
   at the gates, a new conquest and the dread of the end. Under 50 a city is
   in unrest and makes a quarter less of all but food, under 25 half; at
-  nothing it goes over to whoever pulls hardest on it.
+  nothing it goes over to whoever pulls hardest on it, or, with no one
+  pulling, goes rogue until you buy it back, send in soldiers, or win its
+  heart again.
+- **The end of the world moves diplomacy.** Enemies offer a truce to raze
+  the abyss's citadel, the starving buy grain for gold, the healthy shut
+  their borders to the plague, the homeless beg shelter. And whoever runs
+  away with the game is feared: those it leaves behind ally against it and
+  march together.
 
 ![A letter: an envoy arrives](shots/68-letter.png)
 ![Diplomacy](shots/69-diplomacy.png)

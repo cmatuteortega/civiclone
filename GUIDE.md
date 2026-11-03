@@ -1016,13 +1016,16 @@ the sum of:
 | Borders pressing (their hexes beside ours) | −1 a hex, −12 at most |
 | Their cities within 7 hexes of ours | −4 each, −12 at most |
 | A warlike leader, half again as strong | −15 ("they are weak") |
+| They are running away with the game (below) | −20 ("they grow too strong") |
+| Both fear the same runaway | +15 ("we share a rival") |
 
 and what they remember: welcomed envoy +8, sent away −12, gifts +0.4 a
 gold, tribute paid +10, refused −15, demands made −10, aid sent +15,
 denied −10, refugees sheltered +12, turned away −10, a call to arms
 answered +20, refused −15, soldiers withdrawn +5, a warning ignored −12,
 declared war on us −15, took our cities −25, stirred our people to revolt
-−20, an offer rebuffed −5, peace made +10. Each kind adds up to ±25 at most,
+−20, an offer rebuffed −5, peace made +10, grain sold in the famine +10,
+grain kept back −5, borders shut together against the plague +8. Each kind adds up to ±25 at most,
 and fades 0.5 a turn. The words: hostile (−40 or less), wary (to −10),
 neutral (to 15), friendly (to 45), devoted.
 
@@ -1050,6 +1053,49 @@ wants an answer. A letter left 5 turns takes its default answer.
 | Soldiers on our land | A neighbour with 3+ of your soldiers on its land | Withdraw them (moved off at once), we go where we please* |
 | A city wishes to join you | The people of a city with no loyalty left | Welcome them, leave them be* |
 | A city is lost | Whoever took your city by its loyalty | So be it |
+| A pact against you | Two rivals allied against you as a runaway | Let them come |
+| A truce against the abyss | An enemy, while the demons' citadel stands | Against the abyss (peace and a truce), we fight on* |
+| Grain for gold | A neighbour starving under the cataclysm | Sell 15 food (from your city with the most stored) for up to 30 gold, keep it* |
+| Borders shut against the plague | A healthy neighbour with open borders, your towns sick | Shut ours too, keep ours open* (their land is shut to you either way) |
+| A city goes rogue | The elders of a city of yours | Pay, send in soldiers, wait* |
+
+### The runaway
+
+From turn 60, the civilization with the best score is a **runaway** to
+any other whose score it beats by a quarter and by 10 points or more. A
+runaway is feared: −20 regard. Two who fear the same runaway share a
+rival: +15 to each other, and they are drawn into a coalition:
+
+- they open borders and propose alliances at a regard 25 lower, and may
+  ally straight away, without open borders first; the runaway, if it is
+  you, gets a letter: **a pact against you**
+- weighing war on the runaway, a leader counts its allies' might with its
+  own
+- when one declares war, each of its allies is **called to arms** too (an
+  ally that fears the target always answers), as allies are when attacked
+- none offers the runaway peace, and none accepts it while the runaway is
+  at war with another of them
+
+Once the end is foretold leaders make war less (their threshold is 15
+lower), so late in the game a coalition more often means no friendly deals
+than an army at the gates.
+
+### The cataclysm's own deals
+
+- **Under the abyss**, while the demons' citadel stands, an enemy first
+  offers a **truce against the abyss** (every 8 turns) rather than plain
+  peace, and anyone accepts one at a regard over −60. **OFFER PEACE** in the
+  diplomacy window becomes **TRUCE AGAINST THE ABYSS**.
+- **In the famine** (any cataclysm past its omen), a leader with a city
+  starving and 15 gold buys **grain**: 15 food from the neighbour's city
+  with the most stored, for up to 30 gold, put into its hungriest city. The
+  computer sells if it has 5 more than that stored, is not starving, and
+  thinks better than −10 of the buyer.
+- **Under the plague**, a leader with no sick towns and open borders to a
+  civilization with sick ones **shuts its land** to it for 10 turns, open
+  borders or alliance notwithstanding, and asks it to shut its own in turn.
+- **Refugees** from towns sunk by the deluge or starving under any
+  cataclysm beg shelter, as above.
 
 ### The diplomacy window
 
@@ -1117,8 +1163,23 @@ does: to the computer at once (the garrison going with it), to you only if
 you welcome it (a letter); left be, it settles at 30. Its old owner
 remembers who took it.
 
+With no one pulling on it, it goes **rogue**: it keeps all but its food
+(no production, gold, science or culture), and builds nothing. Its elders
+write to its owner (again every 8 turns while it is rogue):
+
+- **Pay** 20 gold and 10 a citizen: back at loyalty 50
+- **Send in soldiers**, one of yours in or beside the city: back at 35, a
+  citizen lost
+- **Wait**: its loyalty still moves each turn, and at 25 it returns by
+  itself
+
+A rogue city that a foreigner comes to pull on goes over to them at 0 as
+any other. The computer pays when it has the gold over half its reserve,
+else sends soldiers if it can.
+
 The city panel shows the loyalty, a bar, how it moves a turn and why
-(hover); the city's banner shows a mark in unrest, blinking in uprising.
+(hover); the city's banner shows a mark in unrest, blinking in uprising,
+and a broken banner, pale on ink, once it is rogue.
 
 ## The wild
 

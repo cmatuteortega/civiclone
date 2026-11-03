@@ -1053,13 +1053,31 @@ D.DIPLO = {
         crowd = 4,      -- for each city of theirs within `crowdReach` of one of ours
         crowdMost = 12, crowdReach = 7,
         weak = 15,      -- a warlike leader's scorn for one it is half again as strong as
+        tooStrong = 20, -- for the leader running away with the game (`runaway`)
+        rival = 15,     -- for another who fears the same runaway leader
     },
+    -- A runaway: from turn `from`, the civilization with the best score,
+    -- `ratio` times as much as another's and `lead` more, is feared by it.
+    -- Two who fear it are drawn together: they open borders and swear
+    -- alliances at a regard `ease` lower, and call each other to war on it.
+    runaway = { from = 60, ratio = 1.25, lead = 10, ease = 25 },
+    -- The cataclysm's own deals. Grain: a hungry civilization buys `food`
+    -- for its hungriest city for up to `gold`, from a city of the seller's
+    -- with that much stored. Quarantine: under the plague, a land shut to
+    -- the sick for `turns`.
+    grain = { food = 15, gold = 30 },
+    quarantine = 10,
+    -- A city gone rogue (src/loyalty.lua): won back for `base` gold and
+    -- `perPop` a citizen, or by soldiers at the cost of a citizen; asked
+    -- again every `again` turns while it is rogue.
+    rogue = { base = 20, perPop = 10, bought = 50, forced = 35, again = 8 },
     -- What is remembered, by what was done.
     MEMORY = {
         welcomed = 8, sentAway = -12, gift = 0.4, paid = 10, refused = -15, demanded = -10,
         aided = 15, deniedAid = -10, sheltered = 12, turnedAway = -10, joined = 20, stayedOut = -15,
         withdrew = 5, ignored = -12, betrayed = -35, warmonger = -10, attacked = -15, tookCity = -25,
         stirred = -20, rebuffed = -5, peace = 10,
+        fed = 10, hoarded = -5, quarantined = 8,
     },
     -- How each kind of leader goes to war and asks for tribute: at or under
     -- `war` regard, at least `ratio` times as strong, by `chance` a turn.

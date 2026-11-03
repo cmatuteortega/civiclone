@@ -938,7 +938,12 @@ local function cityBanner(c)
     -- Unrest (src/loyalty.lua): a mark after the name; in uprising, ink on
     -- pale and blinking.
     local loyal = c.loyalty or 100
-    if loyal < D.LOYALTY.unrest then
+    if c.rogue then
+        -- Gone rogue: ink, its banner broken.
+        Draw.rect("w", ex - 1, y - 1, 9, 11)
+        Draw.rect("o", ex, y, 7, 9)
+        Draw.icon("rogue", ex + 1, y + 2, "w")
+    elseif loyal < D.LOYALTY.unrest then
         local up = loyal < D.LOYALTY.uprising
         local on = not up or floor(S.clock * 2) % 2 == 0
         Draw.rect("o", ex - 1, y - 1, 9, 11)
