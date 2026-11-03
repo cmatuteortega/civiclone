@@ -1,7 +1,7 @@
 # HEXTINCT: the guide
 
 Everything the game does, and every number behind it, as built. The rules
-live in `src/game.lua` and `src/ai.lua`. Every number is in `src/defs.lua`, so
+live in `src/game.lua` and `src/ai.lua`, with `src/diplomacy.lua` and `src/loyalty.lua`. Every number is in `src/defs.lua`, so
 that is the file to edit to tune the game.
 
 1. [Starting a game](#starting-a-game) · [Keeping a game](#keeping-a-game)
@@ -19,7 +19,7 @@ that is the file to edit to tune the game.
 13. [Science](#science)
 14. [The sea](#the-sea)
 15. [Sight and fog of war](#sight-and-fog-of-war)
-16. [The rival civilizations](#the-rival-civilizations)
+16. [The rival civilizations](#the-rival-civilizations) · [Diplomacy](#diplomacy) · [Loyalty](#loyalty)
 17. [The wild](#the-wild) · [The weather](#the-weather)
 18. [The heat death](#the-heat-death) · [The deluge](#the-deluge) · [The sky falls](#the-sky-falls) · [The abyss](#the-abyss) · [The still sun](#the-still-sun) · [The plague](#the-plague) · [The shattering](#the-shattering)
 19. [Winning and losing](#winning-and-losing)
@@ -130,6 +130,7 @@ with your first idle unit (the settler) selected.
 | R / M / N | Builder: farm / mine / fishing boats |
 | C / X / Q / Y | Builder: chop the forest / cut a firebreak / douse a fire / mend the land |
 | T | Open or close research |
+| P | Open or close diplomacy |
 | H | Select your capital |
 | G | Show or hide the hex grid |
 | V | Sound: loud, soft or off (kept between games) |
@@ -739,7 +740,9 @@ city's land, scored by:
 - +2 for a resource
 - −1.5 per hex of distance
 
-Your land is always visible to you.
+Your land is always visible to you. Another civilization's land is closed
+to your units while you are at peace with them, unless your borders are
+open (see [Diplomacy](#diplomacy)).
 
 ## Builders and improvements
 
@@ -946,22 +949,176 @@ once they have Sailing. They fortify when there is nothing left to do.
 3. **Scout:** scouts explore towards the nearest unseen land.
 4. **Garrison:** go to any of their cities within 6 hexes that has no guard.
 5. **Hold:** a guard stays fortified in its city.
-6. **War:** from turn 25, once there are at least 2 more soldiers (not
-   counting scouts) than cities, march on the nearest enemy city they
-   know (or the nearest enemy unit seen), attacking on arrival.
+6. **War:** while at war with someone (see Diplomacy below), once there
+   are at least 2 more soldiers (not counting scouts) than cities, march on
+   the nearest city they know of a civilization they are at war with (or
+   the nearest such unit seen, or a beast), attacking on arrival.
 7. **Explore:** otherwise.
 
 **Ships** strike what they can beat, go home under half HP, sail on the
 nearest rival city on the water when the army marches, and otherwise chart
 the coast.
 
-The rivals fight each other as well as you.
+The rivals fight each other as well as you, when they are at war.
 
 They hunt too: a soldier of theirs goes after a beast that goes for people
 when it comes within 4 hexes of one of their cities and is not too strong
 for it (strength no more than 8 above the soldier's). Their settlers won't
 pick a site, and their builders won't pick a hex, within 2 of such a beast
 or of a den or cave.
+
+## Diplomacy
+
+`src/diplomacy.lua`; the numbers are `D.DIPLO` in `src/defs.lua`.
+
+### Meeting
+
+You meet another civilization the first time you see a unit of theirs, a
+city of theirs, or a hex of their land. Their leader sends an envoy: a
+letter (below) you may welcome (+8 regard) or send away (−12). From then
+on, the two of you are **at peace** or **at war**; a game starts with
+everyone at peace once met.
+
+### Peace, war and treaties
+
+| Stance | Attack each other | Walk each other's land | See what they see |
+| --- | --- | --- | --- |
+| At war | Yes | Yes | No |
+| At peace | No | No | No |
+| Open borders | No | Yes | No |
+| Allies | No | Yes | Yes |
+
+- At peace, the other's land is closed: your units cannot enter it, and
+  paths go round it. Units already on land that closes to them (when you
+  meet, or make peace) are moved to the nearest hex they may stand on.
+- Attacking a civilization you are at peace with asks first: **DECLARE
+  WAR?** A city's walls shoot only at those it is at war with.
+- A peace holds a **truce** of 10 turns: neither side may declare war again
+  before it is out.
+- Declaring war on someone you have open borders or an alliance with, or in
+  a truce, is **betrayal**: they remember it (−35, fading half as fast as
+  other memories), and everyone else who knows you remembers that you break
+  treaties (−10).
+- When someone declares war on your ally, the ally gets a **call to arms**.
+
+### Regard
+
+Each leader thinks of every other one from −100 to 100. Their regard is
+the sum of:
+
+| How things stand | |
+| --- | --- |
+| Their nature | Nocta −10, Tess +5 |
+| At war | −30 |
+| Allies / open borders | +20 / +5 |
+| At war with the same civilization | +15 |
+| The cataclysm foretold, and at peace | +10 |
+| Borders pressing (their hexes beside ours) | −1 a hex, −12 at most |
+| Their cities within 7 hexes of ours | −4 each, −12 at most |
+| A warlike leader, half again as strong | −15 ("they are weak") |
+
+and what they remember: welcomed envoy +8, sent away −12, gifts +0.4 a
+gold, tribute paid +10, refused −15, demands made −10, aid sent +15,
+denied −10, refugees sheltered +12, turned away −10, a call to arms
+answered +20, refused −15, soldiers withdrawn +5, a warning ignored −12,
+declared war on us −15, took our cities −25, stirred our people to revolt
+−20, an offer rebuffed −5, peace made +10. Each kind adds up to ±25 at most,
+and fades 0.5 a turn. The words: hostile (−40 or less), wary (to −10),
+neutral (to 15), friendly (to 45), devoted.
+
+### Letters
+
+Everything one civilization asks of another goes as a letter. The
+computer answers its own at once; yours wait as envelopes in a stack down
+the left of the screen, sealed in the sender's colours, a declaration of
+war with a dark flap. Hover over one to see who it is from; click to open
+it. **READ LETTER** on the big button opens one that came this turn and
+wants an answer. A letter left 5 turns takes its default answer.
+
+| Letter | From | Answers (default first marked *) |
+| --- | --- | --- |
+| An envoy arrives | Someone you have just met | Welcome*, send away |
+| War is declared | Who declared it | To arms |
+| An offer of peace | An enemy | Make peace, fight on* |
+| Open roads | A friend (regard 20+, from turn 12) | Open the borders, keep them closed* |
+| A pact of alliance | A friend with open borders (40+) | Swear the pact, decline* |
+| A demand | Nocta, half again as strong, regard under 5 | Pay, refuse* (she may make war on a refusal) |
+| A gift | A friend with gold to spare (30+) | Thank them (25 gold, already paid) |
+| A plea for aid | A friend under the cataclysm, hungry or poor | Send 30 gold, refuse* |
+| A call to arms | An ally someone has made war on | Join the war, stay out of it* |
+| Refugees at the gate | A civilization whose city sank, or starves, under the cataclysm | Take them in (+people to your nearest city), turn them away* |
+| Soldiers on our land | A neighbour with 3+ of your soldiers on its land | Withdraw them (moved off at once), we go where we please* |
+| A city wishes to join you | The people of a city with no loyalty left | Welcome them, leave them be* |
+| A city is lost | Whoever took your city by its loyalty | So be it |
+
+### The diplomacy window
+
+**P**, or **DIPLOMACY** in the top bar (lit, with a count, while letters
+wait): a row for each civilization, with its leader's seal and name, how
+you stand, their regard for you as a word, a number and a bar (hover for
+everything that makes it), their cities and might against yours, and
+what you can ask:
+
+- **Declare war** (not in a truce; asks first, and warns of betrayal)
+- **Offer peace** (at war): accepted after 5 turns of war if they are
+  not much the stronger, or think better than −30 of you, or the end is
+  foretold
+- **Open borders**: accepted at regard 5+
+- **Alliance**: with open borders, at regard 35+
+- **Gift 25**: always taken, and remembered
+- **Demand tribute**: 30% of their gold; paid if you are half again as
+  strong, and resented either way
+
+Their answer shows under the buttons. Below the rows, the last five
+letters, to read again.
+
+### How the computer's leaders decide
+
+Each turn, each leader looks at every civilization it knows:
+
+- **At war**, after 8 turns: offers peace (40% a turn, every 6 turns at
+  most) if it is the weaker, thinks better than −20 of them, or the end is
+  foretold.
+- **At peace**, from turn 20, out of truce, not allied, at war with no one
+  else, with an army: declares war at a regard of −8 or less and 1.1 times
+  as strong (Nocta, 35% a turn), −35 and 1.4 (calm, 20%), −45 and 1.7
+  (Tess, 12%); 15 lower once the end is foretold.
+- Otherwise, the first of: Nocta demands tribute; asks for open borders;
+  proposes an alliance; sends a gift; pleads for aid; complains of soldiers
+  on its land.
+
+Over all-AI games (seeds 3, 5, 8 and 21, with the heat, the deluge and no
+cataclysm) there are 1–3 wars a game, the first between turns 50 and 85,
+each ended by a peace; a city or two changes hands.
+
+## Loyalty
+
+`src/loyalty.lua`; the numbers are `D.LOYALTY`.
+
+Every city has a loyalty from 0 to 100. A new city starts at 100, a
+conquered one at 50, one that has gone over at 60. At the end of each of
+its owner's turns it moves by:
+
+| | |
+| --- | --- |
+| People within 6 hexes: each city's citizens × (1 − distance/7), ours (the city itself among them) less a foreigner's (an ally's count for nothing), × 0.5 | +3 at most, −6 at least |
+| The capital itself / within 8 hexes of it | +6 / +2 |
+| A soldier of ours in the city | +2 |
+| Conquered in the last 20 turns | −2 |
+| Hunger | −3 |
+| An enemy soldier within 2 | −2 |
+| The plague in the city | −2 |
+| After the omen: a ward / no ward | +1 / −1 |
+
+Under 50 the city is in **unrest**: a quarter less production, gold,
+science and culture. Under 25, in **uprising**: half. Its food is never
+cut. At 0 it goes over to the civilization pulling hardest on it, if one
+does: to the computer at once (the garrison going with it), to you only if
+you welcome it (a letter); left be, it settles at 30. Its old owner
+remembers who took it.
+
+The city panel shows the loyalty, a bar, how it moves a turn and why
+(hover); the city's banner shows a mark in unrest, blinking in uprising.
 
 ## The wild
 

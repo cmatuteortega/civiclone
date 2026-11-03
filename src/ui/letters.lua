@@ -74,7 +74,7 @@ local function envelope(x, y, l, hot)
     for i = 0, 7 do
         local w = W - 2 - 2 * i - 2
         if w > 0 then
-            rect(hot and "c" or "s", x + 2 + i, y + 1 + i, w, 1)
+            rect(war and (hot and "k" or "n") or (hot and "c" or "s"), x + 2 + i, y + 1 + i, w, 1)
             rect("t", x + 1 + i, y + 1 + i, 1, 1)
             rect("t", x + W - 2 - i, y + 1 + i, 1, 1)
         end
@@ -168,7 +168,7 @@ function Letters.drawStack()
         -- One that asks hops every few seconds until it is answered.
         if asks and t > 1 and (S.clock + l.id * 0.37) % 3 < 0.18 then drop = drop - 1 end
         local ey = y + drop
-        local r = { x = x, y = ey, w = Letters.W, h = Letters.H, fn = function() Letters.open(l) end, label = "" }
+        local r = { x = x, y = ey, w = Letters.W, h = Letters.H, fn = function() Letters.open(l) end, label = "envelope" }
         S.buttons[#S.buttons + 1] = r
         local hot = Draw.inside(r, S.mouse.x, S.mouse.y)
         envelope(x, ey, l, hot)
@@ -322,7 +322,7 @@ local function ask(b, a)
     Audio.play(ok and "city" or "deny")
 end
 
-local ROW = 46
+local ROW = 50
 
 local function diplomacyWindow()
     local game = g()
@@ -369,25 +369,29 @@ local function diplomacyWindow()
                     hoverTip(x + 20, yy + 9, Font.width(word) + 60, 7, regardLines(b, 1), "diplomacy")
                     local might = L("CITIES {1}  MIGHT {2}  YOURS {3}", #game:citiesOf(b), Diplo.army(game, b), Diplo.army(game, 1))
                     text("s", might, x + ww - 6 - Font.width(might), yy + 10)
-                    -- What can be asked of them.
-                    local bx = x + 22
+                    -- What can be asked of them, in a second row if it
+                    -- will not go in one.
+                    local bx, by = x + 22, yy + 19
                     for _, a in ipairs(Diplo.asks(game, 1, b)) do
                         local label = L(a.label)
                         local bw = Font.width(label) + 6
-                        if bx + bw > x + ww - 4 then break end
-                        local hot = button(label, bx, yy + 19, bw, 10, function() ask(b, a) end,
+                        if bx + bw > x + ww - 4 and bx > x + 22 then bx, by = x + 22, by + 12 end
+                        button(label, bx, by, bw, 10, function() ask(b, a) end,
                             { off = a.off, strong = a.kind == "peace" })
-                        if a.why then hoverTip(bx, yy + 19, bw, 10, { a.why }, "diplomacy") end
+                        if a.why then hoverTip(bx, by, bw, 10, { a.why }, "diplomacy") end
                         if a.kind == "tribute" and not a.off then
-                            hoverTip(bx, yy + 19, bw, 10, { L("ASK {1} GOLD OF THEM", Diplo.tributeOf(game, b)),
+                            hoverTip(bx, by, bw, 10, { L("ASK {1} GOLD OF THEM", Diplo.tributeOf(game, b)),
                                 L"THE WEAK PAY; THE STRONG REMEMBER IT" }, "diplomacy")
                         end
                         bx = bx + bw + 2
                     end
-                    -- What they said last.
+                    -- What they said last, at the end of the buttons' row
+                    -- if it fits there, else under them.
                     local said = Diplo.rel(game, 1, b).said[b]
                     if said and game.turn - said.turn <= 1 then
-                        text(said.ok and "w" or "c", '"' .. L(said.text) .. '"', x + 22, yy + 32)
+                        local q = '"' .. L(said.text) .. '"'
+                        if bx + 4 + Font.width(q) <= x + ww - 4 then text(said.ok and "w" or "c", q, bx + 4, by + 3)
+                        else text(said.ok and "w" or "c", q, x + 22, by + 13) end
                     end
                 end
                 yy = yy + ROW

@@ -175,6 +175,14 @@ function love.load(args)
         end
         -- `--at N`: the camera over hex N once the selection is made.
         if a == "--at" and S.plan then S.plan.at = tonumber(args[n + 1]) end
+        -- `--press "A|B"`: the buttons labelled A, then B, pressed a few
+        -- frames apart before the picture ("envelope" for the first
+        -- envelope; "!attack" sends a soldier of yours at a neighbour's
+        -- unit beside it), to see what a click does.
+        if a == "--press" and S.plan and args[n + 1] then
+            S.plan.press = {}
+            for label in args[n + 1]:gmatch("[^|]+") do S.plan.press[#S.plan.press + 1] = label end
+        end
         -- `--skip n`: the developer tools' skip, up to turn n, as its
         -- buttons do it.
         if a == "--skip" and S.plan then S.plan.skip = tonumber(args[n + 1]) end
@@ -1003,6 +1011,35 @@ local function followPlan()
             S.mouse.x, S.mouse.y = plan.mouse[1], plan.mouse[2]
             S.mouse.wx, S.mouse.wy = plan.mouse[1] * S.uz, plan.mouse[2] * S.uz
         end
+    end
+    if plan.press and plan.frames >= 6 and plan.frames % 4 == 2 and #plan.press > 0 then
+        local want = table.remove(plan.press, 1)
+        local done = false
+        if want == "!attack" then
+            local g = S.game
+            for _, u in ipairs(g.units) do
+                if u.owner == 1 and not u.def.civilian and not done then
+                    for _, n in ipairs(g:neighbours(g.cells[u.cell])) do
+                        local v = g.mil[n.id]
+                        if v and v.owner ~= 1 and v.owner ~= g.WILD and not done then
+                            u.moves = math.max(u.moves, 1)
+                            O.select(u)
+                            O.command(n)
+                            done = true
+                        end
+                    end
+                end
+            end
+        else
+            for k = #(S.buttons or {}), 1, -1 do
+                local b = S.buttons[k]
+                if b.fn and (b.label == L.word(want) or b.label == want) and not done then
+                    b.fn()
+                    done = true
+                end
+            end
+        end
+        print((done and "pressed " or "nothing to press: ") .. want)
     end
     if plan.frames == 3 and plan.open then
         local what, tab = plan.open:match("^(%a+):?(%a*)$")

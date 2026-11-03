@@ -121,6 +121,7 @@ function O.command(cell)
     -- Someone we are at peace with: striking them is war, so ask first
     -- (src/diplomacy.lua).
     local peace = enemy and not u.def.civilian and g:atPeaceWith(1, cell)
+    if peace and g:dist(g.cells[u.cell], cell) > (u.def.ranged and u.def.range or 1) then return false end
     if peace then
         local truce = Diplo.rel(g, 1, peace).truce
         if truce and g.turn < truce then

@@ -371,6 +371,7 @@ drawn the same way: light, dark, or dashed.
 | R / M | Builder: farm / mine |
 | C / X / Q / Y | Builder: chop / firebreak / douse / mend |
 | T, H, G, Tab | Research, go to capital, hex grid, next unit |
+| P | Diplomacy: every civilization you know, and the letters of late |
 | V | Sound: loud, soft or off |
 | Esc | Close the open window or deselect; otherwise the menu |
 | F11, Alt+Enter | Windowed or borderless fullscreen |
@@ -436,9 +437,37 @@ do: zoom in and out, next unit, go to the capital, the hex grid and sound.
   lasted: people kept, land still good, cities standing with their wards. You lose if you have no cities
   and no settler.
 
+- **Diplomacy.** You meet another civilization when you first see a unit,
+  a city or the land of theirs, and from then on you are at peace or at war.
+  At peace neither may attack the other or walk the other's land; open
+  borders let both pass, and allies also share what they see and are called
+  to each other's wars. A peace holds 10 turns. Breaking a treaty is
+  betrayal, and everyone remembers it.
+- **Letters.** What a leader asks of you comes as a letter: an envelope
+  dropped into the stack at the left, sealed in their colours. Opened, it is
+  a sheet of parchment with their words, how you stand, their signature and
+  the answers. Envoys, offers of peace, open borders and alliance, demands
+  for tribute, gifts, pleas for aid and calls to arms, refugees from the
+  cataclysm, cities wishing to join you. A letter left 5 turns takes its
+  default answer, and every answer is remembered.
+- **Loyalty.** Each city's people hold to you from 0 to 100, pulled up by
+  your people near them and down by a foreigner's cities, steadied by the
+  capital, a garrison and a ward against the end, worn by hunger, the enemy
+  at the gates, a new conquest and the dread of the end. Under 50 a city is
+  in unrest and makes a quarter less of all but food, under 25 half; at
+  nothing it goes over to whoever pulls hardest on it.
+
+![A letter: an envoy arrives](shots/68-letter.png)
+![Diplomacy](shots/69-diplomacy.png)
+
 The rivals are simple and greedy. They expand to the best free sites, build
-on their worked hexes, guard their cities and explore. From turn 25, once they
-have an army, they march on the nearest city they know.
+on their worked hexes, guard their cities and explore. Each leader keeps a
+regard for every other: what they remember of them (a gift, a refusal, a
+betrayal, each fading) and how things stand now (crowded borders, a shared
+enemy, the end coming for all). Queen Nocta despises the weak and makes war
+and demands readily; King Tess would rather build. Once at war, with an
+army, they march on the nearest enemy city they know; when the war goes
+badly, or the end is near, they offer peace.
 
 ## How it is drawn
 
@@ -516,6 +545,8 @@ in about two seconds while the title is up, so no frame waits on it.
 | `src/defs.lua` | Every number: terrain, units, buildings, techs, civilizations |
 | `src/game.lua` | The rules: movement, combat, cities, science, sight, turns |
 | `src/ai.lua` | The rival civilizations |
+| `src/diplomacy.lua` | Meeting, peace and war, treaties, regard, letters, the leaders' choices |
+| `src/loyalty.lua` | How much each city's people hold to their civilization |
 | `src/mapgen.lua` | Maps from a seed: continents, terrain, starts |
 | `src/hex.lua` | Pointy-topped odd-r hex geometry |
 | `src/rng.lua` | Dice and noise without LÖVE |
