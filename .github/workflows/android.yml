@@ -180,7 +180,7 @@ jobs:
             echo "$KEYSTORE_BASE64" | base64 --decode > "$ks"
           else
             echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: signing with a throwaway key. Players will have to uninstall before installing this APK."
-            KEYSTORE_PASSWORD=android KEY_ALIAS=sepia KEY_PASSWORD=android
+            KEYSTORE_PASSWORD=android KEY_ALIAS=hextinct KEY_PASSWORD=android
             keytool -genkeypair -keystore "$ks" -storepass android -keypass android \
               -alias hextinct -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=HEXTINCT"
           fi
